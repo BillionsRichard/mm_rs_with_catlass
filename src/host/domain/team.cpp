@@ -44,8 +44,6 @@ int ShmemTeamInit(int rank, int size)
 
     /* Initialize TEAM SYNC */
     long psyncLen = shmemMaxTeams * 1024;
-    // shmemPsyncPool = (long *)ShmemMalloc(sizeof(long) * psyncLen);
-    // shmemSyncCounter = (long *)ShmemMalloc(2 * shmemMaxTeams * sizeof(long));
 
     return 0;
 }
@@ -157,9 +155,6 @@ int ShmemTeamFinalize() {
     }
 
     free(shmemTeamPool);
-
-    // ShmemFree(shmemPsyncPool);
-    // ShmemFree(shmemSyncCounter);
     free(poolAvail);
     return 0;
 }
