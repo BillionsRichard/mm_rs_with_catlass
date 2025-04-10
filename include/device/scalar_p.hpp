@@ -1,3 +1,6 @@
+#ifndef _SHMEM_DEVICE_SCALAR_P_HPP_
+#define _SHMEM_DEVICE_SCALAR_P_HPP_
+
 #include "kernel_operator.h"
 #include "smem_shm_aicore.h"
 #include "smem_shm_aicore_common.h"
@@ -47,3 +50,5 @@ SMEM_INLINE_AICORE void ShmemP(__gm__ T* dst, const T value, int pe)
     scalarPutKernel.Init(reinterpret_cast<__gm__ T*>(dst64), value);
     scalarPutKernel.Process();
 }
+
+#endif // _SHMEM_DEVICE_SCALAR_P_HPP_
