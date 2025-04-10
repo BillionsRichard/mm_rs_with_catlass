@@ -61,13 +61,24 @@ add_executable(team_example
     ${CMAKE_CURRENT_SOURCE_DIR}/test_team/team_example.cpp
 )
 
+target_compile_options(team_example
+    PRIVATE
+    -O2 -std=c++17 -D_GLIBCXX_USE_CXX11_ABI=0 -Wall -Werror
+)
+
 target_include_directories(team_example
     PRIVATE
-    ${MPI_CXX_INCLUDE_PATH}
+    ${PROJECT_SOURCE_DIR}/3rdparty/output/include
+)
+
+target_link_directories(team_example
+    PRIVATE
+    ${PROJECT_SOURCE_DIR}/3rdparty/output
 )
 
 target_link_libraries(team_example
     PRIVATE
-    ${MPI_CXX_LIBRARIES}
     shmem
+    mf_smem
+    mf_hybrid_bmm
 )
