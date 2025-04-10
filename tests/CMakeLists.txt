@@ -18,9 +18,9 @@ include(${ASCENDC_CMAKE_DIR}/ascendc.cmake)
 ascendc_library(test_scalar_npu SHARED ${KERNEL_FILES})
 ascendc_include_directories(test_scalar_npu
     PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include/device/
-    ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/include/host/
-    ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/include/device/
+    ${PROJECT_SOURCE_DIR}/include/device/
+    ${PROJECT_SOURCE_DIR}/3rdparty/output/include/host/
+    ${PROJECT_SOURCE_DIR}/3rdparty/output/include/aicore/
 )
 
 install(TARGETS test_scalar_npu
@@ -29,26 +29,26 @@ install(TARGETS test_scalar_npu
 )
 
 #put_get接口测试
-add_executable(test_scalar
+add_executable(test_scalar_p
     ${CMAKE_CURRENT_SOURCE_DIR}/test_scalar_p/test_scalar_p_host.cpp
 )
 
-target_compile_options(test_scalar
+target_compile_options(test_scalar_p
     PRIVATE
     -O2 -std=c++17 -D_GLIBCXX_USE_CXX11_ABI=0 -Wall -Werror
 )
 
-target_include_directories(test_scalar
+target_include_directories(test_scalar_p
     PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/output/include
+    ${PROJECT_SOURCE_DIR}/3rdparty/output/include
 )
 
-target_link_directories(test_scalar
+target_link_directories(test_scalar_p
     PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/output
+    ${PROJECT_SOURCE_DIR}/3rdparty/output
 )
 
-target_link_libraries(test_scalar
+target_link_libraries(test_scalar_p
     PRIVATE
     shmem
     test_scalar_npu

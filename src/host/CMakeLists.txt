@@ -31,7 +31,6 @@ target_link_directories(shmem
     ${ASCEND_HOME_PATH}/${ARCH}-linux/lib64/
 )
 
-
 target_link_libraries(shmem
     PUBLIC
     ${MPI_CXX_LIBRARIES}

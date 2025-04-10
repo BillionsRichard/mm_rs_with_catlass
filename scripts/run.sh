@@ -12,11 +12,11 @@ RANK_SIZE="8"
 IP_PORT="tcp://127.0.0.1:8666"
 echo " ====== example run, ranksize: ${RANK_SIZE} ip: ${IP_PORT} ======"
 
-rm -f scalar_putget_kernels
-cp ./build/bin/scalar_putget_kernels ./
+rm -f test_scalar_p
+cp ./build/bin/test_scalar_p ./
 
 for (( idx = 0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
-    ./scalar_putget_kernels ${RANK_SIZE} ${idx} ${IP_PORT} &
+    ./test_scalar_p ${RANK_SIZE} ${idx} ${IP_PORT} &
 done
 
 cd ${Current_path}
