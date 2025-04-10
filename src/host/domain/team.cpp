@@ -10,48 +10,48 @@ using namespace std;
 
 #define SHMEM_MAX_TEAMS 32
 
-shmem_team shmem_team_world;
-shmem_team *shmemi_device_team_world;
-shmem_team **shmem_team_pool;
+ShmemTeam shmemTeamWorld;
+ShmemTeam *shmemiDeviceTeamWorld;
+ShmemTeam **shmemTeamPool;
 
-long *shmem_psync_pool;
-long *shmem_sync_counter;
-long *pool_avail;
+long *shmemPsyncPool;
+long *shmemSyncCounter;
+long *poolAvail;
 
-int shmem_team_init(int rank, int size)
+int ShmemTeamInit(int rank, int size)
 {
     /* Initialize SHMEM_TEAM_WORLD */
-    shmem_team_world.team_idx = 0;
-    shmem_team_world.start = 0;
-    shmem_team_world.stride = 1;
-    shmem_team_world.size = size;       // TODO state->npes
-    shmem_team_world.mype = rank;       // TODO state->mype
+    shmemTeamWorld.teamIdx = 0;
+    shmemTeamWorld.start = 0;
+    shmemTeamWorld.stride = 1;
+    shmemTeamWorld.size = size;       // TODO state->npes
+    shmemTeamWorld.mype = rank;       // TODO state->mype
 
-    int shmem_max_teams = SHMEM_MAX_TEAMS;
-    shmem_team_pool = (shmem_team **)calloc(shmem_max_teams, sizeof(shmem_team *));
-    for (int i = 0; i < shmem_max_teams; i++) {
-        shmem_team_pool[i] = nullptr;
+    int shmemMaxTeams = SHMEM_MAX_TEAMS;
+    shmemTeamPool = (ShmemTeam **)calloc(shmemMaxTeams, sizeof(ShmemTeam *));
+    for (int i = 0; i < shmemMaxTeams; i++) {
+        shmemTeamPool[i] = nullptr;
     }
-    shmem_team_pool[shmem_team_world.team_idx] = &shmem_team_world;
+    shmemTeamPool[shmemTeamWorld.teamIdx] = &shmemTeamWorld;
 
-    pool_avail = (long *)calloc(shmem_max_teams, sizeof(long));
-    pool_avail[0] = 1;
+    poolAvail = (long *)calloc(shmemMaxTeams, sizeof(long));
+    poolAvail[0] = 1;
 
     /* Initialize TEAM SYNC */
-    long psync_len = shmem_max_teams * 1024;
-    // shmem_psync_pool = (long *)shmem_malloc(sizeof(long) * psync_len);
-    // shmem_sync_counter = (long *)shmem_malloc(2 * shmem_max_teams * sizeof(long));
+    long psyncLen = shmemMaxTeams * 1024;
+    // shmemPsyncPool = (long *)ShmemMalloc(sizeof(long) * psyncLen);
+    // shmemSyncCounter = (long *)ShmemMalloc(2 * shmemMaxTeams * sizeof(long));
 
     return 1;
 }
 
 
-int first_free_idx_fetch()
+int FirstFreeIdxFetch()
 {
-    int shmem_max_teams = SHMEM_MAX_TEAMS;
-    for (int i = 0; i < shmem_max_teams; i++) {
-        if (pool_avail[i] == 0) {
-            pool_avail[i] = 1;
+    int shmemMaxTeams = SHMEM_MAX_TEAMS;
+    for (int i = 0; i < shmemMaxTeams; i++) {
+        if (poolAvail[i] == 0) {
+            poolAvail[i] = 1;
             return i;
         }
     }
@@ -59,29 +59,29 @@ int first_free_idx_fetch()
 }
 
 
-int shmem_team_split_strided(
-        shmem_team_t parent_team,
+int ShmemTeamSplitStrided(
+        ShmemTeam_t parentTeam,
         int PE_start, int PE_stride, int PE_size,
-        shmem_team_t &new_team)
+        ShmemTeam_t &newTeam)
 {
-    new_team = SHMEM_TEAM_INVALID;
+    newTeam = SHMEM_TEAM_INVALID;
 
-    shmem_team *myteam = nullptr;
-    myteam = (shmem_team *)calloc(1, sizeof(shmem_team));
+    ShmemTeam *myteam = nullptr;
+    myteam = (ShmemTeam *)calloc(1, sizeof(ShmemTeam));
 
-    shmem_team *src_team = shmem_team_pool[parent_team];
+    ShmemTeam *srcTeam = shmemTeamPool[parentTeam];
 
-    int global_pe = src_team->mype;
-    int global_PE_start = src_team->start + PE_start * src_team->stride;
-    int global_PE_stride = src_team->stride * PE_stride;
+    int global_pe = srcTeam->mype;
+    int global_PE_start = srcTeam->start + PE_start * srcTeam->stride;
+    int global_PE_stride = srcTeam->stride * PE_stride;
     int global_PE_end = global_PE_start + global_PE_stride * (PE_size - 1);
 
-    if (PE_start < 0 || PE_start >= src_team->size || PE_size <= 0 || PE_size > src_team->size || PE_stride < 1) {
+    if (PE_start < 0 || PE_start >= srcTeam->size || PE_size <= 0 || PE_size > srcTeam->size || PE_stride < 1) {
         // std::cout << "InValid team create !" << std::endl;                  // TODO LOG
         return -1;
     }
 
-    if (global_PE_start >= shmem_team_pool[0]->size || global_PE_end >= shmem_team_pool[0]->size) {
+    if (global_PE_start >= shmemTeamPool[0]->size || global_PE_end >= shmemTeamPool[0]->size) {
         // std::cout << "InValid team create !" << std::endl;                  // TODO LOG
         return -1;
     }
@@ -97,32 +97,32 @@ int shmem_team_split_strided(
     myteam->stride = global_PE_stride;
     myteam->size = PE_size;
 
-    myteam->team_idx = first_free_idx_fetch();
-    if (myteam->team_idx == -1) {
+    myteam->teamIdx = FirstFreeIdxFetch();
+    if (myteam->teamIdx == -1) {
         // std::cout << "EXCEED MAX_TEAM SIZE !!" << std::endl;                  // TODO LOG
         return -1;
     }
-    shmem_team_pool[myteam->team_idx] = myteam;
+    shmemTeamPool[myteam->teamIdx] = myteam;
 
-    new_team = myteam->team_idx;
+    newTeam = myteam->teamIdx;
     return 1;
 }
 
 
-int shmem_team_translate_pe(
-    shmem_team_t src_team, int src_pe,
-    shmem_team_t dest_team)
+int ShmemTeamTranslate_pe(
+    ShmemTeam_t srcTeam, int srcPe,
+    ShmemTeam_t destTeam)
 {
-    if (src_team == SHMEM_TEAM_INVALID || dest_team == SHMEM_TEAM_INVALID) return -1;
-    shmem_team *src_team_ptr = shmem_team_pool[src_team];
-    shmem_team *dest_team_ptr = shmem_team_pool[dest_team];
+    if (srcTeam == SHMEM_TEAM_INVALID || destTeam == SHMEM_TEAM_INVALID) return -1;
+    ShmemTeam *srcTeamPtr = shmemTeamPool[srcTeam];
+    ShmemTeam *destTeamPtr = shmemTeamPool[destTeam];
 
-    if (src_pe > src_team_ptr->size) return -1;
+    if (srcPe > srcTeamPtr->size) return -1;
 
-    int global_pe = src_team_ptr->start + src_pe * src_team_ptr->stride;
-    int PE_start = dest_team_ptr->start;
-    int PE_stride = dest_team_ptr->stride;
-    int PE_size = dest_team_ptr->size;
+    int global_pe = srcTeamPtr->start + srcPe * srcTeamPtr->stride;
+    int PE_start = destTeamPtr->start;
+    int PE_stride = destTeamPtr->stride;
+    int PE_size = destTeamPtr->size;
 
     int n = (global_pe - PE_start) / PE_stride;
     if (global_pe < PE_start || (global_pe - PE_start) % PE_stride || n >= PE_size)
@@ -132,59 +132,59 @@ int shmem_team_translate_pe(
 }
 
 
-void shmem_team_destroy(shmem_team_t team)
+void ShmemTeamDestroy(ShmemTeam_t team)
 {
     if (team == -1) {
         return;
     }
-    pool_avail[team] = 0;
-    shmem_team_pool[team] = nullptr;
+    poolAvail[team] = 0;
+    shmemTeamPool[team] = nullptr;
 
     return;
 }
 
 
-int shmem_team_finalize() {
+int ShmemTeamFinalize() {
     /* Destroy all undestroyed teams*/
-    int shmem_max_teams = SHMEM_MAX_TEAMS;
-    for (int i = 0; i < shmem_max_teams; i++) {
-        if (shmem_team_pool[i] != NULL) shmem_team_destroy((shmem_team_t)i);
+    int shmemMaxTeams = shmemMaxTeams;
+    for (int i = 0; i < shmemMaxTeams; i++) {
+        if (shmemTeamPool[i] != NULL) ShmemTeamDestroy((ShmemTeam_t)i);
     }
 
-    free(shmem_team_pool);
+    free(shmemTeamPool);
 
-    // shmem_free(shmem_psync_pool);
-    // shmem_free(shmem_sync_counter);
-    free(pool_avail);
+    // ShmemFree(shmemPsyncPool);
+    // ShmemFree(shmemSyncCounter);
+    free(poolAvail);
     return 0;
 }
 
 
-int shmem_mype()
+int ShmemMype()
 {
-    return shmem_team_pool[0]->mype;
+    return shmemTeamPool[0]->mype;
 }
 
 
-int shmem_n_pes()
+int ShmemNpes()
 {
-    return shmem_team_pool[0]->size;
+    return shmemTeamPool[0]->size;
 }
 
 
-int shmem_team_mype(shmem_team_t team)
+int ShmemTeamMype(ShmemTeam_t team)
 {
     if (team == SHMEM_TEAM_INVALID)
         return -1;
     else
-        return shmem_team_pool[team]->mype;
+        return shmemTeamPool[team]->mype;
 }
 
 
-int shmem_team_n_pes(shmem_team_t team)
+int ShmemTeamNpes(ShmemTeam_t team)
 {
     if (team == SHMEM_TEAM_INVALID)
         return -1;
     else
-        return shmem_team_pool[team]->size;
+        return shmemTeamPool[team]->size;
 }

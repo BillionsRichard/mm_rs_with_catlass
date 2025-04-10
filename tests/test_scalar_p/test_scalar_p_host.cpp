@@ -8,7 +8,7 @@ using namespace std;
 #include "smem.h"
 #include "smem_shm.h"
 
-extern void put_one_num_do(uint32_t blockDim, void* stream, uint8_t* gva, float val);
+extern void PutOneNumDo(uint32_t blockDim, void* stream, uint8_t* gva, float val);
 
 static uint32_t gNpuNum = 8;
 static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 1024;
@@ -22,7 +22,7 @@ static int32_t TestScalarPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankI
     uint32_t blockDim = 1;
 
     float value = 3.5f + (float)rankId;
-    put_one_num_do(blockDim, stream, gva, value);
+    PutOneNumDo(blockDim, stream, gva, value);
     CHECK_ACL(aclrtSynchronizeStream(stream));
     sleep(2);
 

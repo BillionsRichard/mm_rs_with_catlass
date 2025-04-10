@@ -37,7 +37,7 @@ private:
 };
 
 template <typename T>
-SMEM_INLINE_AICORE void shmem_p(__gm__ T* dst, const T value, int pe)
+SMEM_INLINE_AICORE void ShmemP(__gm__ T* dst, const T value, int pe)
 {
     ScalarPut<T> scalarPutKernel;
     // address translate

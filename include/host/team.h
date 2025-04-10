@@ -11,8 +11,8 @@ typedef struct {
     int start;          // global view, [0, npes]
     int stride;         // global view, [1, npes - 1]
     int size;           // team view
-    int team_idx;
-} shmem_team;
+    int teamIdx;
+} ShmemTeam;
 
 enum {
     SHMEM_TEAM_INVALID = -1,
@@ -20,24 +20,24 @@ enum {
     SHMEM_TEAM_WORLD_INDEX = 0
 };
 
-typedef int shmem_team_t;
+typedef int ShmemTeam_t;
 
-int shmem_team_init(int rank, int size);                    // TODO, No inputs
+int ShmemTeamInit(int rank, int size);                    // TODO, No inputs
 
-int shmem_team_finalize();
+int ShmemTeamFinalize();
 
-int shmem_team_split_strided(shmem_team_t parent_team, int PE_start, int PE_stride, int PE_size, shmem_team_t &new_team);
+int ShmemTeamSplitStrided(ShmemTeam_t parentTeam, int PE_start, int PE_stride, int PE_size, ShmemTeam_t &newTeam);
 
-int shmem_team_translate_pe(shmem_team_t src_team, int src_pe, shmem_team_t dest_team);
+int ShmemTeamTranslate_pe(ShmemTeam_t srcTeam, int srcPe, ShmemTeam_t destTeam);
 
-void shmem_team_destroy(shmem_team_t team);
+void ShmemTeamDestroy(ShmemTeam_t team);
 
-int shmem_mype();
+int ShmemMype();
 
-int shmem_n_pes();
+int ShmemNpes();
 
-int shmem_team_mype(shmem_team_t team);
+int ShmemTeamMype(ShmemTeam_t team);
 
-int shmem_team_n_pes(shmem_team_t team);
+int ShmemTeamNpes(ShmemTeam_t team);
 
 #endif

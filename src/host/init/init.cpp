@@ -11,24 +11,24 @@ using namespace std;
 #include "smem.h"
 #include "smem_shm.h"
 
-shmem_state_t *shmem_state;
+ShmemState_t *shmemState;
 
-void shmem_init(int rank, int size)
+void ShmemInit(int rank, int size)
 {
-    shmem_state = (shmem_state_t *)calloc(1, sizeof(shmem_state_t *));
+    shmemState = (ShmemState_t *)calloc(1, sizeof(ShmemState_t *));
 
     // 静态堆初始化
 
     // team能力初始化
-    shmem_team_init(rank, size);
+    ShmemTeamInit(rank, size);
 }
 
-void shmem_finalize()
+void ShmemFinalize()
 {
     // team能力析构，后初始化先析构
-    shmem_team_finalize();
+    ShmemTeamFinalize();
 
     // 静态堆析构
 
-    free(shmem_state);
+    free(shmemState);
 }

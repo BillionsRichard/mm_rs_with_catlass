@@ -17,7 +17,7 @@ public:
     }
     __aicore__ inline void Process()
     {
-        shmem_p(gvaGm, value, (rank + 1) % rankSize);
+        ShmemP(gvaGm, value, (rank + 1) % rankSize);
     }
 private:
     __gm__ float *gvaGm;
@@ -27,14 +27,14 @@ private:
     int64_t rankSize;
 };
 
-extern "C" __global__ __aicore__ void put_num_test(GM_ADDR gva, float val)
+extern "C" __global__ __aicore__ void PutNumTest(GM_ADDR gva, float val)
 {
     KernelPutNum op;
     op.Init(gva, val);
     op.Process();
 }
 
-void put_one_num_do(uint32_t blockDim, void* stream, uint8_t* gva, float val)
+void PutOneNumDo(uint32_t blockDim, void* stream, uint8_t* gva, float val)
 {
-    put_num_test<<<blockDim, nullptr, stream>>>(gva, val);
+    PutNumTest<<<blockDim, nullptr, stream>>>(gva, val);
 }

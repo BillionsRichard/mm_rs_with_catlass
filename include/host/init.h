@@ -8,12 +8,12 @@ typedef struct {
     int mype;
     int npes;
 
-}   shmem_state_t;
+}   ShmemState_t;
 
-extern shmem_state_t *shmem_state;
+extern ShmemState_t *shmemState;
 
-void shmem_init(int rank, int size);
+void ShmemInit(int rank, int size);
 
-void shmem_finalize();
+void ShmemFinalize();
 
 #endif

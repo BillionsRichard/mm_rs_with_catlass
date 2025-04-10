@@ -46,21 +46,21 @@ int main(int argc, char* argv[])
     }
     WARN_LOG("[TEST] smem_shm_create gva %p, size %lu, rankId:%d \n", gva, gNpuMallocSpace, rankId);
 
-    shmem_init(rankId, rankSize);
+    ShmemInit(rankId, rankSize);
 
     // #################### 子通信域切分测试 ############################
-    shmem_team_t team_odd, team_even;
+    ShmemTeam_t team_odd, team_even;
     int start = 1;
     int stride = 2;
     int team_size = 4;
-    shmem_team_split_strided(SHMEM_TEAM_WORLD, start, stride, team_size, team_odd);
+    ShmemTeamSplitStrided(SHMEM_TEAM_WORLD, start, stride, team_size, team_odd);
 
     // #################### host侧取值测试 ##############################
     string pFlag = "[Process " + to_string(rankId) + "] ";
-    std::cout << pFlag << "shmem_team_n_pes(team_odd): " << shmem_team_n_pes(team_odd) << std::endl;
-    std::cout << pFlag << "shmem_team_mype(team_odd): " << shmem_team_mype(team_odd) << std::endl;
-    std::cout << pFlag << "shmem_n_pes(): " << shmem_n_pes() << std::endl;
-    std::cout << pFlag << "shmem_mype(): " << shmem_mype() << std::endl;
+    std::cout << pFlag << "ShmemTeamNpes(team_odd): " << ShmemTeamNpes(team_odd) << std::endl;
+    std::cout << pFlag << "ShmemTeamMype(team_odd): " << ShmemTeamMype(team_odd) << std::endl;
+    std::cout << pFlag << "ShmemNpes(): " << ShmemNpes() << std::endl;
+    std::cout << pFlag << "ShmemMype(): " << ShmemMype() << std::endl;
 
     // 保证前序子team创建完成，有个全局数组
     // xx_Barrier(SHMEM_TEAM_WORLD);
@@ -69,19 +69,19 @@ int main(int argc, char* argv[])
     start = 0;
     stride = 2;
     team_size = 4;
-    shmem_team_split_strided(SHMEM_TEAM_WORLD, start, stride, team_size, team_even);
+    ShmemTeamSplitStrided(SHMEM_TEAM_WORLD, start, stride, team_size, team_even);
 
     // 保证子team创建完成
     // xx_Barrier(SHMEM_TEAM_WORLD);
     sleep(2);
 
-    std::cout << pFlag << "shmem_team_translate_pe(team_even, 2, SHMEM_TEAM_WORLD): " << shmem_team_translate_pe(team_even, 2, SHMEM_TEAM_WORLD) << std::endl;
+    std::cout << pFlag << "ShmemTeamTranslate_pe(team_even, 2, SHMEM_TEAM_WORLD): " << ShmemTeamTranslate_pe(team_even, 2, SHMEM_TEAM_WORLD) << std::endl;
 
     // #################### 相关资源释放 ##############################
-    shmem_team_destroy(team_odd);
-    shmem_team_destroy(team_even);
+    ShmemTeamDestroy(team_odd);
+    ShmemTeamDestroy(team_even);
 
-    shmem_finalize();
+    ShmemFinalize();
     smem_shm_destroy(handle, flags);
     CHECK_ACL(aclrtDestroyStream(stream));
     CHECK_ACL(aclrtResetDevice(deviceId));
