@@ -1,34 +1,64 @@
-#put_get接口测试
-add_executable(scalar_putget_kernels
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_scalar_get_put.cpp
+# shmem库编译-device能力
+set(RUN_MODE "npu" CACHE STRING "cpu/sim/npu")
+set(SOC_VERSION "Ascend910B3" CACHE STRING "system on chip type")
+
+# 遗留问题: 此处一定要选Debug?
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type Release/Debug (default Debug)" FORCE)
+endif()
+
+file(GLOB KERNEL_FILES
+            ${CMAKE_CURRENT_SOURCE_DIR}/test_scalar_p/test_scalar_p_kernel.cpp
 )
 
-target_compile_options(scalar_putget_kernels
+set(ASCEND_CANN_PACKAGE_PATH "${ASCEND_HOME_PATH}" CACHE STRING "ASCEND_CANN_PACKAGE_PATH")
+set(ASCENDC_CMAKE_DIR ${ASCEND_HOME_PATH}/compiler/tikcpp/ascendc_kernel_cmake)
+
+include(${ASCENDC_CMAKE_DIR}/ascendc.cmake)
+ascendc_library(test_scalar_npu SHARED ${KERNEL_FILES})
+ascendc_include_directories(test_scalar_npu
+    PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include/device/
+    ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/include/host/
+    ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/include/device/
+)
+
+install(TARGETS test_scalar_npu
+    LIBRARY DESTINATION lib
+    PUBLIC_HEADER DESTINATION include
+)
+
+#put_get接口测试
+add_executable(test_scalar
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_scalar_p/test_scalar_p_host.cpp
+)
+
+target_compile_options(test_scalar
     PRIVATE
     -O2 -std=c++17 -D_GLIBCXX_USE_CXX11_ABI=0 -Wall -Werror
 )
 
-target_include_directories(scalar_putget_kernels
+target_include_directories(test_scalar
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/output/include
 )
 
-target_link_directories(scalar_putget_kernels
+target_link_directories(test_scalar
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/output
 )
 
-target_link_libraries(scalar_putget_kernels
+target_link_libraries(test_scalar
     PRIVATE
     shmem
-    ascendc_kernels_npu
+    test_scalar_npu
     mf_smem
     mf_hybrid_bmm
 )
 
 # team能力测试
 add_executable(team_example
-    team_example.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_team/team_example.cpp
 )
 
 target_include_directories(team_example
@@ -40,5 +70,4 @@ target_link_libraries(team_example
     PRIVATE
     ${MPI_CXX_LIBRARIES}
     shmem
-    ascendc_kernels_npu
 )
