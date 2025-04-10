@@ -26,9 +26,9 @@ int ShmemTeamInit(int rank, int size);                    // TODO, No inputs
 
 int ShmemTeamFinalize();
 
-int ShmemTeamSplitStrided(ShmemTeam_t parentTeam, int PE_start, int PE_stride, int PE_size, ShmemTeam_t &newTeam);
+int ShmemTeamSplitStrided(ShmemTeam_t parentTeam, int peStart, int peStride, int peSize, ShmemTeam_t &newTeam);
 
-int ShmemTeamTranslate_pe(ShmemTeam_t srcTeam, int srcPe, ShmemTeam_t destTeam);
+int ShmemTeamTranslatePE(ShmemTeam_t srcTeam, int srcPe, ShmemTeam_t destTeam);
 
 void ShmemTeamDestroy(ShmemTeam_t team);
 

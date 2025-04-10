@@ -61,21 +61,15 @@ int main(int argc, char* argv[])
     std::cout << pFlag << "ShmemTeamMype(team_odd): " << ShmemTeamMype(team_odd) << std::endl;
     std::cout << pFlag << "ShmemNpes(): " << ShmemNpes() << std::endl;
     std::cout << pFlag << "ShmemMype(): " << ShmemMype() << std::endl;
-
-    // 保证前序子team创建完成，有个全局数组
-    // xx_Barrier(SHMEM_TEAM_WORLD);
     sleep(2);
 
     start = 0;
     stride = 2;
     team_size = 4;
     ShmemTeamSplitStrided(SHMEM_TEAM_WORLD, start, stride, team_size, team_even);
-
-    // 保证子team创建完成
-    // xx_Barrier(SHMEM_TEAM_WORLD);
     sleep(2);
 
-    std::cout << pFlag << "ShmemTeamTranslate_pe(team_even, 2, SHMEM_TEAM_WORLD): " << ShmemTeamTranslate_pe(team_even, 2, SHMEM_TEAM_WORLD) << std::endl;
+    std::cout << pFlag << "ShmemTeamTranslatePE(team_even, 2, SHMEM_TEAM_WORLD): " << ShmemTeamTranslatePE(team_even, 2, SHMEM_TEAM_WORLD) << std::endl;
 
     // #################### 相关资源释放 ##############################
     ShmemTeamDestroy(team_odd);

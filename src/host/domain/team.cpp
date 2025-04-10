@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <vector>
+#include <iostream>
 
 using namespace std;
 
@@ -29,6 +30,10 @@ int ShmemTeamInit(int rank, int size)
 
     int shmemMaxTeams = SHMEM_MAX_TEAMS;
     shmemTeamPool = (ShmemTeam **)calloc(shmemMaxTeams, sizeof(ShmemTeam *));
+    if (shmemTeamPool == nullptr) {
+        std::cout << "shmemTeamPool calloc failed!" << std::endl;
+        return 1;
+    }
     for (int i = 0; i < shmemMaxTeams; i++) {
         shmemTeamPool[i] = nullptr;
     }
@@ -42,7 +47,7 @@ int ShmemTeamInit(int rank, int size)
     // shmemPsyncPool = (long *)ShmemMalloc(sizeof(long) * psyncLen);
     // shmemSyncCounter = (long *)ShmemMalloc(2 * shmemMaxTeams * sizeof(long));
 
-    return 1;
+    return 0;
 }
 
 
@@ -61,7 +66,7 @@ int FirstFreeIdxFetch()
 
 int ShmemTeamSplitStrided(
         ShmemTeam_t parentTeam,
-        int PE_start, int PE_stride, int PE_size,
+        int peStart, int peStride, int peSize,
         ShmemTeam_t &newTeam)
 {
     newTeam = SHMEM_TEAM_INVALID;
@@ -71,35 +76,35 @@ int ShmemTeamSplitStrided(
 
     ShmemTeam *srcTeam = shmemTeamPool[parentTeam];
 
-    int global_pe = srcTeam->mype;
-    int global_PE_start = srcTeam->start + PE_start * srcTeam->stride;
-    int global_PE_stride = srcTeam->stride * PE_stride;
-    int global_PE_end = global_PE_start + global_PE_stride * (PE_size - 1);
+    int globalPE = srcTeam->mype;
+    int globalPeStart = srcTeam->start + peStart * srcTeam->stride;
+    int globalPeStride = srcTeam->stride * peStride;
+    int globalPeEnd = globalPeStart + globalPeStride * (peSize - 1);
 
-    if (PE_start < 0 || PE_start >= srcTeam->size || PE_size <= 0 || PE_size > srcTeam->size || PE_stride < 1) {
-        // std::cout << "InValid team create !" << std::endl;                  // TODO LOG
+    if (peStart < 0 || peStart >= srcTeam->size || peSize <= 0 || peSize > srcTeam->size || peStride < 1) {
+        std::cout << "InValid team create !" << std::endl;
         return -1;
     }
 
-    if (global_PE_start >= shmemTeamPool[0]->size || global_PE_end >= shmemTeamPool[0]->size) {
-        // std::cout << "InValid team create !" << std::endl;                  // TODO LOG
+    if (globalPeStart >= shmemTeamPool[0]->size || globalPeEnd >= shmemTeamPool[0]->size) {
+        std::cout << "InValid team create !" << std::endl;
         return -1;
     }
 
-    myteam->mype = (global_pe - global_PE_start) / global_PE_stride;
+    myteam->mype = (globalPE - globalPeStart) / globalPeStride;
 
-    if (global_pe < global_PE_start || (global_pe - global_PE_start)  % global_PE_stride || myteam->mype >= PE_size) {
-        // std::cout << "InValid team create !" << std::endl;                  // TODO LOG
+    if (globalPE < globalPeStart || (globalPE - globalPeStart)  % globalPeStride || myteam->mype >= peSize) {
+        std::cout << "InValid team create !" << std::endl;
         return -1;
     }
 
-    myteam->start = global_PE_start;
-    myteam->stride = global_PE_stride;
-    myteam->size = PE_size;
+    myteam->start = globalPeStart;
+    myteam->stride = globalPeStride;
+    myteam->size = peSize;
 
     myteam->teamIdx = FirstFreeIdxFetch();
     if (myteam->teamIdx == -1) {
-        // std::cout << "EXCEED MAX_TEAM SIZE !!" << std::endl;                  // TODO LOG
+        std::cout << "EXCEED MAX_TEAM SIZE !!" << std::endl;
         return -1;
     }
     shmemTeamPool[myteam->teamIdx] = myteam;
@@ -109,7 +114,7 @@ int ShmemTeamSplitStrided(
 }
 
 
-int ShmemTeamTranslate_pe(
+int ShmemTeamTranslatePE(
     ShmemTeam_t srcTeam, int srcPe,
     ShmemTeam_t destTeam)
 {
@@ -119,13 +124,13 @@ int ShmemTeamTranslate_pe(
 
     if (srcPe > srcTeamPtr->size) return -1;
 
-    int global_pe = srcTeamPtr->start + srcPe * srcTeamPtr->stride;
-    int PE_start = destTeamPtr->start;
-    int PE_stride = destTeamPtr->stride;
-    int PE_size = destTeamPtr->size;
+    int globalPE = srcTeamPtr->start + srcPe * srcTeamPtr->stride;
+    int peStart = destTeamPtr->start;
+    int peStride = destTeamPtr->stride;
+    int peSize = destTeamPtr->size;
 
-    int n = (global_pe - PE_start) / PE_stride;
-    if (global_pe < PE_start || (global_pe - PE_start) % PE_stride || n >= PE_size)
+    int n = (globalPE - peStart) / peStride;
+    if (globalPE < peStart || (globalPE - peStart) % peStride || n >= peSize)
         return -1;
     
     return n;
