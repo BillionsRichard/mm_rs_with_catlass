@@ -27,9 +27,6 @@ ENDIF ()
 
 set(ASCEND_DRIVER_PATH /usr/local/Ascend/driver)
 
-# 自动查找MPI配置
-find_package(MPI REQUIRED)
-
 # 添加子目录
 add_subdirectory(src/host)
 add_subdirectory(src/device)

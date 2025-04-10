@@ -1,7 +1,10 @@
 #!/bin/bash
-Current_path=$(pwd)
-cd ..
+CURRENT_DIR=$(pwd)
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+PROJECT_ROOT=$(dirname "$SCRIPT_DIR")
+cd ${PROJECT_ROOT}
 
+set -e
 rm -rf test_scalar_p
 cp ./build/bin/test_scalar_p ./
 
@@ -17,4 +20,4 @@ for (( idx = 0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
     # ./team_example ${RANK_SIZE} ${idx} ${IP_PORT} &
 done
 
-cd ${Current_path}
+cd ${CURRENT_DIR}

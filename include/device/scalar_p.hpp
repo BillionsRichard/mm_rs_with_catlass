@@ -22,9 +22,11 @@ public:
 
         *addrGm = inValue;
 
-        __asm__ __volatile__("");
-        dcci(static_cast<__gm__ void *>(addrGm), static_cast<uint64_t>(SINGLE_CACHE_LINE), static_cast<uint64_t>(CACHELINE_OUT));
-        __asm__ __volatile__("");
+        AscendC::GlobalTensor<uint64_t> global;
+        global.SetGlobalBuffer((__gm__ uint64_t*)addrGm);
+
+        // 首地址64B对齐，调用DataCacheCleanAndInvalid指令后，会立刻刷新前8个数
+        AscendC::DataCacheCleanAndInvalid<uint64_t, AscendC::CacheLine::SINGLE_CACHE_LINE, AscendC::DcciDst::CACHELINE_OUT>(global);
     }
 private:
     __gm__ T* addrGm = nullptr;

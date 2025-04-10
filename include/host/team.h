@@ -5,10 +5,6 @@
 #include <cstdlib>
 #include <cstdbool>
 #include <acl/acl.h>
-#include <vector>
-#include <memory>
-#include <mutex>
-#include <mpi.h>
 
 typedef struct {
     int mype;           // team view, [0, size]
