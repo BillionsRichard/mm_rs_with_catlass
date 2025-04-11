@@ -4,6 +4,7 @@
 #include <vector>
 #include "stdint.h"
 #include "limits.h"
+#include "team.h"
 #include "host/smem_shm.h"
 
 #define STATE_SCALAR_INVALID -1
@@ -48,13 +49,6 @@ typedef struct {
 typedef ShmemInitAttr ShmemInitAttrT;
 extern ShmemInitAttrT shmemInitAttr;
 
-
-// team
-typedef struct {
-    int version;
-} ShmemTeam;
-typedef ShmemTeam ShmemTeamT;
-
 // state
 typedef struct {
     int version;
@@ -64,7 +58,7 @@ typedef struct {
     void *p2pHeapBase[SHM_MAX_RANKS];
     size_t heapSize;
 
-    ShmemTeamT *teamPools[SHM_MAX_TEAMS];
+    ShmemTeam *teamPools[SHM_MAX_TEAMS];
     long *psyncPool;
     long *syncCounter;
 
