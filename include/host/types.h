@@ -5,7 +5,8 @@
 #include "stdint.h"
 #include "limits.h"
 #include "team.h"
-#include "host/smem_shm.h"
+#include "smem.h"
+#include "smem_shm.h"
 
 #define STATE_SCALAR_INVALID -1
 #define SHM_MAX_RANKS 2000
@@ -42,11 +43,10 @@ typedef struct {
     int localMemSize;
     smem_shm_data_op_type dataOpType;
     int timeout;
-    int globalSize;
     int extraSize;
+    int globalSize;
 } ShmemInitAttr;
 typedef ShmemInitAttr ShmemInitAttrT;
-extern ShmemInitAttrT shmemInitAttr;
 
 // state
 typedef struct {
