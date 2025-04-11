@@ -40,11 +40,11 @@ typedef struct {
     int myRank;
     int nRanks;
     int deviceId;
-    int localMemSize;
+    uint64_t localMemSize;
     smem_shm_data_op_type dataOpType;
     int timeout;
-    int extraSize;
-    int globalSize;
+    uint64_t extraSize;
+    uint64_t globalSize;
 } ShmemInitAttr;
 typedef ShmemInitAttr ShmemInitAttrT;
 
