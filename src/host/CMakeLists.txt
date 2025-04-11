@@ -15,7 +15,7 @@ target_include_directories(shmem
     ${MPI_CXX_INCLUDE_PATH}
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/host/>
     $<INSTALL_INTERFACE:include>
-    ${PROJECT_SOURCE_DIR}/3rdparty/output/include/host/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/host/
     ${ASCEND_DRIVER_PATH}/kernel/inc
     ${ASCEND_HOME_PATH}/${ARCH}-linux/include/
     ${ASCEND_HOME_PATH}/${ARCH}-linux/include/hccl/
@@ -27,7 +27,7 @@ target_include_directories(shmem
 target_link_directories(shmem
     PUBLIC
     ${ASCEND_DRIVER_PATH}/lib64/driver
-    ${PROJECT_SOURCE_DIR}/3rdparty/output/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/
     ${ASCEND_HOME_PATH}/${ARCH}-linux/lib64/
 )
 

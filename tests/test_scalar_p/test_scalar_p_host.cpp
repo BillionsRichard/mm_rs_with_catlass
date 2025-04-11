@@ -60,7 +60,8 @@ int main(int argc, char* argv[])
     }
     uint32_t flags = 0;
     void *gva = nullptr;
-    smem_shm_t handle = smem_shm_create(0, ipport.c_str(), rankSize, rankId, deviceId, gNpuMallocSpace, SMEMS_DATA_OP_MTE, flags, &gva);
+    int timeout = 10;
+    smem_shm_t handle = smem_shm_create(0, ipport.c_str(), rankSize, rankId, deviceId, gNpuMallocSpace, SMEMS_DATA_OP_MTE, timeout, flags, &gva);
     if (handle == nullptr || gva == nullptr) {
         ERROR_LOG("[TEST] smem_shm_create failed, rankId:%d \n", rankId);
         return -1;
