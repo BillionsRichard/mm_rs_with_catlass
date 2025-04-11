@@ -27,7 +27,7 @@ target_include_directories(shmem
 target_link_directories(shmem
     PUBLIC
     ${ASCEND_DRIVER_PATH}/lib64/driver
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/lib
     ${ASCEND_HOME_PATH}/${ARCH}-linux/lib64/
 )
 

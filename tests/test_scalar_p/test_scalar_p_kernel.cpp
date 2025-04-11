@@ -12,7 +12,7 @@ public:
         value = val;
 
         rank = smem_shm_get_global_rank();
-        rankSize = smem_shm_getglobal_rank_size();
+        rankSize = smem_shm_get_global_rank_size();
     }
     __aicore__ inline void Process()
     {
