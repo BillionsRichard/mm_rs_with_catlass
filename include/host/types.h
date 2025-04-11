@@ -8,7 +8,6 @@
 #include "host/smem_shm.h"
 
 #define STATE_SCALAR_INVALID -1
-#define STATE_SCALAR_INVALID -1
 #define SHM_MAX_RANKS 2000
 #define SHM_MAX_TEAMS 32
 
