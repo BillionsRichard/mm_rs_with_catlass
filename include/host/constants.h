@@ -2,7 +2,7 @@
 #define _SHMEM_CONSTANTS_H
 #include <limits.h>
 
-enum ErrorType : int {
+enum Status : int {
     SHMEM_SUCCESS = 0,
     ERROR_INVALID_PARAM,
     ERROR_INVALID_VALUE,
