@@ -2,18 +2,29 @@
 #define _SHMEM_INIT_H
 
 #include "team.h"
+#include "types.h"
 
-typedef struct {
-    /* PE State*/
-    int mype;
-    int npes;
+int VersionCompatible();
 
-}   ShmemState_t;
+int ShmemOptionsInit();
 
-extern ShmemState_t *shmemState;
+ShmemInitAttr CreateAttributes(int id, const char* ipPort, int myRank, int nRanks, int deviceId,
+                                uint64_t localMemSize =2097152, uint64_t extraSize = 0, 
+                                smem_shm_data_op_type dataOpType = SMEMS_DATA_OP_MTE,
+                                int timeout = 30);
 
-void ShmemInit(int rank, int size);
+int ShmemStateInit(ShmemInitAttrT *attributes);
 
-void ShmemFinalize();
+int SmemHeapInit(uint32_t flag, ShmemInitAttrT *attributes, smem_shm_t &handle);
+
+int UpdateDeviceState(smem_shm_t handle);
+
+int ShmemTeamInit(smem_shm_t handle, uint32_t flag, ShmemInitAttrT *attributes);
+
+int ShmemHostInitAttr(uint32_t flag, ShmemInitAttrT *attributes);
+
+int ShmemSetConfig();
+
+ShmemInitAttr CreateAttributes();
 
 #endif

@@ -19,8 +19,8 @@ ascendc_library(test_scalar_npu SHARED ${KERNEL_FILES})
 ascendc_include_directories(test_scalar_npu
     PUBLIC
     ${PROJECT_SOURCE_DIR}/include/device/
-    ${PROJECT_SOURCE_DIR}/3rdparty/output/include/host/
-    ${PROJECT_SOURCE_DIR}/3rdparty/output/include/aicore/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/host/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/aicore/
 )
 
 install(TARGETS test_scalar_npu
@@ -40,12 +40,12 @@ target_compile_options(test_scalar_p
 
 target_include_directories(test_scalar_p
     PRIVATE
-    ${PROJECT_SOURCE_DIR}/3rdparty/output/include
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include
 )
 
 target_link_directories(test_scalar_p
     PRIVATE
-    ${PROJECT_SOURCE_DIR}/3rdparty/output
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/lib
 )
 
 target_link_libraries(test_scalar_p
@@ -68,12 +68,12 @@ target_compile_options(team_example
 
 target_include_directories(team_example
     PRIVATE
-    ${PROJECT_SOURCE_DIR}/3rdparty/output/include
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include
 )
 
 target_link_directories(team_example
     PRIVATE
-    ${PROJECT_SOURCE_DIR}/3rdparty/output
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid
 )
 
 target_link_libraries(team_example
