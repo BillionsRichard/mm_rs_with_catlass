@@ -1,7 +1,7 @@
 #include "kernel_operator.h"
 #include "low_level_api/smem_shm_aicore_base_api.h"
 
-#include "scalar_p.hpp"
+#include "shmem_device_api.hpp"
 
 class KernelPutNum {
 public:

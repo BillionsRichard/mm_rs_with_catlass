@@ -7,8 +7,8 @@ int ShmemInitStatus();
 
 int ShmemInit(int rank, int size);
 
-int ShmemInit(uint32_t flag, ShmemInitAttrT *attributes, smem_shm_t &handle);
+int ShmemInit(uint32_t flag, ShmemInitAttrT *attributes);
 
-int ShmemFinalize(smem_shm_t handle, uint32_t flag);
+int ShmemFinalize(uint32_t flag);
 
 #endif
