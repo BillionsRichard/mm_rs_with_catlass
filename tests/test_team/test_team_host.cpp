@@ -6,13 +6,33 @@ using namespace std;
 #include <acl/acl.h>
 #include "data_utils.h"
 
-#include "smem.h"
-#include "smem_shm.h"
-
-#include "init.h"
+#include "shmem_api.h"
 
 static uint32_t gNpuNum = 8;
 static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 1024;
+
+extern void GetDeviceState(uint32_t blockDim, void* stream, uint8_t* gva, ShmemTeam_t teamId);
+
+static int32_t TestGetDeviceState(aclrtStream stream, uint8_t *gva, uint32_t rankId, uint32_t rankSize, ShmemTeam_t teamId)
+{
+    int *yHost;
+    size_t inputSize = 1024 * sizeof(int);
+    CHECK_ACL(aclrtMallocHost((void **)(&yHost), inputSize));       // size = 1024
+
+    uint32_t blockDim = 1;
+
+    GetDeviceState(blockDim, stream, gva, teamId);
+    CHECK_ACL(aclrtSynchronizeStream(stream));
+    sleep(2);
+
+    CHECK_ACL(aclrtMemcpy(yHost, 5 * sizeof(int), gva + rankId * gNpuMallocSpace, 5 * sizeof(int), ACL_MEMCPY_DEVICE_TO_HOST));
+
+    string pName = "[Process " + to_string(rankId) + "] ";
+    std::cout << pName << "-----[PUT]------" << yHost[0] << " ---- " << yHost[1] << " ---- " << yHost[2] << " ---- " << yHost[3] << " ---- " << yHost[4] << std::endl;
+    
+    CHECK_ACL(aclrtFreeHost(yHost));
+    return 0;
+}
 
 int main(int argc, char* argv[]) 
 {
@@ -31,25 +51,12 @@ int main(int argc, char* argv[])
     CHECK_ACL(aclrtSetDevice(deviceId));
     aclrtStream stream = nullptr;
     CHECK_ACL(aclrtCreateStream(&stream));
-
-    auto ret = smem_init(gNpuMallocSpace * rankSize, 0);
-    if (ret != 0) {
-        ERROR_LOG("[TEST] shm init failed, ret:%d, rankId:%d \n", ret, rankId);
-        return -1;
-    }
     uint32_t flags = 0;
-    void *gva = nullptr;
-    smem_shm_t handle = smem_shm_create(0, ipport.c_str(), rankSize, rankId, deviceId, gNpuMallocSpace, SMEMS_DATA_OP_MTE, flags, &gva);
-    if (handle == nullptr || gva == nullptr) {
-        ERROR_LOG("[TEST] smem_shm_create failed, rankId:%d \n", rankId);
-        return -1;
-    }
-    WARN_LOG("[TEST] smem_shm_create gva %p, size %lu, rankId:%d \n", gva, gNpuMallocSpace, rankId);
+    ShmemInitAttr shmemInitAttr = CreateAttributes(0, ipport.c_str(), rankId, rankSize, deviceId, gNpuMallocSpace);
 
-    ShmemInit(rankId, rankSize);
-
+    ShmemInit(flags, &shmemInitAttr);
     // #################### 子通信域切分测试 ############################
-    ShmemTeam_t team_odd, team_even;
+    ShmemTeam_t team_odd;
     int start = 1;
     int stride = 2;
     int team_size = 4;
@@ -61,28 +68,17 @@ int main(int argc, char* argv[])
     std::cout << pFlag << "ShmemTeamMype(team_odd): " << ShmemTeamMype(team_odd) << std::endl;
     std::cout << pFlag << "ShmemNpes(): " << ShmemNpes() << std::endl;
     std::cout << pFlag << "ShmemMype(): " << ShmemMype() << std::endl;
-
-    // 保证前序子team创建完成，有个全局数组
-    // xx_Barrier(SHMEM_TEAM_WORLD);
     sleep(2);
 
-    start = 0;
-    stride = 2;
-    team_size = 4;
-    ShmemTeamSplitStrided(SHMEM_TEAM_WORLD, start, stride, team_size, team_even);
+    // #################### device代码测试 ##############################
 
-    // 保证子team创建完成
-    // xx_Barrier(SHMEM_TEAM_WORLD);
-    sleep(2);
+    TestGetDeviceState(stream, (uint8_t *)shmemDeviceHostState.heapBase, rankId, rankSize, team_odd);
 
-    std::cout << pFlag << "ShmemTeamTranslate_pe(team_even, 2, SHMEM_TEAM_WORLD): " << ShmemTeamTranslate_pe(team_even, 2, SHMEM_TEAM_WORLD) << std::endl;
-
-    // #################### 相关资源释放 ##############################
+    // #################### 相关资源释放 ################################
     ShmemTeamDestroy(team_odd);
-    ShmemTeamDestroy(team_even);
 
-    ShmemFinalize();
-    smem_shm_destroy(handle, flags);
+    std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
+    ShmemFinalize(flags);
     CHECK_ACL(aclrtDestroyStream(stream));
     CHECK_ACL(aclrtResetDevice(deviceId));
     CHECK_ACL(aclFinalize());

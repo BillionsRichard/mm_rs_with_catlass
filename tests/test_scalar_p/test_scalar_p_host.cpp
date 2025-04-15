@@ -5,8 +5,7 @@ using namespace std;
 #include "acl/acl.h"
 #include "data_utils.h"
 
-#include "smem.h"
-#include "smem_shm.h"
+#include "shmem_api.h"
 
 extern void PutOneNumDo(uint32_t blockDim, void* stream, uint8_t* gva, float val);
 
@@ -51,27 +50,16 @@ int main(int argc, char* argv[])
     int32_t deviceId = rankId % gNpuNum;
     CHECK_ACL(aclrtSetDevice(deviceId));
     aclrtStream stream = nullptr;
+
     CHECK_ACL(aclrtCreateStream(&stream));
-
-    auto ret = smem_init(gNpuMallocSpace * rankSize, 0);
-    if (ret != 0) {
-        ERROR_LOG("[TEST] shm init failed, ret:%d, rankId:%d \n", ret, rankId);
-        return -1;
-    }
     uint32_t flags = 0;
-    void *gva = nullptr;
-    smem_shm_t handle = smem_shm_create(0, ipport.c_str(), rankSize, rankId, deviceId, gNpuMallocSpace, SMEMS_DATA_OP_MTE, flags, &gva);
-    if (handle == nullptr || gva == nullptr) {
-        ERROR_LOG("[TEST] smem_shm_create failed, rankId:%d \n", rankId);
-        return -1;
-    }
-    WARN_LOG("[TEST] smem_shm_create gva %p, size %lu, rankId:%d \n", gva, gNpuMallocSpace, rankId);
+    ShmemInitAttr shmemInitAttr = CreateAttributes(0, ipport.c_str(), rankId, rankSize, deviceId, gNpuMallocSpace);
+    ShmemInit(flags, &shmemInitAttr);
 
-    TestScalarPutGet(stream, (uint8_t *)gva, rankId, rankSize);
+    TestScalarPutGet(stream, (uint8_t *)shmemDeviceHostState.heapBase, rankId, rankSize);
 
     std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
-    smem_shm_destroy(handle, flags);
-
+    ShmemFinalize(flags);
     CHECK_ACL(aclrtDestroyStream(stream));
     CHECK_ACL(aclrtResetDevice(deviceId));
     CHECK_ACL(aclFinalize());

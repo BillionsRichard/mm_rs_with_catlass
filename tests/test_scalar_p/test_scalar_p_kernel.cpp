@@ -1,8 +1,7 @@
 #include "kernel_operator.h"
-#include "smem_shm_aicore.h"
-#include "smem_shm_aicore_common.h"
+#include "low_level_api/smem_shm_aicore_base_api.h"
 
-#include "scalar_p.hpp"
+#include "shmem_device_api.h"
 
 class KernelPutNum {
 public:
@@ -12,8 +11,8 @@ public:
         gvaGm = (__gm__ float *)gva;
         value = val;
 
-        rank = SMEM_GET_LOCAL_RANK();
-        rankSize = SMEM_GET_RANK_SIZE();
+        rank = smem_shm_get_global_rank();
+        rankSize = smem_shm_get_global_rank_size();
     }
     __aicore__ inline void Process()
     {
