@@ -4,20 +4,20 @@
 #include "kernel_operator.h"
 #include "low_level_api/smem_shm_aicore_base_api.h"
 
-#include "shmem_device_api.hpp"
+#include "shmem_device_api.h"
 
 __aicore__ inline int ShmemMype(void)
 {
     __gm__ void* addrGM = smem_shm_get_extra_context_addr();
     __gm__ ShmemDeviceHostState *deviceState = (__gm__ ShmemDeviceHostState *)addrGM;
-    return deviceState->teamPools[0]->mype;
+    return deviceState->teamPools[SHMEM_TEAM_WORLD]->mype;
 }
 
 __aicore__ inline int ShmemNpes(void)
 {
     __gm__ void* addrGM = smem_shm_get_extra_context_addr();
     __gm__ ShmemDeviceHostState *deviceState = (__gm__ ShmemDeviceHostState *)addrGM;
-    return deviceState->teamPools[0]->size;
+    return deviceState->teamPools[SHMEM_TEAM_WORLD]->size;
 }
 
 __aicore__ inline int ShmemTeamMype(ShmemTeam_t team)

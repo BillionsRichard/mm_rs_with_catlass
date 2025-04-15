@@ -21,6 +21,7 @@ ascendc_include_directories(test_scalar_npu
     PUBLIC
     ${PROJECT_SOURCE_DIR}/include/host/
     ${PROJECT_SOURCE_DIR}/include/device/
+    ${PROJECT_SOURCE_DIR}/include/host_device/
     ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/host/
     ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/aicore/
 )
