@@ -51,8 +51,8 @@ int main(int argc, char* argv[])
     CHECK_ACL(aclrtSetDevice(deviceId));
     aclrtStream stream = nullptr;
     CHECK_ACL(aclrtCreateStream(&stream));
-    
-    uShmemInit(rankId, rankSize, gNpuMallocSpace);
+
+    ShmemInit(rankId, rankSize, gNpuMallocSpace);
     // #################### 子通信域切分测试 ############################
     ShmemTeam_t team_odd;
     int start = 1;

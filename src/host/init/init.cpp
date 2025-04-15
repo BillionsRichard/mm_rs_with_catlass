@@ -63,14 +63,14 @@ int ShmemStateInitAttr(ShmemInitAttrT *attributes){
 int SmemHeapInit(ShmemInitAttrT *attributes){
     void *gva;
     int status = SHMEM_SUCCESS;
-    status = smem_init(attributes->globalSize + (attributes->extraSize * attributes->nRanks), shmemCommAttr.flag);
+    status = smem_init(shmemCommAttr.globalSize, shmemCommAttr.flag);
     if (status != SHMEM_SUCCESS) {
         ERROR_LOG("smem_init Failed");
         return ERROR_SMEM_ERROR;
     }
-    handle = smem_shm_create(attributes->id, attributes->ipPort, attributes->nRanks, attributes->myRank,
-                                attributes->deviceId, attributes->localMemSize + attributes->extraSize, attributes->dataOpType, 
-                                attributes->timeout, shmemCommAttr.flag, &gva);
+    handle = smem_shm_create(shmemCommAttr.id, shmemCommAttr.ipPort, attributes->nRanks, attributes->myRank,
+                                shmemCommAttr.deviceId, attributes->localMemSize + shmemCommAttr.extraSize, shmemCommAttr.dataOpType, 
+                                shmemCommAttr.timeout, shmemCommAttr.flag, &gva);
     if (handle == nullptr || gva == nullptr) {
         ERROR_LOG("smem_shm_create Failed");
         return ERROR_SMEM_ERROR;
