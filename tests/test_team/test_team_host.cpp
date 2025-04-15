@@ -51,10 +51,8 @@ int main(int argc, char* argv[])
     CHECK_ACL(aclrtSetDevice(deviceId));
     aclrtStream stream = nullptr;
     CHECK_ACL(aclrtCreateStream(&stream));
-    uint32_t flags = 0;
-    ShmemInitAttr shmemInitAttr = CreateAttributes(0, ipport.c_str(), rankId, rankSize, deviceId, gNpuMallocSpace);
-
-    ShmemInit(flags, &shmemInitAttr);
+    
+    uShmemInit(rankId, rankSize, gNpuMallocSpace);
     // #################### 子通信域切分测试 ############################
     ShmemTeam_t team_odd;
     int start = 1;
@@ -78,7 +76,7 @@ int main(int argc, char* argv[])
     ShmemTeamDestroy(team_odd);
 
     std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
-    ShmemFinalize(flags);
+    ShmemFinalize();
     CHECK_ACL(aclrtDestroyStream(stream));
     CHECK_ACL(aclrtResetDevice(deviceId));
     CHECK_ACL(aclFinalize());
