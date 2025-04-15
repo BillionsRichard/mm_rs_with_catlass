@@ -15,11 +15,11 @@ ShmemInitAttr CreateAttributes(int id, const char* ipPort, int myRank, int nRank
 
 int ShmemStateInit(ShmemInitAttrT *attributes);
 
-int SmemHeapInit(uint32_t flag, ShmemInitAttrT *attributes, smem_shm_t &handle);
+int SmemHeapInit(uint32_t flag, ShmemInitAttrT *attributes);
 
-int UpdateDeviceState(smem_shm_t handle);
+int UpdateDeviceState();
 
-int ShmemTeamInit(smem_shm_t handle, uint32_t flag, ShmemInitAttrT *attributes);
+int ShmemTeamInit(uint32_t flag, ShmemInitAttrT *attributes);
 
 int ShmemHostInitAttr(uint32_t flag, ShmemInitAttrT *attributes);
 

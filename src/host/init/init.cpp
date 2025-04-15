@@ -11,7 +11,7 @@ using namespace std;
 #include "shmem_api.h"
 #include "data_utils.h"
 
-
+smem_shm_t handle = nullptr;
 ShmemDeviceHostStateT shmemDeviceHostState;
 
 ShmemInitAttr CreateAttributes(int id, const char* ipPort, int myRank, int nRanks, int deviceId,
@@ -59,7 +59,7 @@ int ShmemStateInitAttr(ShmemInitAttrT *attributes){
     return status;
 }
 
-int SmemHeapInit(uint32_t flag, ShmemInitAttrT *attributes ,smem_shm_t &handle){
+int SmemHeapInit(uint32_t flag, ShmemInitAttrT *attributes){
     void *gva;
     int status = SHMEM_SUCCESS;
     status = smem_init(attributes->globalSize + (attributes->extraSize * attributes->nRanks), flag);
@@ -77,13 +77,13 @@ int SmemHeapInit(uint32_t flag, ShmemInitAttrT *attributes ,smem_shm_t &handle){
     return status;
 }
 
-int UpdateDeviceState(smem_shm_t handle){
+int UpdateDeviceState(){
     int status = SHMEM_SUCCESS;
     status = smem_shm_set_extra_context(handle, (void *)&shmemDeviceHostState, sizeof(ShmemDeviceHostStateT));
     return status;
 }
 
-int ShmemHostInitAttr(uint32_t flag, ShmemInitAttrT *attributes, smem_shm_t &handle){
+int ShmemHostInitAttr(uint32_t flag, ShmemInitAttrT *attributes){
     int status = SHMEM_SUCCESS;
     status = VersionCompatible();
     status = ShmemOptionsInit();
@@ -92,18 +92,18 @@ int ShmemHostInitAttr(uint32_t flag, ShmemInitAttrT *attributes, smem_shm_t &han
     if (attributes != NULL){
         status = ShmemStateInitAttr(attributes);
     }
-    status = SmemHeapInit(flag, attributes, handle);
+    status = SmemHeapInit(flag, attributes);
     if (!shmemDeviceHostState.shemeIsShmemCreated){
         ERROR_LOG("Failed to initialize the share memory heap");
         return status;
     }
-    status = UpdateDeviceState(handle);
+    status = UpdateDeviceState();
     status = ShmemTeamInit(attributes->myRank, attributes->nRanks);
     if (status != SHMEM_SUCCESS) {
         ERROR_LOG("Failed to initialize the team");
         return status;
     }
-    status = UpdateDeviceState(handle);
+    status = UpdateDeviceState();
     shmemDeviceHostState.shemeIsShmemInitialized = true;
     return status;
 }
@@ -113,17 +113,17 @@ int ShmemInit(int rank, int size) {
     return status;
 }
 
-int ShmemInit(uint32_t flag, ShmemInitAttrT *attributes, smem_shm_t &handle){
+int ShmemInit(uint32_t flag, ShmemInitAttrT *attributes){
     int status = SHMEM_SUCCESS;
     if (attributes == NULL) {
         ERROR_LOG("Empty attr is not currently supported");
         return ERROR_INVALID_PARAM;
     }
-    status = ShmemHostInitAttr(flag, attributes, handle);
+    status = ShmemHostInitAttr(flag, attributes);
     return status;
 }
 
-int ShmemFinalize(smem_shm_t handle, uint32_t flag){
+int ShmemFinalize(uint32_t flag){
     int status = SHMEM_SUCCESS;
     ShmemTeamFinalize();
     status = smem_shm_destroy(handle, flag);

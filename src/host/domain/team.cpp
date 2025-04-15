@@ -7,9 +7,13 @@
 
 using namespace std;
 
+#include "init.h"
 #include "team.h"
 
 #define SHMEM_MAX_TEAMS 32
+
+extern smem_shm_t handle;
+extern ShmemDeviceHostStateT shmemDeviceHostState;
 
 ShmemTeam shmemTeamWorld;
 ShmemTeam *shmemiDeviceTeamWorld;
@@ -18,6 +22,23 @@ ShmemTeam **shmemTeamPool;
 long *shmemPsyncPool;
 long *shmemSyncCounter;
 long *poolAvail;
+
+void DeviceTeamUpdate(int teamIdx, ShmemTeam *hostTeamPtr)
+{
+    // devicePtr Malloc
+    void* teamPtr = NULL;
+    aclrtMalloc(&teamPtr, sizeof(ShmemTeam), ACL_MEM_MALLOC_NORMAL_ONLY);
+    aclrtMemcpy((ShmemTeam *)teamPtr, sizeof(ShmemTeam), hostTeamPtr, sizeof(ShmemTeam), ACL_MEMCPY_HOST_TO_DEVICE);
+    shmemDeviceHostState.teamPools[teamIdx] = (ShmemTeam *)teamPtr;
+}
+
+void DeviceTeamDestroy(int teamIdx)
+{
+    // devicePtr Free
+    ShmemTeam *deviceTeamPtr = shmemDeviceHostState.teamPools[teamIdx];
+    aclrtFree((void *)deviceTeamPtr);
+    shmemDeviceHostState.teamPools[teamIdx] = nullptr;
+}
 
 int ShmemTeamInit(int rank, int size)
 {
@@ -38,6 +59,7 @@ int ShmemTeamInit(int rank, int size)
         shmemTeamPool[i] = nullptr;
     }
     shmemTeamPool[shmemTeamWorld.teamIdx] = &shmemTeamWorld;
+    DeviceTeamUpdate(shmemTeamWorld.teamIdx, &shmemTeamWorld);
 
     poolAvail = (long *)calloc(shmemMaxTeams, sizeof(long));
     poolAvail[0] = 1;
@@ -106,6 +128,8 @@ int ShmemTeamSplitStrided(
         return -1;
     }
     shmemTeamPool[myteam->teamIdx] = myteam;
+    DeviceTeamUpdate(myteam->teamIdx, myteam);
+    UpdateDeviceState();
 
     newTeam = myteam->teamIdx;
     return 1;
@@ -142,6 +166,7 @@ void ShmemTeamDestroy(ShmemTeam_t team)
     }
     poolAvail[team] = 0;
     shmemTeamPool[team] = nullptr;
+    DeviceTeamDestroy(team);
 
     return;
 }

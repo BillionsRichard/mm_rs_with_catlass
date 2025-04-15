@@ -12,9 +12,12 @@ target_sources(shmem PRIVATE ${SHMEM_HOST_SOURCES})
 
 target_include_directories(shmem
     PUBLIC
-    ${MPI_CXX_INCLUDE_PATH}
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/host/>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/host_device/>
     $<INSTALL_INTERFACE:include>
+    $<INSTALL_INTERFACE:include/host>
+    $<INSTALL_INTERFACE:include/host_device>
     ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/host/
     ${ASCEND_DRIVER_PATH}/kernel/inc
     ${ASCEND_HOME_PATH}/${ARCH}-linux/include/

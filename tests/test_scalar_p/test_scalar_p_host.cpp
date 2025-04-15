@@ -54,13 +54,12 @@ int main(int argc, char* argv[])
     CHECK_ACL(aclrtCreateStream(&stream));
     uint32_t flags = 0;
     ShmemInitAttr shmemInitAttr = CreateAttributes(0, ipport.c_str(), rankId, rankSize, deviceId, gNpuMallocSpace);
-    smem_shm_t handle;
-    ShmemInit(flags, &shmemInitAttr, handle);
+    ShmemInit(flags, &shmemInitAttr);
 
     TestScalarPutGet(stream, (uint8_t *)shmemDeviceHostState.heapBase, rankId, rankSize);
 
     std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
-    ShmemFinalize(handle, flags);
+    ShmemFinalize(flags);
     CHECK_ACL(aclrtDestroyStream(stream));
     CHECK_ACL(aclrtResetDevice(deviceId));
     CHECK_ACL(aclFinalize());

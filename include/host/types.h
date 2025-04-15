@@ -8,9 +8,9 @@
 #include "smem.h"
 #include "smem_shm.h"
 
+#include "shmem_internal.h"
+
 #define STATE_SCALAR_INVALID -1
-#define SHM_MAX_RANKS 2000
-#define SHM_MAX_TEAMS 32
 
 #define SHMEM_TEAM_INITALIZER                                                         \
     {                                                                                 \
@@ -48,22 +48,6 @@ typedef struct {
 } ShmemInitAttr;
 typedef ShmemInitAttr ShmemInitAttrT;
 
-// state
-typedef struct {
-    int version;
-    int mype;
-    int npes;
-    void *heapBase;
-    void *p2pHeapBase[SHM_MAX_RANKS];
-    size_t heapSize;
-
-    ShmemTeam *teamPools[SHM_MAX_TEAMS];
-    long *psyncPool;
-    long *syncCounter;
-
-    bool shemeIsShmemInitialized;
-    bool shemeIsShmemCreated;
-} ShmemDeviceHostState;
 typedef ShmemDeviceHostState ShmemDeviceHostStateT;
 extern ShmemDeviceHostStateT shmemDeviceHostState;
 #endif /*SHMEM_TYPES_H*/
