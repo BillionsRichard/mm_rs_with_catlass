@@ -17,11 +17,11 @@ public:
     __aicore__ inline void Process()
     {
         AscendC::PipeBarrier<PIPE_ALL>();
-        ShmemP(gvaGm, ShmemNpes(), rank);
-        ShmemP(gvaGm + 1, ShmemMype(), rank);
-        ShmemP(gvaGm + 2, ShmemTeamMype(teamIdx), rank);
-        ShmemP(gvaGm + 3, ShmemTeamNpes(teamIdx), rank);
-        ShmemP(gvaGm + 4, ShmemTeamTranslatePE(teamIdx, 1, SHMEM_TEAM_WORLD), rank);
+        ShmemP_int(gvaGm, ShmemNpes(), rank);
+        ShmemP_int(gvaGm + 1, ShmemMype(), rank);
+        ShmemP_int(gvaGm + 2, ShmemTeamMype(teamIdx), rank);
+        ShmemP_int(gvaGm + 3, ShmemTeamNpes(teamIdx), rank);
+        ShmemP_int(gvaGm + 4, ShmemTeamTranslatePE(teamIdx, 1, SHMEM_TEAM_WORLD), rank);
     }
 private:
     __gm__ int *gvaGm;
