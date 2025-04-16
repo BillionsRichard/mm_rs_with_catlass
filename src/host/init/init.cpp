@@ -110,6 +110,7 @@ int ShmemHostInitAttr(ShmemInitAttrT *attributes){
 
 int ShmemInit(int myRank, int nRanks, uint64_t localMemSize){
     int status = SHMEM_SUCCESS;
+    CHECK_SHMEM(CheckAttr(myRank, nRanks, localMemSize), status);
     ShmemInitAttrT attributes = CreateAttributes(myRank, nRanks, localMemSize);
     CHECK_SHMEM(ShmemHostInitAttr(&attributes), status);
     return status;
@@ -118,6 +119,7 @@ int ShmemInit(int myRank, int nRanks, uint64_t localMemSize){
 int ShmemFinalize(){
     int status = SHMEM_SUCCESS;
     CHECK_SHMEM(ShmemTeamFinalize(), status);
+    ShmemStateInit();
     CHECK_SHMEM(smem_shm_destroy(handle, shmemCommAttr.flag), status);
     smem_uninit();
     return status;
@@ -126,4 +128,19 @@ int ShmemFinalize(){
 int ShmemSetConfig() {
     int status = SHMEM_SUCCESS;
     return status;
+}
+
+int CheckAttr(int myRank, int nRanks, uint64_t localMemSize) {
+    if (myRank < 0 || nRanks <= 0) {
+        ERROR_LOG("myRank:%d and nRanks%d cannot be less 0 , nRanks still cannot be equal 0",
+                myRank, nRanks);
+        return ERROR_INVALID_VALUE;
+    } else if (myRank >= nRanks) {
+        ERROR_LOG("nRanks:%d cannot be less than myRank%d", nRanks, myRank);
+        return ERROR_INVALID_PARAM;
+    } else if (localMemSize <= 0) {
+        ERROR_LOG("localMemSize:%llu cannot be less or equal 0", localMemSize);
+        return ERROR_INVALID_VALUE;
+    }
+    return SHMEM_SUCCESS;
 }

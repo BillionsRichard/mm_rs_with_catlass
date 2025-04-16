@@ -24,4 +24,6 @@ int ShmemHostInitAttr(ShmemInitAttrT *attributes);
 
 int ShmemSetConfig();
 
+int CheckAttr(int myRank, int nRanks, uint64_t localMemSize);
+
 #endif
