@@ -5,10 +5,8 @@
 
 int ShmemInitStatus();
 
-int ShmemInit(int rank, int size);
+int ShmemInit(int myRank, int nRanks, uint64_t localMemSize);
 
-int ShmemInit(uint32_t flag, ShmemInitAttrT *attributes);
-
-int ShmemFinalize(uint32_t flag);
+int ShmemFinalize();
 
 #endif
