@@ -22,14 +22,13 @@ function fn_build_googletest()
     cd $THIRD_PARTY_DIR
     [[ ! -d "googletest" ]] && git clone --branch v1.14.0 --depth 1 https://github.com/google/googletest.git
     cd googletest
-    sed -i '34d' CMakeLists.txt
     rm -rf build && mkdir build && cd build
-    sed -i '33 a add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=0)' ../CMakeLists.txt
     cmake .. -DCMAKE_INSTALL_PREFIX=$THIRD_PARTY_DIR/googletest -DCMAKE_SKIP_RPATH=TRUE -DCMAKE_CXX_FLAGS="-fPIC"
     cmake --build . --parallel $(nproc)
     cmake --install . > /dev/null
     [[ -d "$THIRD_PARTY_DIR/googletest/lib64" ]] && cp -rf $THIRD_PARTY_DIR/googletest/lib64 $THIRD_PARTY_DIR/googletest/lib
     echo "Googletest is successfully installed to $THIRD_PARTY_DIR/googletest"
+    cd ${PROJECT_ROOT}
 }
 set -e
 fn_build_googletest
