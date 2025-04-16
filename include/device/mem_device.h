@@ -11,6 +11,17 @@
     fun(half);                  \
     fun(float)
 
+
+__aicore__ inline __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
+{
+    // address translate
+    uint64_t offset = smem_shm_get_symmetric_size();
+    uint64_t remotePtr = reinterpret_cast<uint64_t>(ptr) + offset * pe;
+
+    return reinterpret_cast<__gm__ void*>(remotePtr);
+}
+
+
 #define SHMEM_TYPENAME_P_AICORE(inType)                                                     \
     __aicore__ inline void ShmemP_##inType(__gm__ inType* dst, const inType value, int pe)  \
     {                                                                                       \
@@ -32,24 +43,14 @@
 SHMEM_TYPE_FUNC(SHMEM_TYPENAME_P_AICORE);
 
 
-__aicore__ inline __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
-{
-    // address translate
-    uint64_t offset = smem_shm_get_symmetric_size();
-    uint64_t remotePtr = reinterpret_cast<uint64_t>(ptr) + offset * pe;
-
-    return reinterpret_cast<__gm__ void*>(remotePtr);
-}
-
-
-template<typename T>
+template <typename T>
 __aicore__ inline void ShmemCopyUbuf(__ubuf__ T* srcUb, uint32_t size)
 {
     smem_set_copy_ubuf(srcUb, size);
 }
 
 
-template<typename T>
+template <typename T>
 __aicore__ inline void ShmemGetMem(__gm__ T* dst, __gm__ T* src, uint32_t copySize, int pe)
 {
     // TODO
