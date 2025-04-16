@@ -61,7 +61,7 @@ int ShmemStateInitAttr(ShmemInitAttrT *attributes){
 }
 
 int SmemHeapInit(ShmemInitAttrT *attributes){
-    void *gva;
+    void *gva = nullptr;
     int status = SHMEM_SUCCESS;
     status = smem_init(shmemCommAttr.globalSize, shmemCommAttr.flag);
     if (status != SHMEM_SUCCESS) {
@@ -76,8 +76,14 @@ int SmemHeapInit(ShmemInitAttrT *attributes){
         return ERROR_SMEM_ERROR;
     }
     shmemDeviceHostState.heapBase = gva;
+    uint32_t reachInfo = 0;
     for ( int i = 0;  i < shmemDeviceHostState.npes; i++){
-        shmemDeviceHostState.p2pHeapBase[i] = (void *)((uintptr_t)gva + attributes->localMemSize * i);
+        status = smem_shm_topology_can_reach(handle, i, shmemCommAttr.dataOpType, &reachInfo);
+        if  (reachInfo <= SMEM_TRANSPORT_CAP_MAP) {
+            shmemDeviceHostState.p2pHeapBase[i] = (void *)((uintptr_t)gva + attributes->localMemSize * i);
+        } else {
+            shmemDeviceHostState.p2pHeapBase[i] = NULL;
+        }
     }
     shmemDeviceHostState.shemeIsShmemCreated = true;
     return status;
