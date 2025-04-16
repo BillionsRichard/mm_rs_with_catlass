@@ -15,6 +15,12 @@ TEST(TestInitAPI, TestShmemInit)
     CHECK_ACL(aclrtSetDevice(deviceId));
     status = ShmemInit(rankId, nRanks, localMemSize);
     EXPECT_EQ(status, SHMEM_SUCCESS);
+    EXPECT_EQ(shmemDeviceHostState.mype, rankId);
+    EXPECT_EQ(shmemDeviceHostState.npes, nRanks);
+    EXPECT_NE(shmemDeviceHostState.heapBase, nullptr);
+    EXPECT_NE(shmemDeviceHostState.p2pHeapBase[rankId], nullptr);
+    EXPECT_EQ(shmemDeviceHostState.heapSize, localMemSize);
+    EXPECT_NE(shmemDeviceHostState.teamPools[0], nullptr);
     status = ShmemInitStatus();
     EXPECT_EQ(status, SHMEM_STATUS_IS_INITALIZED);
     status = ShmemFinalize();

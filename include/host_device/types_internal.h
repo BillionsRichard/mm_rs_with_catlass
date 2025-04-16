@@ -10,7 +10,7 @@
 #define DEFAULT_FLAG 0
 #define STATE_SCALAR_INVALID -1
 #define DEFAULT_ID 0
-#define DEFAULT_IP_PORT "tcp://127.0.0.1:8666" //明确一下各部分的
+#define DEFAULT_IP_PORT "tcp://127.0.0.1:8666"
 #define DEFAULT_TIMEOUT 30
 #define DEFAULT_EXTRA_SIZE 0
 
