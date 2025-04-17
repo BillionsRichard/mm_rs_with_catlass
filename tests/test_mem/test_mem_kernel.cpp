@@ -72,13 +72,6 @@ public:
             ShmemMTEGetMem(devGm + 16 * i, gvaGm, buf, (uint32_t)256, 16 * sizeof(float), i % rankSize, EVENT_ID0);
             AscendC::PipeBarrier<PIPE_ALL>();
         }
-        
-        ShmemMTEGetMem(devGm + 16, gvaGm + 16, buf, (uint32_t)256, 16 * sizeof(float), 1, EVENT_ID0);
-        AscendC::PipeBarrier<PIPE_ALL>();
-        ShmemMTEGetMem(devGm + 32, gvaGm + 32, buf, (uint32_t)256, 16 * sizeof(float), 2, EVENT_ID0);
-        AscendC::PipeBarrier<PIPE_ALL>();
-        ShmemMTEGetMem(devGm + 48, gvaGm + 48, buf, (uint32_t)256, 16 * sizeof(float), 3, EVENT_ID0);
-        AscendC::PipeBarrier<PIPE_ALL>();
 
         bufQueue.FreeTensor(bufTensor);
     }
