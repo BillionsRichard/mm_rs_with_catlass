@@ -6,6 +6,9 @@
 
 #include "shmem_device_api.h"
 
+__BLOCK_LOCAL__ __inline__ int64_t copyUbuf;
+__BLOCK_LOCAL__ __inline__ int32_t ubufSize;
+__BLOCK_LOCAL__ __inline__ int32_t copyEventID;
 
 // Make Code Style Unified
 #define Int int
@@ -15,9 +18,9 @@
 
 
 #define SHMEM_TYPE_FUNC(fun)    \
-    fun(int);                   \
-    fun(half);                  \
-    fun(float)
+    fun(Int);                   \
+    fun(Half);                  \
+    fun(Float)
 
 
 __aicore__ inline __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
@@ -37,7 +40,7 @@ __aicore__ inline __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
 
 
 #define SHMEM_TYPENAME_P_AICORE(inType)                                                     \
-    __aicore__ inline void ShmemP##inType(__gm__ inType* dst, const inType value, int pe)  \
+    __aicore__ inline void ShmemP##inType(__gm__ inType* dst, const inType value, int pe)   \
     {                                                                                       \
         if (AscendC::GetSubBlockIdx() != 0) {                                               \
             return;                                                                         \
@@ -57,20 +60,29 @@ __aicore__ inline __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
 SHMEM_TYPE_FUNC(SHMEM_TYPENAME_P_AICORE);
 
 
-template <typename T>
-__aicore__ inline void ShmemCopyUbuf(__ubuf__ T* srcUb, uint32_t size)
+__aicore__ inline void ShmemSetDefaultMTEConfig()
 {
-    smem_set_copy_ubuf(srcUb, size);
+    copyUbuf = 0;
+    ubufSize = 256; // Bytes
+    copyEventID = EVENT_ID0;
 }
 
 
 template <typename T>
-__aicore__ inline void ShmemGetMem(__gm__ T* dst, __gm__ T* src, uint32_t copySize, int pe)
+__aicore__ inline void ShmemSetMTEConfig(__ubuf__ T* srcUb, uint32_t size, AscendC::TEventID EVENT_ID)
 {
-    // TODO
-    if (AscendC::GetSubBlockIdx() != 0) {
-        return;
-    }
+    copyUbuf = reinterpret_cast<uint64_t>(srcUb);
+    ubufSize = size;
+    copyEventID = EVENT_ID;
+}
+
+
+template <typename T>
+__aicore__ inline void ShmemUnSetMTEConfig(__ubuf__ T* srcUb, uint32_t size, AscendC::TEventID EVENT_ID)
+{
+    copyUbuf = -1;
+    ubufSize = -1;
+    copyEventID = EVENT_ID0;
 }
 
 
@@ -138,5 +150,52 @@ __aicore__ inline void ShmemMTEPutMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* 
         smem_copy_ub2gm(remotePtr + repeat_times * blockSize * sizeof(T), buf, remain);
     }
 }
+
+
+#define SHMEM_GET_TYPENAME_MEM(inType)                                                                                  \
+    __aicore__ inline void ShmemGet##inType##Mem(__gm__ inType* dst, __gm__ inType* src, uint32_t elemSize, int pe)     \
+    {                                                                                                                   \
+        /* ROCE */                                                                                                      \
+        /* RDMA */                                                                                                      \
+        /* MTE  */                                                                                                      \
+                                                                                                                        \
+        __gm__ void* addrGM = smem_shm_get_extra_context_addr();                                                        \
+        __gm__ ShmemDeviceHostState *deviceState = (__gm__ ShmemDeviceHostState *)addrGM;                               \
+        if (deviceState->mteConfig.ubSize == 0) {                                                                       \
+            ShmemSetDefaultMTEConfig();                                                                                 \
+        } else {                                                                                                        \
+            ShmemSetMTEConfig(                                                                                          \
+                reinterpret_cast<__ubuf__ inType*>(deviceState->mteConfig.tmpUb),                                       \
+                deviceState->mteConfig.ubSize,                                                                          \
+                AscendC::TEventID(deviceState->mteConfig.eventID));                                                     \
+        }                                                                                                               \
+        ShmemMTEGetMem(dst, src, reinterpret_cast<__ubuf__ inType*>(copyUbuf), ubufSize, elemSize, pe, copyEventID);    \
+    }
+
+SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
+
+
+#define SHMEM_PUT_TYPENAME_MEM(inType)                                                                                  \
+    __aicore__ inline void ShmemPut##inType##Mem(__gm__ inType* dst, __gm__ inType* src, uint32_t elemSize, int pe)     \
+    {                                                                                                                   \
+        /* ROCE */                                                                                                      \
+        /* RDMA */                                                                                                      \
+        /* MTE  */                                                                                                      \
+                                                                                                                        \
+        __gm__ void* addrGM = smem_shm_get_extra_context_addr();                                                        \
+        __gm__ ShmemDeviceHostState *deviceState = (__gm__ ShmemDeviceHostState *)addrGM;                               \
+        if (deviceState->mteConfig.ubSize == 0) {                                                                       \
+            ShmemSetDefaultMTEConfig();                                                                                 \
+        } else {                                                                                                        \
+            ShmemSetMTEConfig(                                                                                          \
+                reinterpret_cast<__ubuf__ inType*>(deviceState->mteConfig.tmpUb),                                       \
+                deviceState->mteConfig.ubSize,                                                                          \
+                AscendC::TEventID(deviceState->mteConfig.eventID));                                                     \
+        }                                                                                                               \
+        ShmemMTEPutMem(dst, src, reinterpret_cast<__ubuf__ inType*>(copyUbuf), ubufSize, elemSize, pe, copyEventID);    \
+    }
+
+SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
+
 
 #endif

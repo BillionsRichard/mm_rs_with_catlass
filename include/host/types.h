@@ -28,8 +28,9 @@
             {NULL},                                  /* teamPools */                  \
             NULL,                                    /* psyncPool */                  \
             NULL,                                    /* syncCounter */                \
-            false,                                   /* sheme_is_shmem_initialized */ \
-            false,                                   /* sheme_is_shmem_created */     \
+            false,                                   /* shmem_is_shmem_initialized */ \
+            false,                                   /* shmem_is_shmem_created */     \
+            {0, 0, 0},                               /* shmem_mte_config */           \
     }
 
 // attr

@@ -13,23 +13,13 @@ public:
 
         rank = smem_shm_get_global_rank();
         rankSize = smem_shm_get_global_rank_size();
-
-        // 1x512 Bytes Buffer
-        pipe.InitBuffer(bufQueue, 1, 512);
     }
     __aicore__ inline void Process()
     {
-        AscendC::LocalTensor<float> bufTensor = bufQueue.AllocTensor<float>();
-        __ubuf__ float *buf = (__ubuf__ float *)bufTensor.address_.bufferAddr;
-
-        ShmemMTEPutMem(gvaGm, devGm, buf, (uint32_t)256, rankSize * 16 * sizeof(float), rank, EVENT_ID0);
+        ShmemPutFloatMem(gvaGm, devGm, rankSize * 16 * sizeof(float), rank);
         AscendC::PipeBarrier<PIPE_ALL>();
-
-        bufQueue.FreeTensor(bufTensor);
     }
 private:
-    AscendC::TPipe pipe;
-    AscendC::TQue<AscendC::TPosition::VECIN, BUFFER_NUM> bufQueue;
     __gm__ float *gvaGm;
     __gm__ float *devGm;
 
