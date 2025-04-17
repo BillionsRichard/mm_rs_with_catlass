@@ -3,7 +3,7 @@
 
 #include "shmem_internal.h"
 
-#include "mem_device.h"
 #include "team_device.h"
+#include "mem_device.h"
 
 #endif

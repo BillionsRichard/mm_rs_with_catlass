@@ -16,7 +16,7 @@ public:
     }
     __aicore__ inline void Process()
     {
-        ShmemP_float(gvaGm, value, (rank + 1) % rankSize);
+        ShmemPFloat(gvaGm, value, (rank + 1) % rankSize);
     }
 private:
     __gm__ float *gvaGm;

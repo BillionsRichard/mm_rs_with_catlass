@@ -21,7 +21,7 @@ static int32_t TestScalarPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankI
     uint32_t blockDim = 1;
 
     float value = 3.5f + (float)rankId;
-    PutOneNumDo(blockDim, stream, gva, value);
+    PutOneNumDo(blockDim, stream, gva + rankId * gNpuMallocSpace, value);
     CHECK_ACL(aclrtSynchronizeStream(stream));
     sleep(2);
 

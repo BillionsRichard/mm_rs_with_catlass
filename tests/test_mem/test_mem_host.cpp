@@ -19,7 +19,7 @@ static int32_t TestPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankId, uin
     size_t inputSize = totalSize * sizeof(float);
     
     std::vector<float> input(totalSize, 0);
-    for (int i = 16 * rankId; i < (16 * (int)rankId + 16); i++) {
+    for (int i = 0; i < 16; i++) {
         input[i] = (rankId + 10);
     }
     
@@ -29,7 +29,7 @@ static int32_t TestPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankId, uin
     CHECK_ACL(aclrtMemcpy(devPtr, inputSize, input.data(), inputSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint32_t blockDim = 1;
-    TestPut(blockDim, stream, gva, (uint8_t *)devPtr);
+    TestPut(blockDim, stream, gva + rankId * gNpuMallocSpace, (uint8_t *)devPtr);
     CHECK_ACL(aclrtSynchronizeStream(stream));
     sleep(2);
 
@@ -42,7 +42,7 @@ static int32_t TestPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankId, uin
     }
     std::cout << std::endl;
 
-    TestGet(blockDim, stream, gva, (uint8_t *)devPtr);
+    TestGet(blockDim, stream, gva + rankId * gNpuMallocSpace, (uint8_t *)devPtr);
     CHECK_ACL(aclrtSynchronizeStream(stream));
     sleep(2);
 

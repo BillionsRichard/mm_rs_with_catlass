@@ -68,8 +68,11 @@ public:
         AscendC::LocalTensor<float> bufTensor = bufQueue.AllocTensor<float>();
         __ubuf__ float *buf = (__ubuf__ float *)bufTensor.address_.bufferAddr;
 
-        ShmemMTEGetMem(devGm, gvaGm, buf, (uint32_t)256, 16 * sizeof(float), 0, EVENT_ID0);
-        AscendC::PipeBarrier<PIPE_ALL>();
+        for (int i = 0; i < rankSize; i++) {
+            ShmemMTEGetMem(devGm + 16 * i, gvaGm, buf, (uint32_t)256, 16 * sizeof(float), i % rankSize, EVENT_ID0);
+            AscendC::PipeBarrier<PIPE_ALL>();
+        }
+        
         ShmemMTEGetMem(devGm + 16, gvaGm + 16, buf, (uint32_t)256, 16 * sizeof(float), 1, EVENT_ID0);
         AscendC::PipeBarrier<PIPE_ALL>();
         ShmemMTEGetMem(devGm + 32, gvaGm + 32, buf, (uint32_t)256, 16 * sizeof(float), 2, EVENT_ID0);

@@ -21,7 +21,7 @@ static int32_t TestGetDeviceState(aclrtStream stream, uint8_t *gva, uint32_t ran
 
     uint32_t blockDim = 1;
 
-    GetDeviceState(blockDim, stream, gva, teamId);
+    GetDeviceState(blockDim, stream, gva + rankId * gNpuMallocSpace, teamId);
     CHECK_ACL(aclrtSynchronizeStream(stream));
     sleep(2);
 

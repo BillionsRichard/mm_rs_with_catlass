@@ -6,6 +6,14 @@
 
 #include "shmem_device_api.h"
 
+
+// Make Code Style Unified
+#define Int int
+#define Half half
+#define Float float
+#define Char char
+
+
 #define SHMEM_TYPE_FUNC(fun)    \
     fun(int);                   \
     fun(half);                  \
@@ -14,16 +22,22 @@
 
 __aicore__ inline __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
 {
-    // address translate
-    uint64_t offset = smem_shm_get_symmetric_size();
-    uint64_t remotePtr = reinterpret_cast<uint64_t>(ptr) + offset * pe;
+    // Back to root address
+    __gm__ void* addrGM = smem_shm_get_extra_context_addr();
+    __gm__ ShmemDeviceHostState *deviceState = (__gm__ ShmemDeviceHostState *)addrGM;
+    void *mypePtr = deviceState->p2pHeapBase[ShmemMype()];
+    uint64_t offset = reinterpret_cast<uint64_t>(ptr) - reinterpret_cast<uint64_t>(mypePtr);
+    
+    // Address translate
+    uint64_t heapMemSize = smem_shm_get_symmetric_size();
+    uint64_t remotePtr = reinterpret_cast<uint64_t>(deviceState->heapBase) + heapMemSize * pe + offset;
 
     return reinterpret_cast<__gm__ void*>(remotePtr);
 }
 
 
 #define SHMEM_TYPENAME_P_AICORE(inType)                                                     \
-    __aicore__ inline void ShmemP_##inType(__gm__ inType* dst, const inType value, int pe)  \
+    __aicore__ inline void ShmemP##inType(__gm__ inType* dst, const inType value, int pe)  \
     {                                                                                       \
         if (AscendC::GetSubBlockIdx() != 0) {                                               \
             return;                                                                         \
