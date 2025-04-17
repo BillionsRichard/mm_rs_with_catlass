@@ -115,3 +115,5 @@ target_link_libraries(team_example
     mf_smem
     mf_hybrid_bmm
 )
+
+add_subdirectory(unittest)

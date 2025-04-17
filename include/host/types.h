@@ -35,20 +35,10 @@
 
 // attr
 typedef struct {
-    int version;
-    int id;
-    const char* ipPort;
     int myRank;
     int nRanks;
-    int deviceId;
     uint64_t localMemSize;
-    smem_shm_data_op_type dataOpType;
-    int timeout;
-    uint64_t extraSize;
-    uint64_t globalSize;
 } ShmemInitAttr;
 typedef ShmemInitAttr ShmemInitAttrT;
 
-typedef ShmemDeviceHostState ShmemDeviceHostStateT;
-extern ShmemDeviceHostStateT shmemDeviceHostState;
 #endif /*SHMEM_TYPES_H*/

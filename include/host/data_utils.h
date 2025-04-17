@@ -13,6 +13,8 @@
 #include <vector>
 
 #include "acl/acl.h"
+#include "constants.h"
+
 
 typedef enum {
     DT_UNDEFINED = -1,
@@ -52,6 +54,27 @@ typedef enum {
         if (__ret != ACL_ERROR_NONE) {                                                      \
             std::cerr << msg << ":" << " aclError:" << __ret << std::endl;                  \
             return __ret;                                                                   \
+        }                                                                                   \
+    } while (0);
+
+#define CHECK_SHMEM(x, status)                                                              \
+    do {                                                                                    \
+        status = x;                                                                         \
+        if (status != ACL_ERROR_NONE) {                                                     \
+            std::cerr << __FILE__ << ":" << __LINE__ << #x << " return ShmemError: "        \
+                    << status << std::endl;                                                 \
+            return status;                                                                  \
+        }                                                                                   \
+    } while (0);
+
+#define CHECK_SHMEM_STATUS(x, status, msg)                                                  \
+    do {                                                                                    \
+        status = x;                                                                         \
+        if (status != ACL_ERROR_NONE) {                                                     \
+            ERROR_LOG(msg);                                                                 \
+            std::cerr << __FILE__ << ":" << __LINE__ << #x << " return ShmemError: "        \
+                    << status << std::endl;                                                 \
+            return status;                                                                  \
         }                                                                                   \
     } while (0);
 

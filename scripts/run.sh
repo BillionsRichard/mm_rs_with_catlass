@@ -17,11 +17,11 @@ cp ./build/bin/team_example ./
 RANK_SIZE="8"
 IP_PORT="tcp://127.0.0.1:8666"
 export LD_LIBRARY_PATH=$(pwd)/install/lib:${ASCEND_HOME_PATH}/lib64:$(pwd)/3rdparty/memfabric_hybrid/lib:$LD_LIBRARY_PATH
+./build/bin/shmem_unittest
 
 for (( idx = 0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
     ./test_scalar_p ${RANK_SIZE} ${idx} ${IP_PORT} &
     # ./test_mem ${RANK_SIZE} ${idx} ${IP_PORT} &
     # ./team_example ${RANK_SIZE} ${idx} ${IP_PORT} &
 done
-
 cd ${CURRENT_DIR}

@@ -1,0 +1,8 @@
+file(GLOB_RECURSE SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+add_executable(shmem_unittest ${SOURCE_FILES})
+target_include_directories(shmem_unittest PRIVATE ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include)
+target_include_directories(shmem_unittest PRIVATE ${PROJECT_SOURCE_DIR}/3rdparty/googletest/include)
+target_include_directories(shmem_unittest PRIVATE ${ASCEND_HOME_PATH}/include)
+target_link_directories(shmem_unittest PRIVATE ${PROJECT_SOURCE_DIR}/3rdparty/googletest/lib ${ASCEND_HOME_PATH}/lib64/ pthread)
+target_link_directories(shmem_unittest PRIVATE ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/lib)
+target_link_libraries(shmem_unittest PRIVATE shmem test_scalar_npu mf_smem mf_hybrid_bmm pthread -lgtest -lgtest_main)
