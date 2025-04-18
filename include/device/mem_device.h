@@ -44,9 +44,19 @@ __BLOCK_LOCAL__ __inline__ int32_t copyEventID;
 
 __aicore__ inline __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
 {
-    // Back to root address
+    // Get Global State
     __gm__ void* addrGM = smem_shm_get_extra_context_addr();
     __gm__ ShmemDeviceHostState *deviceState = (__gm__ ShmemDeviceHostState *)addrGM;
+
+    // Check whether ptr belongs to this rank.
+    uint64_t lowerBound = (uint64_t)deviceState->p2pHeapBase[ShmemMype()];
+    uint64_t upperBound = lowerBound + deviceState->heapSize;
+    if (uint64_t(ptr) < lowerBound || uint64_t(ptr) >= upperBound) {
+        AscendC::printf("Rank %d Got Illegal Address !!\n", ShmemMype());
+        return nullptr;
+    }
+
+    // Back to root address
     void *mypePtr = deviceState->p2pHeapBase[ShmemMype()];
     uint64_t offset = reinterpret_cast<uint64_t>(ptr) - reinterpret_cast<uint64_t>(mypePtr);
     
@@ -66,6 +76,7 @@ __aicore__ inline __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
         }                                                                                   \
                                                                                             \
         auto ptr = ShmemPtr(dst, pe);                                                       \
+        if (ptr == nullptr) return;                                                         \
         __gm__ inType* addrGm = reinterpret_cast<__gm__ inType*>(ptr);                      \
                                                                                             \
         *addrGm = value;                                                                    \
@@ -113,6 +124,7 @@ __aicore__ inline void ShmemMTEGetMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* 
     }
 
     auto ptr = ShmemPtr(src, pe);
+    if (ptr == nullptr) return;
     __gm__ T* remotePtr = reinterpret_cast<__gm__ T*>(ptr);
 
     // blockSize: dataMove Unit
@@ -147,6 +159,7 @@ __aicore__ inline void ShmemMTEPutMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* 
     }
 
     auto ptr = ShmemPtr(dst, pe);
+    if (ptr == nullptr) return;
     __gm__ T* remotePtr = reinterpret_cast<__gm__ T*>(ptr);
 
     // blockSize: dataMove Unit

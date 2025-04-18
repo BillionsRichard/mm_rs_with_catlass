@@ -10,6 +10,11 @@ extern ShmemDeviceHostStateT shmemDeviceHostState;
 // ShmemPtr Symmetric?
 void* ShmemPtr(void *ptr, int pe)
 {
+    uint64_t lowerBound = (uint64_t)shmemDeviceHostState.p2pHeapBase[ShmemMype()];
+    uint64_t upperBound = lowerBound + shmemDeviceHostState.heapSize;
+    if (uint64_t(ptr) < lowerBound || uint64_t(ptr) >= upperBound) {
+        std::cout << "PE: " << ShmemMype() << " Got Ilegal Address !!" << std::endl;
+    }
     void *mypePtr = shmemDeviceHostState.p2pHeapBase[ShmemMype()];
     uint64_t offset = reinterpret_cast<uint64_t>(ptr) - reinterpret_cast<uint64_t>(mypePtr);
     if (shmemDeviceHostState.heapBase != NULL) {

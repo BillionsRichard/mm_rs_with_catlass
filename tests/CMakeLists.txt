@@ -27,6 +27,10 @@ ascendc_include_directories(test_scalar_npu
     ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/aicore/
 )
 
+ascendc_compile_definitions(test_scalar_npu PRIVATE
+    -DASCENDC_DUMP=1
+)
+
 install(TARGETS test_scalar_npu
     LIBRARY DESTINATION lib
     PUBLIC_HEADER DESTINATION include
