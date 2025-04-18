@@ -11,16 +11,35 @@ __BLOCK_LOCAL__ __inline__ int32_t ubufSize;
 __BLOCK_LOCAL__ __inline__ int32_t copyEventID;
 
 // Make Code Style Unified
-#define Int int
 #define Half half
 #define Float float
+#define Int8 int8_t
+#define Int int
+#define UInt8 uint8_t
+#define Int16 int16_t
+#define UInt16 uint16_t
+#define Int64 int64_t
+#define UInt64 uint64_t
+#define Double double
 #define Char char
+#define Bool bool
+#define BFloat16 bfloat16_t
 
 
 #define SHMEM_TYPE_FUNC(fun)    \
-    fun(Int);                   \
     fun(Half);                  \
-    fun(Float)
+    fun(Float);                 \
+    fun(Int8);                  \
+    fun(Int);                   \
+    fun(UInt8);                 \
+    fun(Int16);                 \
+    fun(UInt16);                \
+    fun(Int64);                 \
+    fun(UInt64);                \
+    fun(Double);                \
+    fun(Char);                  \
+    fun(Bool);                  \
+    fun(BFloat16)
 
 
 __aicore__ inline __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
