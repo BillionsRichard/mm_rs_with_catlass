@@ -6,10 +6,6 @@
 
 #include "shmem_device_api.h"
 
-__BLOCK_LOCAL__ __inline__ int64_t copyUbuf;
-__BLOCK_LOCAL__ __inline__ int32_t ubufSize;
-__BLOCK_LOCAL__ __inline__ int32_t copyEventID;
-
 // Make Code Style Unified
 #define Half half
 #define Float float
@@ -89,33 +85,6 @@ __aicore__ inline __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
 
 SHMEM_TYPE_FUNC(SHMEM_TYPENAME_P_AICORE);
 
-
-__aicore__ inline void ShmemSetDefaultMTEConfig()
-{
-    copyUbuf = 0;
-    ubufSize = 256; // Bytes
-    copyEventID = EVENT_ID0;
-}
-
-
-template <typename T>
-__aicore__ inline void ShmemSetMTEConfig(__ubuf__ T* srcUb, uint32_t size, AscendC::TEventID EVENT_ID)
-{
-    copyUbuf = reinterpret_cast<uint64_t>(srcUb);
-    ubufSize = size;
-    copyEventID = EVENT_ID;
-}
-
-
-template <typename T>
-__aicore__ inline void ShmemUnSetMTEConfig(__ubuf__ T* srcUb, uint32_t size, AscendC::TEventID EVENT_ID)
-{
-    copyUbuf = -1;
-    ubufSize = -1;
-    copyEventID = EVENT_ID0;
-}
-
-
 template <typename T>
 __aicore__ inline void ShmemMTEGetMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
@@ -192,18 +161,14 @@ __aicore__ inline void ShmemMTEPutMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* 
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
         /* MTE  */                                                                                                      \
-                                                                                                                        \
+        /* Global State Get */                                                                                          \
         __gm__ void* addrGM = smem_shm_get_extra_context_addr();                                                        \
         __gm__ ShmemDeviceHostState *deviceState = (__gm__ ShmemDeviceHostState *)addrGM;                               \
-        if (deviceState->mteConfig.ubSize == 0) {                                                                       \
-            ShmemSetDefaultMTEConfig();                                                                                 \
-        } else {                                                                                                        \
-            ShmemSetMTEConfig(                                                                                          \
-                reinterpret_cast<__ubuf__ inType*>(deviceState->mteConfig.tmpUb),                                       \
-                deviceState->mteConfig.ubSize,                                                                          \
-                AscendC::TEventID(deviceState->mteConfig.eventID));                                                     \
-        }                                                                                                               \
-        ShmemMTEGetMem(dst, src, reinterpret_cast<__ubuf__ inType*>(copyUbuf), ubufSize, elemSize, pe, copyEventID);    \
+        /* CopyUB Config Set */                                                                                         \
+        uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
+        uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                            \
+        AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                              \
+        ShmemMTEGetMem(dst, src, reinterpret_cast<__ubuf__ inType*>(copyUB), copyUBSize, elemSize, pe, copyEventID);    \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
@@ -215,18 +180,14 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
         /* MTE  */                                                                                                      \
-                                                                                                                        \
+        /* Global State Get */                                                                                          \
         __gm__ void* addrGM = smem_shm_get_extra_context_addr();                                                        \
         __gm__ ShmemDeviceHostState *deviceState = (__gm__ ShmemDeviceHostState *)addrGM;                               \
-        if (deviceState->mteConfig.ubSize == 0) {                                                                       \
-            ShmemSetDefaultMTEConfig();                                                                                 \
-        } else {                                                                                                        \
-            ShmemSetMTEConfig(                                                                                          \
-                reinterpret_cast<__ubuf__ inType*>(deviceState->mteConfig.tmpUb),                                       \
-                deviceState->mteConfig.ubSize,                                                                          \
-                AscendC::TEventID(deviceState->mteConfig.eventID));                                                     \
-        }                                                                                                               \
-        ShmemMTEPutMem(dst, src, reinterpret_cast<__ubuf__ inType*>(copyUbuf), ubufSize, elemSize, pe, copyEventID);    \
+        /* CopyUB Config Set */                                                                                         \
+        uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
+        uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                            \
+        AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                              \
+        ShmemMTEPutMem(dst, src, reinterpret_cast<__ubuf__ inType*>(copyUB), copyUBSize, elemSize, pe, copyEventID);    \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);

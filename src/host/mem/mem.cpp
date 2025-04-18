@@ -4,6 +4,7 @@ using namespace std;
 
 #include "init.h"
 #include "mem.h"
+#include "data_utils.h"
 
 extern ShmemDeviceHostStateT shmemDeviceHostState;
 
@@ -23,4 +24,16 @@ void* ShmemPtr(void *ptr, int pe)
     else {
         return NULL;
     }
+}
+
+// Set Memcpy Interfaces necessary UB Buffer.
+int ShmemSetCopyUB(uint64_t offset, uint32_t ubSize, uint32_t eventID)
+{
+    int status = SHMEM_SUCCESS;
+    shmemDeviceHostState.mteConfig.shmemUB = offset;
+    shmemDeviceHostState.mteConfig.ubSize = ubSize;
+    shmemDeviceHostState.mteConfig.eventID = eventID;
+    CHECK_SHMEM(UpdateDeviceState(), status);
+
+    return status;
 }

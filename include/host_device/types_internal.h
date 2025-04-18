@@ -27,7 +27,7 @@
             NULL,                                    /* syncCounter */                \
             false,                                   /* shmem_is_shmem_initialized */ \
             false,                                   /* shmem_is_shmem_created */     \
-            {0, 0, 0},                               /* shmem_mte_config */           \
+            {0, 16 * 1024, 0},                       /* shmem_mte_config */           \
     }
 
 #define SHMEM_COMM_ATTR                                                               \
@@ -45,9 +45,9 @@
 
 // MTEConfig
 typedef struct {
-    int64_t tmpUb;          // __ubuf__ Ptr
-    uint32_t ubSize;        // Bytes
-    uint32_t eventID;       // TEventID, for device sync
+    int64_t shmemUB;        // __ubuf__ Ptr, Shmem memcpy needed.
+    uint32_t ubSize;        // UB's Size, in Bytes.
+    uint32_t eventID;       // TEventID, for Shmem memcpy sync.
 } ShmemMTEConfig;
 
 // commattr
