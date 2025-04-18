@@ -16,7 +16,7 @@ public:
     }
     __aicore__ inline void Process()
     {
-        ShmemPutFloatMem(gvaGm, devGm, rankSize * 16 * sizeof(float), rank);
+        ShmemPutFloatMem(gvaGm, devGm, rankSize * 16, rank);
         AscendC::PipeBarrier<PIPE_ALL>();
     }
 private:
@@ -59,7 +59,7 @@ public:
         __ubuf__ float *buf = (__ubuf__ float *)bufTensor.address_.bufferAddr;
 
         for (int i = 0; i < rankSize; i++) {
-            ShmemMTEGetMem(devGm + 16 * i, gvaGm, buf, (uint32_t)256, 16 * sizeof(float), i % rankSize, EVENT_ID0);
+            ShmemMTEGetMem(devGm + 16 * i, gvaGm, buf, (uint32_t)256, 16, i % rankSize, EVENT_ID0);
             AscendC::PipeBarrier<PIPE_ALL>();
         }
 

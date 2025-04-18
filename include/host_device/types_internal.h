@@ -45,9 +45,9 @@
 
 // MTEConfig
 typedef struct {
-    int64_t tmpUb;
-    uint32_t ubSize;
-    uint32_t eventID;
+    int64_t tmpUb;          // __ubuf__ Ptr
+    uint32_t ubSize;        // Bytes
+    uint32_t eventID;       // TEventID, for device sync
 } ShmemMTEConfig;
 
 // commattr

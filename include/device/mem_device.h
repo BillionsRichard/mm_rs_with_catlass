@@ -87,7 +87,7 @@ __aicore__ inline void ShmemUnSetMTEConfig(__ubuf__ T* srcUb, uint32_t size, Asc
 
 
 template <typename T>
-__aicore__ inline void ShmemMTEGetMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t copySize, int pe, AscendC::TEventID EVENT_ID)
+__aicore__ inline void ShmemMTEGetMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
     if (AscendC::GetSubBlockIdx() != 0) {
         return;
@@ -98,29 +98,30 @@ __aicore__ inline void ShmemMTEGetMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* 
 
     // blockSize: dataMove Unit
     uint32_t blockSize = ubSize / sizeof(T) * sizeof(T);
-    uint32_t remain = copySize % blockSize;
+    uint32_t remain = (elemSize * sizeof(T)) % blockSize;
 
     // TODO: USE DoubleBuffer.
-    int repeat_times = copySize / blockSize;
+    int repeat_times = (elemSize * sizeof(T)) / blockSize;
+    int repeat_elem = blockSize / sizeof(T);
     for (int i = 0; i < repeat_times; i++) {
-        smem_copy_gm2ub(buf, remotePtr + i * blockSize * sizeof(T), blockSize);
+        smem_copy_gm2ub(buf, remotePtr + i * repeat_elem, blockSize);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        smem_copy_ub2gm(dst + i * blockSize * sizeof(T), buf, blockSize);
+        smem_copy_ub2gm(dst + i * repeat_elem, buf, blockSize);
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
     }
     if (remain > 0) {
-        smem_copy_gm2ub(buf, remotePtr + repeat_times * blockSize * sizeof(T), remain);
+        smem_copy_gm2ub(buf, remotePtr + repeat_times * repeat_elem, remain);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        smem_copy_ub2gm(dst + repeat_times * blockSize * sizeof(T), buf, remain);
+        smem_copy_ub2gm(dst + repeat_times * repeat_elem, buf, remain);
     }
 }
 
 
 template <typename T>
-__aicore__ inline void ShmemMTEPutMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t copySize, int pe, AscendC::TEventID EVENT_ID)
+__aicore__ inline void ShmemMTEPutMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
     if (AscendC::GetSubBlockIdx() != 0) {
         return;
@@ -131,23 +132,24 @@ __aicore__ inline void ShmemMTEPutMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* 
 
     // blockSize: dataMove Unit
     uint32_t blockSize = ubSize / sizeof(T) * sizeof(T);
-    uint32_t remain = copySize % blockSize;
+    uint32_t remain = (elemSize * sizeof(T)) % blockSize;
 
     // TODO: USE DoubleBuffer.
-    int repeat_times = copySize / blockSize;
+    int repeat_times = (elemSize * sizeof(T)) / blockSize;
+    int repeat_elem = blockSize / sizeof(T);
     for (int i = 0; i < repeat_times; i++) {
-        smem_copy_gm2ub(buf, src + i * blockSize * sizeof(T), blockSize);
+        smem_copy_gm2ub(buf, src + i * repeat_elem, blockSize);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        smem_copy_ub2gm(remotePtr + i * blockSize * sizeof(T), buf, blockSize);
+        smem_copy_ub2gm(remotePtr + i * repeat_elem, buf, blockSize);
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
     }
     if (remain > 0) {
-        smem_copy_gm2ub(buf, src + repeat_times * blockSize * sizeof(T), remain);
+        smem_copy_gm2ub(buf, src + repeat_times * repeat_elem, remain);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        smem_copy_ub2gm(remotePtr + repeat_times * blockSize * sizeof(T), buf, remain);
+        smem_copy_ub2gm(remotePtr + repeat_times * repeat_elem, buf, remain);
     }
 }
 
