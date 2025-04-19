@@ -6,9 +6,7 @@ set(SHMEM_HOST_SOURCES
     mem/shmem_heap.cpp
 )
 
-add_library(
-    shmem_host STATIC
-)
+add_library(shmem_host SHARED)
 
 target_sources(shmem_host PRIVATE ${SHMEM_HOST_SOURCES})
 

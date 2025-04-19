@@ -1,6 +1,6 @@
 file(GLOB KERNEL_FILES sync/shmem_barrier.cpp)
 
-ascendc_library(shmem_device STATIC ${KERNEL_FILES})
+ascendc_library(shmem_device SHARED ${KERNEL_FILES})
 
 ascendc_include_directories(shmem_device
     PUBLIC
