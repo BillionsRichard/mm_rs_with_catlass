@@ -1,7 +1,3 @@
-# shmem库编译-device能力
-# set(RUN_MODE "npu" CACHE STRING "cpu/sim/npu")
-# set(SOC_VERSION "Ascend910B3" CACHE STRING "system on chip type")
-
 # kernel
 file(GLOB KERNEL_FILES test_barrier_kernel.cpp)
 # include(${ASCENDC_CMAKE_DIR}/ascendc.cmake)
@@ -41,7 +37,8 @@ target_link_directories(test_barrier
 
 target_link_libraries(test_barrier
     PRIVATE
-    shmem
+    shmem_host
+    shmem_device
     test_barrier_kernel
     mf_smem
     mf_hybrid_bmm

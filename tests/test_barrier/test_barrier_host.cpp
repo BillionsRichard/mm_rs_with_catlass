@@ -85,6 +85,8 @@ static void TestBarrierBlackBox(aclrtStream stream, uint32_t rankId, uint32_t ra
     CHECK_ACL(aclrtFreeHost(addrHost));
 }
 
+void ShmemBarrierAll();
+
 int main(int argc, char* argv[]) 
 {
     int rankSize = atoi(argv[1]);
@@ -107,6 +109,7 @@ int main(int argc, char* argv[])
 
     TestBarrierWhiteBox(stream, rankId, rankSize);
     TestBarrierBlackBox(stream, rankId, rankSize);
+    ShmemBarrierAll();
 
     std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
     ShmemFinalize();

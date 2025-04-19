@@ -6,7 +6,7 @@
 #include "internal/device/sync/shmemi_quiet.h"
 
 // kernels
-SHMEM_AICORE_KERNEL void KShmemBarrier(ShmemTeam_t tid) {
+SHMEM_AICORE_KERNEL void KShmemBarrier(int tid) {
     ShmemiBarrier(tid);
 } 
 
@@ -15,7 +15,7 @@ void ShmemBarrier(ShmemTeam_t tid) {
     // TODO: clear all working streams
 
     // using default stream to do barrier
-    KShmemBarrier<<<1, nullptr, nullptr>>>(tid);
+    KShmemBarrier<<<1, nullptr, nullptr>>>((int) tid);
     aclrtSynchronizeStream(nullptr);
 }
 

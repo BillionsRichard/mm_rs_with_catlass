@@ -27,6 +27,20 @@ ENDIF ()
 
 set(ASCEND_DRIVER_PATH /usr/local/Ascend/driver)
 
+# shmem库编译-device能力
+set(RUN_MODE "npu" CACHE STRING "cpu/sim/npu")
+set(SOC_VERSION "Ascend910B3" CACHE STRING "system on chip type")
+
+# 遗留问题: 此处一定要选Debug?
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type Release/Debug (default Debug)" FORCE)
+endif()
+
+set(ASCEND_CANN_PACKAGE_PATH "${ASCEND_HOME_PATH}" CACHE STRING "ASCEND_CANN_PACKAGE_PATH")
+set(ASCENDC_CMAKE_DIR ${ASCEND_HOME_PATH}/compiler/tikcpp/ascendc_kernel_cmake)
+
+include(${ASCENDC_CMAKE_DIR}/ascendc.cmake)
+
 # 添加子目录
 add_subdirectory(src/host)
 add_subdirectory(src/device)
