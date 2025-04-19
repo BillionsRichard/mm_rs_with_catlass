@@ -11,6 +11,9 @@ using namespace std;
 #include "shmem_api.h"
 #include "data_utils.h"
 
+#include "smem.h"
+#include "smem_shm.h"
+
 smem_shm_t handle = nullptr;
 ShmemDeviceHostStateT shmemDeviceHostState;
 ShmemCommAttrT shmemCommAttr;

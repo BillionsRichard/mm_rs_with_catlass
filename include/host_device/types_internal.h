@@ -1,18 +1,21 @@
 #ifndef _TYPES_INTERNAL_
 #define _TYPES_INTERNAL_
 
-#include "smem_shm.h"
+#include "macros.h"
 #include "team_internal.h"
 
-#define SHM_MAX_RANKS 2000
-#define SHM_MAX_TEAMS 32
+#include "smem.h"
+#include "smem_shm.h"
+
+// synchronization
+typedef uint64_t SyncBit[SYNCBIT_SIZE / sizeof(uint64_t)];
 
 #define DEFAULT_FLAG 0
 #define STATE_SCALAR_INVALID -1
 #define DEFAULT_ID 0
 #define DEFAULT_IP_PORT "tcp://127.0.0.1:8666"
 #define DEFAULT_TIMEOUT 30
-#define DEFAULT_EXTRA_SIZE 0
+#define DEFAULT_EXTRA_SIZE SHMEM_EXTRA_SIZE
 
 #define SHMEM_DEVICE_HOST_STATE_INITALIZER                                            \
     {                                                                                 \
@@ -67,8 +70,11 @@ typedef struct {
     size_t heapSize;
 
     ShmemTeam *teamPools[SHM_MAX_TEAMS];
-    long *psyncPool;
-    long *syncCounter;
+    
+    // Using SyncBit instead of basic types to store flag, avoiding concurrent write due to cacheline sharing.
+    // Refer to shmemiSyncAlgoDissem for more details.
+    SyncBit *syncArray;
+    SyncBit *syncCounter;
 
     bool shemeIsShmemInitialized;
     bool shemeIsShmemCreated;

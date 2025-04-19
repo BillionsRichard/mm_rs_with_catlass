@@ -1,6 +1,6 @@
 #shmem库编译-host能力
 set(SHMEM_HOST_SOURCES
-    domain/team.cpp
+    team/team.cpp
     init/init.cpp
     mem/mspace.cpp
     mem/shmem_heap.cpp

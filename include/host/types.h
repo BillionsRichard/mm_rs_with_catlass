@@ -5,8 +5,6 @@
 #include "stdint.h"
 #include "limits.h"
 #include "team.h"
-#include "smem.h"
-#include "smem_shm.h"
 
 #include "shmem_internal.h"
 

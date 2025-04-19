@@ -1,0 +1,30 @@
+#ifndef MACROS_H
+#define MACROS_H
+
+#define SHMEM_AICORE_KERNEL __global__ __aicore__
+#define SHMEM_AICORE_INLINE __aicore__ __inline__
+
+#define STATE_SCALAR_INVALID -1
+
+#define SHM_MAX_RANKS 2000
+#define SHM_MAX_TEAMS 32
+
+/* arch related */
+#define SCALAR_DATA_CACHELINE_SIZE 64
+#define L2_CACHELINE_SIZE 512
+
+#define SHMEM_PAGE_SIZE (1024UL * 1024UL * 2)
+
+/* synchonization related */ 
+#define SYNCBIT_SIZE SCALAR_DATA_CACHELINE_SIZE
+
+// sync array size
+#define SYNC_ARRAY_SIZE_PER_TEAM (SYNCBIT_SIZE * SHM_MAX_RANKS)
+#define SYNC_ARRAY_SIZE (SYNC_ARRAY_SIZE_PER_TEAM * SHM_MAX_TEAMS)
+
+// sync counter size
+#define SYNC_COUNTER_SIZE (SYNCBIT_SIZE * SHM_MAX_TEAMS)
+
+#define SHMEM_EXTRA_SIZE ((SYNC_ARRAY_SIZE + SYNC_COUNTER_SIZE + SHMEM_PAGE_SIZE - 1) / SHMEM_PAGE_SIZE * SHMEM_PAGE_SIZE)
+
+#endif

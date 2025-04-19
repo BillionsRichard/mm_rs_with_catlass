@@ -4,7 +4,6 @@
 #include <climits>
 #include <cstdlib>
 #include <cstdbool>
-#include <acl/acl.h>
 
 #include "shmem_internal.h"
 

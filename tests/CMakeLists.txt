@@ -88,3 +88,4 @@ target_link_libraries(team_example
 )
 
 add_subdirectory(unittest)
+add_subdirectory(test_barrier)
