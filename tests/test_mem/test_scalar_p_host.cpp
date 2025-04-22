@@ -36,7 +36,7 @@ static int32_t TestScalarPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankI
     if (yHost[0] != (3.5f + (rankId + rankSize - 1) % rankSize)) flag = 1;
 
     CHECK_ACL(aclrtFreeHost(yHost));
-    return 0;
+    return flag;
 }
 
 int main(int argc, char* argv[]) 

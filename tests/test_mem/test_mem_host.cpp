@@ -60,7 +60,6 @@ static int32_t TestPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankId, uin
         int stage = i / 16;
         if (input[i] != (stage + 10)) flag = 1;
     }
-    std::cout << "Result: " << flag << std::endl;
     return flag;
 }
 
