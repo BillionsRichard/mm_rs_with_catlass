@@ -174,7 +174,7 @@ void ShmemTeamDestroy(ShmemTeam_t team)
 
 int ShmemTeamFinalize() {
     /* Destroy all undestroyed teams*/
-    int shmemMaxTeams = shmemMaxTeams;
+    int shmemMaxTeams = SHMEM_MAX_TEAMS;
     for (int i = 0; i < shmemMaxTeams; i++) {
         if (shmemTeamPool[i] != NULL) ShmemTeamDestroy((ShmemTeam_t)i);
     }

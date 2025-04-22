@@ -8,6 +8,9 @@ set -e
 rm -rf test_scalar_p
 cp ./build/bin/test_scalar_p ./
 
+rm -rf test_mem
+cp ./build/bin/test_mem ./
+
 rm -rf team_example
 cp ./build/bin/team_example ./
 
@@ -18,6 +21,7 @@ export LD_LIBRARY_PATH=$(pwd)/install/lib:${ASCEND_HOME_PATH}/lib64:$(pwd)/3rdpa
 
 for (( idx = 0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
     ./test_scalar_p ${RANK_SIZE} ${idx} ${IP_PORT} &
+    # ./test_mem ${RANK_SIZE} ${idx} ${IP_PORT} &
     # ./team_example ${RANK_SIZE} ${idx} ${IP_PORT} &
 done
 cd ${CURRENT_DIR}

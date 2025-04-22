@@ -2,6 +2,7 @@
 #define _SHMEM_INIT_H
 
 #include "team.h"
+#include "mem.h"
 #include "types.h"
 
 int VersionCompatible();

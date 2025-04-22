@@ -8,7 +8,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 file(GLOB KERNEL_FILES
-            ${CMAKE_CURRENT_SOURCE_DIR}/test_scalar_p/test_scalar_p_kernel.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/test_mem/test_scalar_p_kernel.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/test_mem/test_mem_kernel.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/test_team/test_team_kernel.cpp
 )
 
@@ -26,14 +27,18 @@ ascendc_include_directories(test_scalar_npu
     ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/aicore/
 )
 
+ascendc_compile_definitions(test_scalar_npu PRIVATE
+    -DASCENDC_DUMP=1
+)
+
 install(TARGETS test_scalar_npu
     LIBRARY DESTINATION lib
     PUBLIC_HEADER DESTINATION include
 )
 
-#put_get接口测试
+#scalar_p接口测试
 add_executable(test_scalar_p
-    ${CMAKE_CURRENT_SOURCE_DIR}/test_scalar_p/test_scalar_p_host.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_mem/test_scalar_p_host.cpp
 )
 
 target_compile_options(test_scalar_p
@@ -52,6 +57,34 @@ target_link_directories(test_scalar_p
 )
 
 target_link_libraries(test_scalar_p
+    PRIVATE
+    shmem
+    test_scalar_npu
+    mf_smem
+    mf_hybrid_bmm
+)
+
+#put_get接口测试
+add_executable(test_mem
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_mem/test_mem_host.cpp
+)
+
+target_compile_options(test_mem
+    PRIVATE
+    -O2 -std=c++17 -D_GLIBCXX_USE_CXX11_ABI=0 -Wall -Werror
+)
+
+target_include_directories(test_mem
+    PRIVATE
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include
+)
+
+target_link_directories(test_mem
+    PRIVATE
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/lib
+)
+
+target_link_libraries(test_mem
     PRIVATE
     shmem
     test_scalar_npu
