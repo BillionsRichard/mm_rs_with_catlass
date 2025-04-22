@@ -53,12 +53,10 @@ __aicore__ inline __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
     }
 
     // Back to root address
-    void *mypePtr = deviceState->p2pHeapBase[ShmemMype()];
-    uint64_t offset = reinterpret_cast<uint64_t>(ptr) - reinterpret_cast<uint64_t>(mypePtr);
+    uint64_t offset = reinterpret_cast<uint64_t>(ptr) - reinterpret_cast<uint64_t>(deviceState->heapBase);
     
     // Address translate
-    uint64_t heapMemSize = smem_shm_get_symmetric_size();
-    uint64_t remotePtr = reinterpret_cast<uint64_t>(deviceState->heapBase) + heapMemSize * pe + offset;
+    uint64_t remotePtr = reinterpret_cast<uint64_t>(deviceState->p2pHeapBase[pe]) + offset;
 
     return reinterpret_cast<__gm__ void*>(remotePtr);
 }

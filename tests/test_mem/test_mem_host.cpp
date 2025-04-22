@@ -29,11 +29,12 @@ static int32_t TestPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankId, uin
     CHECK_ACL(aclrtMemcpy(devPtr, inputSize, input.data(), inputSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint32_t blockDim = 1;
-    TestPut(blockDim, stream, gva + rankId * gNpuMallocSpace, (uint8_t *)devPtr);
+    void *ptr = ShmemMalloc(1024);
+    TestPut(blockDim, stream, (uint8_t *)ptr, (uint8_t *)devPtr);
     CHECK_ACL(aclrtSynchronizeStream(stream));
     sleep(2);
 
-    CHECK_ACL(aclrtMemcpy(input.data(), inputSize, gva + rankId * gNpuMallocSpace, inputSize, ACL_MEMCPY_DEVICE_TO_HOST));
+    CHECK_ACL(aclrtMemcpy(input.data(), inputSize, ptr, inputSize, ACL_MEMCPY_DEVICE_TO_HOST));
 
     string pName = "[Process " + to_string(rankId) + "] ";
     std::cout << pName;
@@ -42,7 +43,7 @@ static int32_t TestPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankId, uin
     }
     std::cout << std::endl;
 
-    TestGet(blockDim, stream, gva + rankId * gNpuMallocSpace, (uint8_t *)devPtr);
+    TestGet(blockDim, stream, (uint8_t *)ptr, (uint8_t *)devPtr);
     CHECK_ACL(aclrtSynchronizeStream(stream));
     sleep(2);
 

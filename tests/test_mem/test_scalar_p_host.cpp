@@ -21,11 +21,12 @@ static int32_t TestScalarPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankI
     uint32_t blockDim = 1;
 
     float value = 3.5f + (float)rankId;
-    PutOneNumDo(blockDim, stream, gva + rankId * gNpuMallocSpace, value);
+    void *ptr = ShmemMalloc(1024);
+    PutOneNumDo(blockDim, stream, (uint8_t *)ptr, value);
     CHECK_ACL(aclrtSynchronizeStream(stream));
     sleep(2);
 
-    CHECK_ACL(aclrtMemcpy(yHost, 1 * sizeof(float), gva + rankId * gNpuMallocSpace, 1 * sizeof(float), ACL_MEMCPY_DEVICE_TO_HOST));
+    CHECK_ACL(aclrtMemcpy(yHost, 1 * sizeof(float), ptr, 1 * sizeof(float), ACL_MEMCPY_DEVICE_TO_HOST));
 
     string pName = "[Process " + to_string(rankId) + "] ";
     std::cout << pName << "-----[PUT]------ " << yHost[0] << " ----" << std::endl;

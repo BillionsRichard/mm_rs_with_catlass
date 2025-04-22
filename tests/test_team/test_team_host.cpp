@@ -20,12 +20,12 @@ static int32_t TestGetDeviceState(aclrtStream stream, uint8_t *gva, uint32_t ran
     CHECK_ACL(aclrtMallocHost((void **)(&yHost), inputSize));       // size = 1024
 
     uint32_t blockDim = 1;
-
-    GetDeviceState(blockDim, stream, gva + rankId * gNpuMallocSpace, teamId);
+    void *ptr = ShmemMalloc(1024);
+    GetDeviceState(blockDim, stream, (uint8_t *)ptr, teamId);
     CHECK_ACL(aclrtSynchronizeStream(stream));
     sleep(2);
 
-    CHECK_ACL(aclrtMemcpy(yHost, 5 * sizeof(int), gva + rankId * gNpuMallocSpace, 5 * sizeof(int), ACL_MEMCPY_DEVICE_TO_HOST));
+    CHECK_ACL(aclrtMemcpy(yHost, 5 * sizeof(int), ptr, 5 * sizeof(int), ACL_MEMCPY_DEVICE_TO_HOST));
 
     string pName = "[Process " + to_string(rankId) + "] ";
     std::cout << pName << "-----[PUT]------" << yHost[0] << " ---- " << yHost[1] << " ---- " << yHost[2] << " ---- " << yHost[3] << " ---- " << yHost[4] << std::endl;

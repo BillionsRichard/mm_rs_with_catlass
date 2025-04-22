@@ -2,6 +2,7 @@
 #define _SHMEM_API_H
 #include "types.h"
 #include "init.h"
+#include "shmem_heap.h"
 
 int ShmemInitStatus();
 
