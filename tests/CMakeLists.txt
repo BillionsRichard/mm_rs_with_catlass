@@ -49,6 +49,7 @@ target_link_directories(test_scalar_p
 target_link_libraries(test_scalar_p
     PRIVATE
     shmem_host
+    shmem_device
     test_scalar_npu
     mf_smem
     mf_hybrid_bmm
@@ -77,6 +78,7 @@ target_link_directories(team_example
 target_link_libraries(team_example
     PRIVATE
     shmem_host
+    shmem_device
     test_scalar_npu
     mf_smem
     mf_hybrid_bmm

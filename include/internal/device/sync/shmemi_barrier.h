@@ -15,8 +15,16 @@ Be careful that synchronization between blocks is not guaranteed.
 #include "shmemi_quiet.h"
 #include "shmemi_p2p.h"
 
+#include "kernel_operator.h"
 
-/* Dissemination Barrier
+/* Level 1: barrier between cores (within a device) */
+SHMEM_AICORE_INLINE void ShmemiBarrierL1() {
+    AscendC::SyncAll<true>();
+}
+
+/* Level 2: barrier between devices (within a host)
+
+Dissemination Barrier
 
 1. Algorithm process
 
@@ -87,19 +95,17 @@ The temporal and spatial complexity of this implementation are O(logN) and O(N),
   c. Optimize spatial complexity to O(logN).
 */
 
-SHMEM_AICORE_INLINE void ShmemiSyncAlgoDissem(ShmemTeam_t tid) {
-    ShmemTeam *team = getState()->teamPools[tid];
-
+SHMEM_AICORE_INLINE void ShmemiBarrierL2(ShmemTeam *team) {
     int myPe = team->mype;
     int start = team->start;
     int stride = team->stride;
     int size = team->size;
-    auto syncCounter = ShmemiGetTeamSyncCounter(team);
-    auto syncArray = ShmemiGetTeamSyncArray(team);
+    auto syncArrayL2 = ShmemiGetTeamSyncArrayL2(team);
+    auto syncCounterL2 = ShmemiGetTeamSyncCounterL2(team);
 
     int shift = 1;
     int myPeInTeam = (myPe - start) / stride;
-    uint64_t count = load<uint64_t>((__gm__ uint8_t *)syncCounter);
+    int32_t count = load<int32_t>((__gm__ uint8_t *)syncCounterL2);
 
     while (shift < size) {
         int prePeInTeam = (myPeInTeam - shift + size) % size;
@@ -109,27 +115,42 @@ SHMEM_AICORE_INLINE void ShmemiSyncAlgoDissem(ShmemTeam_t tid) {
         int nextPe = start + nextPeInTeam * stride;
 
         // signal next pe
-        ShmemiSignal<uint64_t>((__gm__ uint8_t *)(syncArray + myPe), nextPe, count);
+        ShmemiSignal<int32_t>((__gm__ uint8_t *)(syncArrayL2 + myPe), nextPe, count);
 
         // wait pre pe
-        ShmemiWait<uint64_t>((__gm__ uint8_t *)(syncArray + prePe), count);
+        ShmemiWait<int32_t>((__gm__ uint8_t *)(syncArrayL2 + prePe), count);
         
         shift *= 2;
     } 
 
-    store<uint64_t>((__gm__ uint8_t *)syncCounter, count + 1);
+    store<int32_t>((__gm__ uint8_t *)syncCounterL2, count + 1);
 }
 
+/* Level 3: barrier between hosts, TO BE IMPLEMENTED.*/ 
+SHMEM_AICORE_INLINE void ShmemiBarrierL3() {}
+
 SHMEM_AICORE_INLINE void ShmemiBarrier(ShmemTeam_t tid) {
-    // barrier within the core
+    ShmemTeam *team = getState()->teamPools[tid];
+
+    int mype = team->mype;
+    int start = team->start;
+    int stride = team->stride;
+    int size = team->size;
+
+    if ((mype - start) % stride != 0) {
+        // not in this team
+        return;
+    }
+
     ShmemiQuiet();
 
-    // barrier within the device, not implemented.
+    ShmemiBarrierL1();
 
-    // barrier within the host
-    ShmemiSyncAlgoDissem(tid);
+    if (AscendC::GetBlockIdx() == 0 && AscendC::GetSubBlockIdx() == 1) {
+        ShmemiBarrierL2(team);
+    }
 
-    // barrier with in the cluster, not implemented.
+    ShmemiBarrierL1();
 }
 
 #endif

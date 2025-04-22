@@ -7,16 +7,30 @@
 
 #include "internal/device/shmemi_device_common.h"
 
-SHMEM_AICORE_INLINE __gm__ SyncBit *ShmemiGetTeamSyncArray(ShmemTeam *team) {
-    uint64_t addr = reinterpret_cast<uint64_t>(getState()->syncArray);
-    addr += team->teamIdx * SYNC_ARRAY_SIZE_PER_TEAM;
-    return reinterpret_cast<__gm__ SyncBit *>(addr);
+SHMEM_AICORE_INLINE 
+__gm__ SyncBit *ShmemiGetSyncArrayL1() {
+    uint64_t addr = (uint64_t) getState()->sArrL1;
+    return (__gm__ SyncBit *) addr;
 }
 
-SHMEM_AICORE_INLINE __gm__ SyncBit *ShmemiGetTeamSyncCounter(ShmemTeam *team) {
-    uint64_t addr = reinterpret_cast<uint64_t>(getState()->syncCounter);
-    addr += team->teamIdx * SYNCBIT_SIZE;
-    return reinterpret_cast<__gm__ SyncBit *>(addr);
+SHMEM_AICORE_INLINE 
+__gm__ SyncBit *ShmemiGetSyncCounterL1() {
+    uint64_t addr = (uint64_t) getState()->sCntrL1;
+    return (__gm__ SyncBit *) addr;
+}
+
+SHMEM_AICORE_INLINE 
+__gm__ SyncBit *ShmemiGetTeamSyncArrayL2(ShmemTeam *team) {
+    uint64_t addr = (uint64_t) getState()->sPoolL2;
+    addr += team->teamIdx * SYNC_ARRAY_SIZE_L2;
+    return (__gm__ SyncBit *) addr;
+}
+
+SHMEM_AICORE_INLINE 
+__gm__ SyncBit *ShmemiGetTeamSyncCounterL2(ShmemTeam *team) {
+    uint64_t addr = (uint64_t) getState()->cPoolL2;
+    addr += team->teamIdx * SYNC_COUNTER_SIZE_L2;
+    return (__gm__ SyncBit *) addr;
 }
 
 #endif 

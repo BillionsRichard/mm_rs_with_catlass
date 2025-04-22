@@ -11,6 +11,8 @@ using namespace std;
 #include "team.h"
 #include "types.h"
 #include "acl/acl.h"
+#include "data_utils.h"
+#include "shmem_heap.h"
 
 #define SHMEM_MAX_TEAMS 32
 
@@ -23,6 +25,8 @@ ShmemTeam **shmemTeamPool;
 long *shmemPsyncPool;
 long *shmemSyncCounter;
 long *poolAvail;
+
+void ShmemiMemset(int* array, int len, int val);
 
 void DeviceTeamUpdate(int teamIdx, ShmemTeam *hostTeamPtr)
 {
@@ -66,17 +70,12 @@ int ShmemTeamInit(int rank, int size)
     poolAvail[0] = 1;
 
     /* Initialize TEAM SYNC */
-    // TODO: use ShmemMalloc; use vector unit to initialize
-    shmemDeviceHostState.syncArray = (SyncBit *) shmemDeviceHostState.p2pHeapBase[rank];
-    shmemDeviceHostState.syncCounter = (SyncBit *) ((uint64_t)shmemDeviceHostState.p2pHeapBase[rank] + SYNC_ARRAY_SIZE);
-    SyncBit set = {1, 0, 0, 0, 0, 0, 0, 0};
-    SyncBit clear = {0, 0, 0, 0, 0, 0, 0, 0};
-    for (int i = 0; i < SYNC_ARRAY_SIZE / SYNCBIT_SIZE; i++) {
-        aclrtMemcpy(shmemDeviceHostState.syncArray + i, SYNCBIT_SIZE, &clear, SYNCBIT_SIZE, ACL_MEMCPY_HOST_TO_DEVICE);
-    }
-    for (int i = 0; i < SYNC_COUNTER_SIZE / SYNCBIT_SIZE; i++) {
-        aclrtMemcpy(shmemDeviceHostState.syncCounter + i, SYNCBIT_SIZE, &set, SYNCBIT_SIZE, ACL_MEMCPY_HOST_TO_DEVICE);
-    }
+    shmemDeviceHostState.sPoolL2 = (SyncBit *)ShmemMalloc(SA_POOL_SIZE_L2);
+    aclrtMemset((void *) shmemDeviceHostState.sPoolL2, SA_POOL_SIZE_L2, 0);
+
+    aclrtMalloc((void **)&(shmemDeviceHostState.cPoolL2), SC_POOL_SIZE_L2, ACL_MEM_MALLOC_HUGE_FIRST);
+    ShmemiMemset((int32_t *) shmemDeviceHostState.cPoolL2, SC_POOL_SIZE_L2 / sizeof(int32_t), 1);
+
     return 0;
 }
 

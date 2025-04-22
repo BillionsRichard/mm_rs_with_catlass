@@ -6,6 +6,7 @@ using namespace std;
 #include "data_utils.h"
 
 #include "shmem_api.h"
+#include "shmem_heap.h"
 
 extern void fetchAddrDo(uint8_t* syncArray, uint8_t* syncCounter);
 
@@ -17,7 +18,7 @@ static uint32_t gNpuNum = 8;
 static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 16;
 
 static void fetchFlags(uint32_t rankId, void *syncArray, void *syncCounter) {
-    static uint64_t tmp[SYNCBIT_SIZE / sizeof(uint64_t) * 8];
+    static int32_t tmp[SYNCBIT_SIZE / sizeof(int32_t) * 8];
 
     std::cout << "Rank " << rankId << ": ";
 
@@ -26,7 +27,7 @@ static void fetchFlags(uint32_t rankId, void *syncArray, void *syncCounter) {
     
     CHECK_ACL(aclrtMemcpy(tmp, SYNCBIT_SIZE * 8, syncArray, SYNCBIT_SIZE * 8, ACL_MEMCPY_DEVICE_TO_HOST));
     for (int i = 0; i < 8; i++) {
-        std::cout << *(tmp + i * SYNCBIT_SIZE / sizeof(uint64_t)) << " ";
+        std::cout << *(tmp + i * SYNCBIT_SIZE / sizeof(int32_t)) << " ";
     }
     std::cout << std::endl;
 }
@@ -67,9 +68,7 @@ static void TestBarrierWhiteBox(aclrtStream stream, uint32_t rankId, uint32_t ra
 }
 
 static void TestBarrierBlackBox(aclrtStream stream, uint32_t rankId, uint32_t rankSize) {
-    // TODO: use ShmemMalloc;
-    uint64_t *addrDev = (uint64_t * ) (0x17ffc0000000 + SYNC_ARRAY_SIZE + SYNC_COUNTER_SIZE + rankId * (gNpuMallocSpace + SHMEM_EXTRA_SIZE));
-
+    uint64_t *addrDev = ShmemMalloc(sizeof(uint64_t));
     uint64_t *addrHost;
     CHECK_ACL(aclrtMallocHost((void **)&addrHost, sizeof(uint64_t)));
     *addrHost = 0;

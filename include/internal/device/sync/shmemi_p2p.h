@@ -4,12 +4,17 @@
 #include "internal/device/shmemi_device_common.h"
 
 template<typename T>
-SHMEM_AICORE_INLINE void ShmemiSignal(__gm__ uint8_t *addr, int pe, T val) {
-    __gm__ uint8_t *remote = ShmemiPtr(addr, pe);
-    store<T>(remote, val);
+SHMEM_AICORE_INLINE void ShmemiSignal(__gm__ uint8_t *addr, T val) {
+    store<T>(addr, val);
 
     // flush data cache to GM after signal to ensure it is visiable to other ranks 
-    DcciCacheline(remote);
+    DcciCacheline(addr);
+}
+
+template<typename T>
+SHMEM_AICORE_INLINE void ShmemiSignal(__gm__ uint8_t *addr, int pe, T val) {
+    __gm__ uint8_t *remote = ShmemiPtr(addr, pe);
+    ShmemiSignal<T>(remote, val);
 }
 
 template<typename T>

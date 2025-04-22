@@ -8,7 +8,23 @@
 #include "smem_shm.h"
 
 // synchronization
-typedef uint64_t SyncBit[SYNCBIT_SIZE / sizeof(uint64_t)];
+typedef int32_t SyncBit[SYNCBIT_SIZE / sizeof(int32_t)];
+
+// level 0: sync between pipes, use native primitives
+
+// level 1: sync between cores
+typedef SyncBit SyncArrayL1[SHM_MAX_CORES_PER_RANK];
+typedef SyncBit SyncCounterL1;
+
+// level 2: sync between devices
+typedef SyncBit SyncArrayL2[SHM_MAX_RANKS];
+typedef SyncBit SyncCounterL2;
+
+// team support
+typedef SyncArrayL2 SAPoolL2[SHM_MAX_TEAMS];
+typedef SyncCounterL2 SCPoolL2[SHM_MAX_TEAMS];
+
+// level 3: sync between hosts?
 
 #define DEFAULT_FLAG 0
 #define STATE_SCALAR_INVALID -1
@@ -26,6 +42,10 @@ typedef uint64_t SyncBit[SYNCBIT_SIZE / sizeof(uint64_t)];
             {NULL},                                  /* p2pHeapBase */                \
             SIZE_MAX,                                /* heapSize */                   \
             {NULL},                                  /* teamPools */                  \
+            NULL,                                    /* psyncPool */                  \
+            NULL,                                    /* syncCounter */                \
+            NULL,                                    /* psyncPool */                  \
+            NULL,                                    /* syncCounter */                \
             NULL,                                    /* psyncPool */                  \
             NULL,                                    /* syncCounter */                \
             false,                                   /* sheme_is_shmem_initialized */ \
@@ -72,9 +92,15 @@ typedef struct {
     ShmemTeam *teamPools[SHM_MAX_TEAMS];
     
     // Using SyncBit instead of basic types to store flag, avoiding concurrent write due to cacheline sharing.
-    // Refer to shmemiSyncAlgoDissem for more details.
+    // Refer to shmemi_barrier.h for more details.
     SyncBit *syncArray;
     SyncBit *syncCounter;
+
+    SyncBit *sArrL1;
+    SyncBit *sCntrL1;
+
+    SyncBit *sPoolL2;
+    SyncBit *cPoolL2;
 
     bool shemeIsShmemInitialized;
     bool shemeIsShmemCreated;

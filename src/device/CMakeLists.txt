@@ -1,4 +1,6 @@
-file(GLOB KERNEL_FILES sync/shmem_barrier.cpp)
+file(GLOB KERNEL_FILES 
+    memset.cpp
+    sync/shmem_barrier.cpp)
 
 ascendc_library(shmem_device SHARED ${KERNEL_FILES})
 
