@@ -75,7 +75,7 @@ int SmemHeapInit(ShmemInitAttrT *attributes){
         ERROR_LOG("smem_shm_create Failed");
         return ERROR_SMEM_ERROR;
     }
-    shmemDeviceHostState.heapBase = gva;
+    shmemDeviceHostState.heapBase = (void *)((uintptr_t)gva + (attributes->localMemSize + DEFAULT_EXTRA_SIZE) * attributes->myRank);
     uint32_t reachInfo = 0;
     for ( int i = 0;  i < shmemDeviceHostState.npes; i++){
         status = smem_shm_topology_can_reach(handle, i, shmemCommAttr.dataOpType, &reachInfo);

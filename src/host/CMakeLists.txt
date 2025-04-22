@@ -3,6 +3,8 @@ set(SHMEM_HOST_SOURCES
     domain/team.cpp
     init/init.cpp
     mem/mem.cpp
+    mem/mspace.cpp
+    mem/shmem_heap.cpp
 )
 
 add_library(
