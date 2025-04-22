@@ -31,6 +31,10 @@ static int32_t TestScalarPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankI
     string pName = "[Process " + to_string(rankId) + "] ";
     std::cout << pName << "-----[PUT]------ " << yHost[0] << " ----" << std::endl;
 
+    // for gtest
+    int32_t flag = 0;
+    if (yHost[0] != (3.5f + (rankId + rankSize - 1) % rankSize)) flag = 1;
+
     CHECK_ACL(aclrtFreeHost(yHost));
     return 0;
 }

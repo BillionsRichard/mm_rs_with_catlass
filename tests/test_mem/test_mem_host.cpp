@@ -54,7 +54,14 @@ static int32_t TestPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankId, uin
         std::cout << input[i] << " ";
     }
     std::cout << std::endl;
-    return 0;
+    // for gtest
+    int32_t flag = 0;
+    for (int i = 0; i < totalSize; i++){
+        int stage = i / 16;
+        if (input[i] != (stage + 10)) flag = 1;
+    }
+    std::cout << "Result: " << flag << std::endl;
+    return flag;
 }
 
 int main(int argc, char* argv[]) 
