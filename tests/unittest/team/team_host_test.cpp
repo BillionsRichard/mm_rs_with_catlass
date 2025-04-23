@@ -70,7 +70,8 @@ void TestShmemTeam(int rankId, int nRanks, uint64_t localMemSize) {
 
     // #################### device代码测试 ##############################
 
-    TestGetDeviceState(stream, (uint8_t *)shmemDeviceHostState.heapBase, rankId, nRanks, team_odd);
+    status = TestGetDeviceState(stream, (uint8_t *)shmemDeviceHostState.heapBase, rankId, nRanks, team_odd);
+    EXPECT_EQ(status, SHMEM_SUCCESS);
 
     // #################### 相关资源释放 ################################
     ShmemTeamDestroy(team_odd);
