@@ -11,7 +11,7 @@ extern const char* testGlobalIpport;
 extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localMemSize, int processCount);
 
 void TestShmemInit(int rankId, int nRanks, uint64_t localMemSize) {
-    uint32_t deviceId = rankId;
+    uint32_t deviceId = rankId % testGNpuNum;
     int status = SHMEM_SUCCESS;
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
@@ -36,7 +36,7 @@ void TestShmemInit(int rankId, int nRanks, uint64_t localMemSize) {
 
 void TestShmemInitInvalidRankId(int rankId, int nRanks, uint64_t localMemSize) {
     int erankId = -1;
-    uint32_t deviceId = rankId;
+    uint32_t deviceId = rankId % testGNpuNum;
     int status = SHMEM_SUCCESS;
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
@@ -52,7 +52,7 @@ void TestShmemInitInvalidRankId(int rankId, int nRanks, uint64_t localMemSize) {
 }
 
 void TestShmemInitRankIdOverSize(int rankId, int nRanks, uint64_t localMemSize) {
-    uint32_t deviceId = rankId;
+    uint32_t deviceId = rankId % testGNpuNum;
     int status = SHMEM_SUCCESS;
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
@@ -69,7 +69,7 @@ void TestShmemInitRankIdOverSize(int rankId, int nRanks, uint64_t localMemSize) 
 
 void TestShmemInitZeroMem(int rankId, int nRanks, uint64_t localMemSize) {
     //localMemSize = 0
-    uint32_t deviceId = rankId;
+    uint32_t deviceId = rankId % testGNpuNum;
     int status = SHMEM_SUCCESS;
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
@@ -86,7 +86,7 @@ void TestShmemInitZeroMem(int rankId, int nRanks, uint64_t localMemSize) {
 
 void TestShmemInitInvalidMem(int rankId, int nRanks, uint64_t localMemSize) {
     //localMemSize = invalid
-    uint32_t deviceId = rankId;
+    uint32_t deviceId = rankId % testGNpuNum;
     int status = SHMEM_SUCCESS;
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
