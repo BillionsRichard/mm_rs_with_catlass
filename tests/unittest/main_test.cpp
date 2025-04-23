@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
     if (argc > 1) {
         testGlobalRanks = std::atoi(argv[1]);
         testGlobalIpport = argv[2];
-        testGNpuNum = argv[3];
+        testGNpuNum = std::atoi(argv[3]);
     }
 
     ::testing::InitGoogleTest(&argc, argv);

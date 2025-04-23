@@ -42,7 +42,7 @@ static int32_t TestScalarPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankI
     return flag;
 }
 
-void TestShmemScalarP(int rankId, int nRanks, uint64_t localMemSize) {
+void TestShmemScalarP(int rankId, int nRanks, uint64_t localMemSize)
 {
     int status = SHMEM_SUCCESS;
     if (nRanks != (nRanks & (~(nRanks - 1)))) {

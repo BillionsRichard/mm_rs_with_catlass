@@ -68,7 +68,7 @@ static int32_t TestPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankId, uin
 
 void TestShmemMem(int rankId, int nRanks, uint64_t localMemSize) {
     int status = SHMEM_SUCCESS;
-    std::cout << "[TEST] input rank_size: " << nRanks << " rank_id:" << rankId << " input_ip: " << test_global_ipport << std::endl;
+    std::cout << "[TEST] input rank_size: " << nRanks << " rank_id:" << rankId << " input_ip: " << testGlobalIpport << std::endl;
 
     if (nRanks != (nRanks & (~(nRanks - 1)))) {
         std::cout << "[TEST] input rank_size: "<< nRanks << " is not the power of 2" << std::endl;
