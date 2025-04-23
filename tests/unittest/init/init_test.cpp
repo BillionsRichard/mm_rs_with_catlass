@@ -1,15 +1,17 @@
 #include <iostream>
-#include <gtest/gtest.h>
+#include <unistd.h>
 #include <acl/acl.h>
 #include "data_utils.h"
 #include "shmem_api.h"
 
-TEST(TestInitAPI, TestShmemInit)
-{
-    int rankId = 0;
-    int nRanks = 1;
-    uint64_t localMemSize = 1024UL * 1024UL * 1024;
-    uint32_t deviceId = 0;
+#include <gtest/gtest.h>
+extern int testGlobalRanks;
+extern int testGNpuNum;
+extern const char* testGlobalIpport;
+extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localMemSize, int processCount);
+
+void TestShmemInit(int rankId, int nRanks, uint64_t localMemSize) {
+    uint32_t deviceId = rankId;
     int status = SHMEM_SUCCESS;
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
@@ -27,48 +29,47 @@ TEST(TestInitAPI, TestShmemInit)
     EXPECT_EQ(status, SHMEM_SUCCESS);
     CHECK_ACL(aclrtResetDevice(deviceId));
     CHECK_ACL(aclFinalize());
+    if (::testing::Test::HasFailure()){
+        exit(1);
+    }
 }
 
-TEST(TestInitAPIError, TestShmemInitInvalidRankId)
-{
-    int rankId = -1;
-    int nRanks = 1;
-    uint64_t localMemSize = 1024UL * 1024UL * 1024;
-    uint32_t deviceId = 0;
+void TestShmemInitInvalidRankId(int rankId, int nRanks, uint64_t localMemSize) {
+    int erankId = -1;
+    uint32_t deviceId = rankId;
     int status = SHMEM_SUCCESS;
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
-    status = ShmemInit(rankId, nRanks, localMemSize);
+    status = ShmemInit(erankId, nRanks, localMemSize);
     EXPECT_EQ(status, ERROR_INVALID_VALUE);
     status = ShmemInitStatus();
     EXPECT_EQ(status, SHMEM_STATUS_NOT_INITALIZED);
     CHECK_ACL(aclrtResetDevice(deviceId));
     CHECK_ACL(aclFinalize());
+    if (::testing::Test::HasFailure()){
+        exit(1);
+    }
 }
 
-TEST(TestInitAPIError, TestShmemInitInvalidRankIdnRanks)
-{
-    int rankId = 1;
-    int nRanks = 1;
-    uint64_t localMemSize = 1024UL * 1024UL * 1024;
-    uint32_t deviceId = 0;
+void TestShmemInitRankIdOverSize(int rankId, int nRanks, uint64_t localMemSize) {
+    uint32_t deviceId = rankId;
     int status = SHMEM_SUCCESS;
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
-    status = ShmemInit(rankId, nRanks, localMemSize);
+    status = ShmemInit(rankId + nRanks, nRanks, localMemSize);
     EXPECT_EQ(status, ERROR_INVALID_PARAM);
     status = ShmemInitStatus();
     EXPECT_EQ(status, SHMEM_STATUS_NOT_INITALIZED);
     CHECK_ACL(aclrtResetDevice(deviceId));
     CHECK_ACL(aclFinalize());
+    if (::testing::Test::HasFailure()){
+        exit(1);
+    }
 }
 
-TEST(TestInitAPIError, TestShmemInitZeroMem)
-{
-    int rankId = 0;
-    int nRanks = 1;
-    uint64_t localMemSize = 0;
-    uint32_t deviceId = 0;
+void TestShmemInitZeroMem(int rankId, int nRanks, uint64_t localMemSize) {
+    //localMemSize = 0
+    uint32_t deviceId = rankId;
     int status = SHMEM_SUCCESS;
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
@@ -78,14 +79,14 @@ TEST(TestInitAPIError, TestShmemInitZeroMem)
     EXPECT_EQ(status, SHMEM_STATUS_NOT_INITALIZED);
     CHECK_ACL(aclrtResetDevice(deviceId));
     CHECK_ACL(aclFinalize());
+    if (::testing::Test::HasFailure()){
+        exit(1);
+    }
 }
 
-TEST(TestInitAPIError, TestShmemInitInvalidMem)
-{
-    int rankId = 0;
-    int nRanks = 1;
-    uint64_t localMemSize = 1024UL * 1024UL;
-    uint32_t deviceId = 0;
+void TestShmemInitInvalidMem(int rankId, int nRanks, uint64_t localMemSize) {
+    //localMemSize = invalid
+    uint32_t deviceId = rankId;
     int status = SHMEM_SUCCESS;
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
@@ -95,4 +96,45 @@ TEST(TestInitAPIError, TestShmemInitInvalidMem)
     EXPECT_EQ(status, SHMEM_STATUS_NOT_INITALIZED);
     CHECK_ACL(aclrtResetDevice(deviceId));
     CHECK_ACL(aclFinalize());
+    if (::testing::Test::HasFailure()){
+        exit(1);
+    }
+}
+
+
+
+
+TEST(TestInitAPI, TestShmemInit)
+{   
+    const int processCount = testGlobalRanks;
+    uint64_t localMemSize = 1024UL * 1024UL * 1024;
+    TestMutilInitTask(TestShmemInit, localMemSize, processCount);
+}
+
+TEST(TestInitAPI, TestShmemInitErrorInvalidRankId)
+{   
+    const int processCount = testGlobalRanks;
+    uint64_t localMemSize = 1024UL * 1024UL * 1024;
+    TestMutilInitTask(TestShmemInitInvalidRankId, localMemSize, processCount);
+}
+
+TEST(TestInitAPI, TestShmemInitErrorRankIdOversize)
+{   
+    const int processCount = testGlobalRanks;
+    uint64_t localMemSize = 1024UL * 1024UL * 1024;
+    TestMutilInitTask(TestShmemInitRankIdOverSize, localMemSize, processCount);
+}
+
+TEST(TestInitAPI, TestShmemInitErrorZeroMem)
+{   
+    const int processCount = testGlobalRanks;
+    uint64_t localMemSize = 0;
+    TestMutilInitTask(TestShmemInitZeroMem, localMemSize, processCount);
+}
+
+TEST(TestInitAPI, TestShmemInitErrorInvalidMem)
+{   
+    const int processCount = testGlobalRanks;
+    uint64_t localMemSize = 1024UL * 1024UL;
+    TestMutilInitTask(TestShmemInitInvalidMem, localMemSize, processCount);
 }
