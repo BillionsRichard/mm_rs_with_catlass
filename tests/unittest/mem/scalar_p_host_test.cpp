@@ -57,7 +57,9 @@ void TestShmemScalarP(int rankId, int nRanks, uint64_t localMemSize)
     aclrtStream stream = nullptr;
 
     CHECK_ACL(aclrtCreateStream(&stream));
-    status = ShmemInit(rankId, nRanks, localMemSize);
+    ShmemInitAttrT* attributes;
+    ShmemSetAttr(rankId, nRanks, localMemSize, test_global_ipport, &attributes);
+    status = ShmemInit();
     EXPECT_EQ(status, SHMEM_SUCCESS);
 
     status = TestScalarPutGet(stream, (uint8_t *)shmemDeviceHostState.heapBase, rankId, nRanks);

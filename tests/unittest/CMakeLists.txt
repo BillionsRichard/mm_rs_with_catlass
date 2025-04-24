@@ -1,6 +1,6 @@
 file(GLOB_RECURSE SOURCE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*test.cpp")
 add_executable(shmem_unittest ${SOURCE_FILES})
-target_include_directories(shmem_unittest PRIVATE ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include)
+target_include_directories(shmem_unittest PRIVATE ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/smem/include)
 target_include_directories(shmem_unittest PRIVATE ${PROJECT_SOURCE_DIR}/3rdparty/googletest/include)
 target_include_directories(shmem_unittest PRIVATE ${ASCEND_HOME_PATH}/include)
 target_link_directories(shmem_unittest PRIVATE ${PROJECT_SOURCE_DIR}/3rdparty/googletest/lib ${ASCEND_HOME_PATH}/lib64/ pthread)

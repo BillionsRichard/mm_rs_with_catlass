@@ -7,7 +7,7 @@
 
 using namespace std;
 
-#include "init.h"
+#include "init_internal.h"
 #include "team.h"
 
 #define SHMEM_MAX_TEAMS 32

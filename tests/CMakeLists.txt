@@ -19,8 +19,8 @@ ascendc_include_directories(test_scalar_npu
     ${PROJECT_SOURCE_DIR}/include/host/
     ${PROJECT_SOURCE_DIR}/include/device/
     ${PROJECT_SOURCE_DIR}/include/host_device/
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/host/
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/aicore/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/host/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/device/
 )
 
 ascendc_compile_definitions(test_scalar_npu PRIVATE

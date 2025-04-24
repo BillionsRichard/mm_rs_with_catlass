@@ -7,30 +7,44 @@
 using namespace std;
 
 #include "constants.h"
-#include "init.h"
+#include "team.h"
+#include "init_internal"
 #include "shmem_api.h"
 #include "data_utils.h"
+#include "types_internal.h"
+
+#include "smem_shm.h"
 
 smem_shm_t handle = nullptr;
 ShmemDeviceHostStateT shmemDeviceHostState;
 ShmemCommAttrT shmemCommAttr;
 
-ShmemInitAttr CreateAttributes(int myRank, int nRanks, uint64_t localMemSize){
-    ShmemInitAttrT shmemInitAttr;
-    shmemInitAttr.myRank = myRank;
-    shmemInitAttr.nRanks = nRanks;
-    shmemInitAttr.localMemSize = localMemSize;
-    return shmemInitAttr;
+smem_shm_t handle = nullptr;
+ShmemDeviceHostStateT shmemDeviceHostState;
+ShmemInitAttrT shmemInitAttr;
+
+int SetDataOpEngineType(ShmemInitAttrT *attributes, DataOpEngineType value) {
+    attributes->optionAttr.dataOpEngineType = value;
+    return SHMEM_SUCCESS;
+}
+int SetTimeout(ShmemInitAttrT *attributes, uint32_t value) {
+    attributes->optionAttr.shmInitTimeout = value;
+    attributes->optionAttr.shmCreateTimeout = value;
+    attributes->optionAttr.controlOperationTimeout = value;
+    return SHMEM_SUCCESS;
 }
 
-int CommAttrInit(ShmemInitAttr *shmemInitAttr){
-    int status = SHMEM_SUCCESS;
-    shmemCommAttr = SHMEM_COMM_ATTR;
-    int32_t deviceId;
-    CHECK_ACL(aclrtGetDevice(&deviceId));
-    shmemCommAttr.deviceId = deviceId;
-    shmemCommAttr.globalSize = (shmemInitAttr->localMemSize + shmemCommAttr.extraSize) * shmemInitAttr->nRanks;
-    return status;
+
+int ShmemSetAttr(int myRank, int nRanks, uint64_t localMemSize, const char* ipPort, ShmemInitAttrT **attributes) {
+    *attributes = &shmemInitAttr;
+    shmemInitAttr.version = (1 << 16) + sizeof(ShmemInitAttrT);
+    shmemInitAttr.myRank = myRank;
+    shmemInitAttr.nRanks = nRanks;
+    shmemInitAttr.ipPort = ipPort;
+    shmemInitAttr.localMemSize = localMemSize;
+    DataOpEngineType supportDataOp = static_cast<DataOpEngineType>(smem_shm_query_support_data_operation());
+    shmemInitAttr.optionAttr = {supportDataOp, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
+    return SHMEM_SUCCESS;
 }
 
 int VersionCompatible(){
@@ -63,14 +77,31 @@ int ShmemStateInitAttr(ShmemInitAttrT *attributes){
 int SmemHeapInit(ShmemInitAttrT *attributes){
     void *gva = nullptr;
     int status = SHMEM_SUCCESS;
-    status = smem_init(shmemCommAttr.globalSize, shmemCommAttr.flag);
+    uint64_t smemGlobalSize = shmemDeviceHostState.heapSize * shmemDeviceHostState.npes;
+    int32_t deviceId;
+    CHECK_ACL(aclrtGetDevice(&deviceId));
+
+    status = smem_init(DEFAULT_FLAG);
     if (status != SHMEM_SUCCESS) {
         ERROR_LOG("smem_init Failed");
         return ERROR_SMEM_ERROR;
     }
-    handle = smem_shm_create(shmemCommAttr.id, shmemCommAttr.ipPort, attributes->nRanks, attributes->myRank,
-                                shmemCommAttr.deviceId, attributes->localMemSize + shmemCommAttr.extraSize, shmemCommAttr.dataOpType, 
-                                shmemCommAttr.timeout, shmemCommAttr.flag, &gva);
+    smem_shm_config_t config;
+    (void) smem_shm_config_init(&config);
+    status = smem_shm_init(attributes->ipPort, attributes->nRanks, attributes->myRank, deviceId, smemGlobalSize, &config);
+    if (status != SHMEM_SUCCESS) {
+        ERROR_LOG("smem_init Failed");
+        return ERROR_SMEM_ERROR;
+    }
+
+    config.shmInitTimeout=attributes->optionAttr.shmInitTimeout;
+    config.shmCreateTimeout=attributes->optionAttr.shmCreateTimeout;
+    config.controlOperationTimeout=attributes->optionAttr.controlOperationTimeout;
+
+    handle = smem_shm_create(DEFAULT_ID, attributes->nRanks, attributes->myRank, shmemDeviceHostState.heapSize, 
+                             static_cast<smem_shm_data_op_type>(attributes->optionAttr.dataOpEngineType), 
+                             DEFAULT_FLAG, &gva);
+
     if (handle == nullptr || gva == nullptr) {
         ERROR_LOG("smem_shm_create Failed");
         return ERROR_SMEM_ERROR;
@@ -78,11 +109,21 @@ int SmemHeapInit(ShmemInitAttrT *attributes){
     shmemDeviceHostState.heapBase = (void *)((uintptr_t)gva + (attributes->localMemSize + DEFAULT_EXTRA_SIZE) * attributes->myRank);
     uint32_t reachInfo = 0;
     for ( int i = 0;  i < shmemDeviceHostState.npes; i++){
-        status = smem_shm_topology_can_reach(handle, i, shmemCommAttr.dataOpType, &reachInfo);
-        if  (reachInfo <= SMEM_TRANSPORT_CAP_MAP) {
+        status = smem_shm_topology_can_reach(handle, i, &reachInfo);
+        if (reachInfo & SMEMS_DATA_OP_MTE) {
             shmemDeviceHostState.p2pHeapBase[i] = (void *)((uintptr_t)gva + (attributes->localMemSize + DEFAULT_EXTRA_SIZE) * i);
         } else {
             shmemDeviceHostState.p2pHeapBase[i] = NULL;
+        }
+        if (reachInfo & SMEMS_DATA_OP_SDMA) {
+            shmemDeviceHostState.sdmaHeapBase[i] = (void *)((uintptr_t)gva + (attributes->localMemSize + DEFAULT_EXTRA_SIZE) * i);
+        } else {
+            shmemDeviceHostState.sdmaHeapBase[i] = NULL;
+        }
+        if (reachInfo & SMEMS_DATA_OP_ROCE) {
+            shmemDeviceHostState.roceHeapBase[i] = (void *)((uintptr_t)gva + (attributes->localMemSize + DEFAULT_EXTRA_SIZE) * i);
+        } else {
+            shmemDeviceHostState.roceHeapBase[i] = NULL;
         }
     }
     shmemDeviceHostState.shemeIsShmemCreated = true;
@@ -95,15 +136,15 @@ int UpdateDeviceState(){
     return status;
 }
 
-int ShmemHostInitAttr(ShmemInitAttrT *attributes){
+int ShmemInitAttr(ShmemInitAttrT *attributes){
     int status = SHMEM_SUCCESS;
+    CHECK_SHMEM(CheckAttr(attributes), status);
     CHECK_SHMEM(VersionCompatible(), status);
     CHECK_SHMEM(ShmemOptionsInit(), status);
 
     ShmemStateInit();
     if (attributes != NULL){
         CHECK_SHMEM(ShmemStateInitAttr(attributes), status);
-        CHECK_SHMEM(CommAttrInit(attributes), status);
     }
     CHECK_SHMEM_STATUS(SmemHeapInit(attributes), status, "Failed to initialize the share memory heap");
 
@@ -114,19 +155,17 @@ int ShmemHostInitAttr(ShmemInitAttrT *attributes){
     return status;
 }
 
-int ShmemInit(int myRank, int nRanks, uint64_t localMemSize){
+int ShmemInit(){
     int status = SHMEM_SUCCESS;
-    CHECK_SHMEM(CheckAttr(myRank, nRanks, localMemSize), status);
-    ShmemInitAttrT attributes = CreateAttributes(myRank, nRanks, localMemSize);
-    CHECK_SHMEM(ShmemHostInitAttr(&attributes), status);
+    CHECK_SHMEM(ShmemInitAttr(&shmemInitAttr), status);
     return status;
 }
 
-int ShmemFinalize(){
+int ShmemFinalize() {
     int status = SHMEM_SUCCESS;
     CHECK_SHMEM(ShmemTeamFinalize(), status);
     ShmemStateInit();
-    CHECK_SHMEM(smem_shm_destroy(handle, shmemCommAttr.flag), status);
+    CHECK_SHMEM(smem_shm_destroy(handle, DEFAULT_FLAG), status);
     smem_uninit();
     return status;
 };
@@ -136,16 +175,16 @@ int ShmemSetConfig() {
     return status;
 }
 
-int CheckAttr(int myRank, int nRanks, uint64_t localMemSize) {
-    if (myRank < 0 || nRanks <= 0) {
+int CheckAttr(ShmemInitAttrT *attributes) {
+    if ((attributes->myRank < 0) || (attributes->nRanks <= 0)) {
         ERROR_LOG("myRank:%d and nRanks%d cannot be less 0 , nRanks still cannot be equal 0",
-                myRank, nRanks);
+                attributes->myRank, attributes->nRanks);
         return ERROR_INVALID_VALUE;
-    } else if (myRank >= nRanks) {
-        ERROR_LOG("nRanks:%d cannot be less than myRank%d", nRanks, myRank);
+    } else if (attributes->myRank >= attributes->nRanks) {
+        ERROR_LOG("nRanks:%d cannot be less than myRank%d", attributes->nRanks, attributes->myRank);
         return ERROR_INVALID_PARAM;
-    } else if (localMemSize <= 0) {
-        ERROR_LOG("localMemSize:%llu cannot be less or equal 0", localMemSize);
+    } else if (attributes->localMemSize <= 0) {
+        ERROR_LOG("localMemSize:%llu cannot be less or equal 0", attributes->localMemSize);
         return ERROR_INVALID_VALUE;
     }
     return SHMEM_SUCCESS;
