@@ -48,6 +48,8 @@ typedef struct {
     int npes;
     void *heapBase;
     void *p2pHeapBase[SHM_MAX_RANKS];
+    void *sdmaHeapBase[SHM_MAX_RANKS];
+    void *roceHeapBase[SHM_MAX_RANKS];
     size_t heapSize;
 
     ShmemTeam *teamPools[SHM_MAX_TEAMS];
