@@ -4,7 +4,7 @@ using namespace std;
 
 #include "acl/acl.h"
 #include "data_utils.h"
-
+#include "shmem_heap.h"
 #include "shmem_api.h"
 
 #include <gtest/gtest.h>
@@ -58,7 +58,7 @@ void TestShmemScalarP(int rankId, int nRanks, uint64_t localMemSize)
 
     CHECK_ACL(aclrtCreateStream(&stream));
     ShmemInitAttrT* attributes;
-    ShmemSetAttr(rankId, nRanks, localMemSize, test_global_ipport, &attributes);
+    ShmemSetAttr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
     status = ShmemInit();
     EXPECT_EQ(status, SHMEM_SUCCESS);
 

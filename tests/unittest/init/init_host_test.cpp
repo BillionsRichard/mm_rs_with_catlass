@@ -16,7 +16,7 @@ void TestShmemInit(int rankId, int nRanks, uint64_t localMemSize) {
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
     ShmemInitAttrT* attributes;
-    ShmemSetAttr(rankId, nRanks, localMemSize, test_global_ipport, &attributes);
+    ShmemSetAttr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
     status = ShmemInit();
     EXPECT_EQ(status, SHMEM_SUCCESS);
     EXPECT_EQ(shmemDeviceHostState.mype, rankId);
@@ -42,7 +42,7 @@ void TestShmemInitAttr(int rankId, int nRanks, uint64_t localMemSize) {
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
 
-    ShmemInitAttrT* attributes = new ShmemInitAttrT{0, rankId, nRanks, test_global_ipport, localMemSize, {SHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT}};
+    ShmemInitAttrT* attributes = new ShmemInitAttrT{0, rankId, nRanks, testGlobalIpport, localMemSize, {SHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT}};
     status = ShmemInitAttr(attributes);
 
     EXPECT_EQ(status, SHMEM_SUCCESS);
@@ -70,7 +70,7 @@ void TestShmemInitInvalidRankId(int rankId, int nRanks, uint64_t localMemSize) {
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
     ShmemInitAttrT* attributes;
-    ShmemSetAttr(erankId, nRanks, localMemSize, test_global_ipport, &attributes);
+    ShmemSetAttr(erankId, nRanks, localMemSize, testGlobalIpport, &attributes);
     status = ShmemInit();
     EXPECT_EQ(status, ERROR_INVALID_VALUE);
     status = ShmemInitStatus();
@@ -88,7 +88,7 @@ void TestShmemInitRankIdOverSize(int rankId, int nRanks, uint64_t localMemSize) 
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
     ShmemInitAttrT* attributes;
-    ShmemSetAttr(rankId + nRanks, nRanks, localMemSize, test_global_ipport, &attributes);
+    ShmemSetAttr(rankId + nRanks, nRanks, localMemSize, testGlobalIpport, &attributes);
     status = ShmemInit();
     EXPECT_EQ(status, ERROR_INVALID_PARAM);
     status = ShmemInitStatus();
@@ -107,7 +107,7 @@ void TestShmemInitZeroMem(int rankId, int nRanks, uint64_t localMemSize) {
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
     ShmemInitAttrT* attributes;
-    ShmemSetAttr(rankId, nRanks, localMemSize, test_global_ipport, &attributes);
+    ShmemSetAttr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
     status = ShmemInit();
     EXPECT_EQ(status, ERROR_INVALID_VALUE);
     status = ShmemInitStatus();
@@ -126,7 +126,7 @@ void TestShmemInitInvalidMem(int rankId, int nRanks, uint64_t localMemSize) {
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
     ShmemInitAttrT* attributes;
-    ShmemSetAttr(rankId, nRanks, localMemSize, test_global_ipport, &attributes);
+    ShmemSetAttr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
     status = ShmemInit();
     EXPECT_EQ(status, ERROR_SMEM_ERROR);
     status = ShmemInitStatus();
@@ -144,7 +144,7 @@ void TestShmemSetConfig(int rankId, int nRanks, uint64_t localMemSize) {
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
     ShmemInitAttrT* attr;
-    ShmemSetAttr(rankId, nRanks, localMemSize, test_global_ipport, &attr);
+    ShmemSetAttr(rankId, nRanks, localMemSize, testGlobalIpport, &attr);
 
     SetDataOpEngineType(attr, SHMEM_DATA_OP_MTE);
     SetTimeout(attr, 50);
