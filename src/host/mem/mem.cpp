@@ -2,7 +2,7 @@
 
 using namespace std;
 
-#include "init_internal"
+#include "init_internal.h"
 #include "mem.h"
 #include "data_utils.h"
 

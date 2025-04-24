@@ -1,5 +1,5 @@
-#ifndef _SHMEM_INIT_H
-#define _SHMEM_INIT_H
+#ifndef _INIT_INTERNAL_
+#define _INIT_INTERNAL_
 
 #include "types.h"
 

@@ -8,7 +8,7 @@ using namespace std;
 
 #include "constants.h"
 #include "team.h"
-#include "init_internal"
+#include "init_internal.h"
 #include "shmem_api.h"
 #include "data_utils.h"
 #include "types_internal.h"
