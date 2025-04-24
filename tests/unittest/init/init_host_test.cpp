@@ -55,6 +55,7 @@ void TestShmemInitAttr(int rankId, int nRanks, uint64_t localMemSize) {
     status = ShmemInitStatus();
     EXPECT_EQ(status, SHMEM_STATUS_IS_INITALIZED);
     status = ShmemFinalize();
+    delete attributes;
     EXPECT_EQ(status, SHMEM_SUCCESS);
     CHECK_ACL(aclrtResetDevice(deviceId));
     CHECK_ACL(aclFinalize());
