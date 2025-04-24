@@ -3,6 +3,7 @@
 using namespace std;
 
 #include "init_internal.h"
+#include "team.h"
 #include "mem.h"
 #include "data_utils.h"
 

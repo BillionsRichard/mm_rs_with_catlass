@@ -40,7 +40,7 @@ target_link_directories(shmem
 target_link_libraries(shmem
     PUBLIC
     ${MPI_CXX_LIBRARIES}
-    ascendcl runtime profapi c_sec ascend_hal mf_smem mf_hybrid_bmm
+    ascendcl runtime profapi c_sec ascend_hal mf_smem mf_hybm_core
 )
 
 # 安装配置

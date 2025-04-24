@@ -17,10 +17,6 @@ using namespace std;
 
 smem_shm_t handle = nullptr;
 ShmemDeviceHostStateT shmemDeviceHostState;
-ShmemCommAttrT shmemCommAttr;
-
-smem_shm_t handle = nullptr;
-ShmemDeviceHostStateT shmemDeviceHostState;
 ShmemInitAttrT shmemInitAttr;
 
 int SetDataOpEngineType(ShmemInitAttrT *attributes, DataOpEngineType value) {
