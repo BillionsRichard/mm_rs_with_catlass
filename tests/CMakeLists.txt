@@ -11,6 +11,7 @@ file(GLOB_RECURSE KERNEL_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*_kernel.cpp")
 ascendc_library(test_scalar_npu SHARED ${KERNEL_FILES})
 ascendc_include_directories(test_scalar_npu
     PUBLIC
+    ${PROJECT_SOURCE_DIR}/include/
     ${PROJECT_SOURCE_DIR}/include/host/
     ${PROJECT_SOURCE_DIR}/include/device/
     ${PROJECT_SOURCE_DIR}/include/host_device/

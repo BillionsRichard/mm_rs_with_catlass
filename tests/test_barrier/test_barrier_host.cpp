@@ -104,7 +104,9 @@ int main(int argc, char* argv[])
     aclrtStream stream = nullptr;
 
     CHECK_ACL(aclrtCreateStream(&stream));
-    ShmemInit(rankId, rankSize, gNpuMallocSpace);
+    ShmemInitAttrT* attributes;
+    ShmemSetAttr(rankId, rankSize, gNpuMallocSpace, ipport.c_str(), &attributes);
+    ShmemInit();
 
     TestBarrierWhiteBox(stream, rankId, rankSize);
     TestBarrierBlackBox(stream, rankId, rankSize);

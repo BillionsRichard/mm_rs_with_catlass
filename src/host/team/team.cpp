@@ -7,12 +7,11 @@
 
 using namespace std;
 
+#include "acl/acl.h"
+#include "shmem_heap.h"
 #include "init_internal.h"
 #include "team.h"
 
-#define SHMEM_MAX_TEAMS 32
-
-extern smem_shm_t handle;
 extern ShmemDeviceHostStateT shmemDeviceHostState;
 
 ShmemTeam shmemTeamWorld;
@@ -51,7 +50,7 @@ int ShmemTeamInit(int rank, int size)
     shmemTeamWorld.size = size;       // TODO state->npes
     shmemTeamWorld.mype = rank;       // TODO state->mype
 
-    int shmemMaxTeams = SHMEM_MAX_TEAMS;
+    int shmemMaxTeams = SHM_MAX_TEAMS;
     shmemTeamPool = (ShmemTeam **)calloc(shmemMaxTeams, sizeof(ShmemTeam *));
     if (shmemTeamPool == nullptr) {
         std::cout << "shmemTeamPool calloc failed!" << std::endl;
@@ -79,7 +78,7 @@ int ShmemTeamInit(int rank, int size)
 
 int FirstFreeIdxFetch()
 {
-    int shmemMaxTeams = SHMEM_MAX_TEAMS;
+    int shmemMaxTeams = SHM_MAX_TEAMS;
     for (int i = 0; i < shmemMaxTeams; i++) {
         if (poolAvail[i] == 0) {
             poolAvail[i] = 1;
@@ -180,7 +179,7 @@ void ShmemTeamDestroy(ShmemTeam_t team)
 
 int ShmemTeamFinalize() {
     /* Destroy all undestroyed teams*/
-    int shmemMaxTeams = SHMEM_MAX_TEAMS;
+    int shmemMaxTeams = SHM_MAX_TEAMS;
     for (int i = 0; i < shmemMaxTeams; i++) {
         if (shmemTeamPool[i] != NULL) ShmemTeamDestroy((ShmemTeam_t)i);
     }

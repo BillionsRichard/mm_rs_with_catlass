@@ -3,7 +3,7 @@
 
 #include "macros.h"
 #include "types.h"
-#include "low_level_api/smem_shm_aicore_base_api.h"
+#include "lowlevel/smem_shm_aicore_base_api.h"
 
 SHMEM_AICORE_INLINE __gm__ ShmemDeviceHostState *getState() {
     return reinterpret_cast<__gm__ ShmemDeviceHostState *>(smem_shm_get_extra_context_addr());

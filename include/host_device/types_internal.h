@@ -26,9 +26,6 @@ typedef SyncCounterL2 SCPoolL2[SHM_MAX_TEAMS];
 
 // level 3: sync between hosts?
 
-#define SHM_MAX_RANKS 2000
-#define SHM_MAX_TEAMS 32
-
 #define DEFAULT_FLAG 0
 #define STATE_SCALAR_INVALID -1
 #define DEFAULT_ID 0

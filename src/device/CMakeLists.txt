@@ -10,8 +10,8 @@ ascendc_include_directories(shmem_device
     ${PROJECT_SOURCE_DIR}/include/host/
     ${PROJECT_SOURCE_DIR}/include/device/
     ${PROJECT_SOURCE_DIR}/include/host_device/
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/host/
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/aicore/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/host/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/device/
     ${ASCEND_DRIVER_PATH}/kernel/inc
     ${ASCEND_HOME_PATH}/${ARCH}-linux/include/
 )

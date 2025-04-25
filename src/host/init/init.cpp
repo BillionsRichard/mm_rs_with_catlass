@@ -13,8 +13,6 @@ using namespace std;
 #include "data_utils.h"
 #include "types_internal.h"
 
-#include "smem_shm.h"
-
 #include "smem.h"
 #include "smem_shm.h"
 

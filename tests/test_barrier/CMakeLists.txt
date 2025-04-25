@@ -9,8 +9,8 @@ ascendc_include_directories(test_barrier_kernel
     ${PROJECT_SOURCE_DIR}/include/host/
     ${PROJECT_SOURCE_DIR}/include/device/
     ${PROJECT_SOURCE_DIR}/include/host_device/
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/host/
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/aicore/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/host/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/device/
 )
 
 install(TARGETS test_barrier_kernel
@@ -41,5 +41,5 @@ target_link_libraries(test_barrier
     shmem_device
     test_barrier_kernel
     mf_smem
-    mf_hybrid_bmm
+    mf_hybm_core
 )
