@@ -21,7 +21,7 @@ target_include_directories(shmem
     $<INSTALL_INTERFACE:include>
     $<INSTALL_INTERFACE:include/host>
     $<INSTALL_INTERFACE:include/host_device>
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/host/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/host/
     ${ASCEND_DRIVER_PATH}/kernel/inc
     ${ASCEND_HOME_PATH}/${ARCH}-linux/include/
     ${ASCEND_HOME_PATH}/${ARCH}-linux/include/hccl/
@@ -40,7 +40,7 @@ target_link_directories(shmem
 target_link_libraries(shmem
     PUBLIC
     ${MPI_CXX_LIBRARIES}
-    ascendcl runtime profapi c_sec ascend_hal mf_smem mf_hybrid_bmm
+    ascendcl runtime profapi c_sec ascend_hal mf_smem mf_hybm_core
 )
 
 # 安装配置
@@ -50,7 +50,7 @@ install(TARGETS shmem
 )
 
 install (FILES
-    ${PROJECT_SOURCE_DIR}/include/host/init.h
+    ${PROJECT_SOURCE_DIR}/include/host/shmem_api.h
     ${PROJECT_SOURCE_DIR}/include/host/team.h
     DESTINATION include
 )

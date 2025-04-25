@@ -2,7 +2,7 @@
 #define _DEVICE_TEAM_
 
 #include "kernel_operator.h"
-#include "low_level_api/smem_shm_aicore_base_api.h"
+#include "lowlevel/smem_shm_aicore_base_api.h"
 
 #include "shmem_device_api.h"
 

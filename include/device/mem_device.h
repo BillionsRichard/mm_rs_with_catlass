@@ -2,7 +2,7 @@
 #define _SHMEM_MEM_DEVICE_H_
 
 #include "kernel_operator.h"
-#include "low_level_api/smem_shm_aicore_base_api.h"
+#include "lowlevel/smem_shm_aicore_base_api.h"
 
 #include "shmem_device_api.h"
 
@@ -102,18 +102,18 @@ __aicore__ inline void ShmemMTEGetMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* 
     int repeat_times = (elemSize * sizeof(T)) / blockSize;
     int repeat_elem = blockSize / sizeof(T);
     for (int i = 0; i < repeat_times; i++) {
-        smem_copy_gm2ub(buf, remotePtr + i * repeat_elem, blockSize);
+        smem_shm_copy_gm2ub(buf, remotePtr + i * repeat_elem, blockSize);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        smem_copy_ub2gm(dst + i * repeat_elem, buf, blockSize);
+        smem_shm_copy_ub2gm(dst + i * repeat_elem, buf, blockSize);
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
     }
     if (remain > 0) {
-        smem_copy_gm2ub(buf, remotePtr + repeat_times * repeat_elem, remain);
+        smem_shm_copy_gm2ub(buf, remotePtr + repeat_times * repeat_elem, remain);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        smem_copy_ub2gm(dst + repeat_times * repeat_elem, buf, remain);
+        smem_shm_copy_ub2gm(dst + repeat_times * repeat_elem, buf, remain);
     }
 }
 
@@ -137,18 +137,18 @@ __aicore__ inline void ShmemMTEPutMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* 
     int repeat_times = (elemSize * sizeof(T)) / blockSize;
     int repeat_elem = blockSize / sizeof(T);
     for (int i = 0; i < repeat_times; i++) {
-        smem_copy_gm2ub(buf, src + i * repeat_elem, blockSize);
+        smem_shm_copy_gm2ub(buf, src + i * repeat_elem, blockSize);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        smem_copy_ub2gm(remotePtr + i * repeat_elem, buf, blockSize);
+        smem_shm_copy_ub2gm(remotePtr + i * repeat_elem, buf, blockSize);
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
     }
     if (remain > 0) {
-        smem_copy_gm2ub(buf, src + repeat_times * repeat_elem, remain);
+        smem_shm_copy_gm2ub(buf, src + repeat_times * repeat_elem, remain);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        smem_copy_ub2gm(remotePtr + repeat_times * repeat_elem, buf, remain);
+        smem_shm_copy_ub2gm(remotePtr + repeat_times * repeat_elem, buf, remain);
     }
 }
 

@@ -2,7 +2,8 @@
 
 using namespace std;
 
-#include "init.h"
+#include "init_internal.h"
+#include "team.h"
 #include "mem.h"
 #include "data_utils.h"
 
