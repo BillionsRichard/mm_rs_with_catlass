@@ -71,7 +71,7 @@ int ShmemTeamInit(int rank, int size)
 
     /* Initialize TEAM SYNC */
     shmemDeviceHostState.sPoolL2 = (SyncBit *)ShmemMalloc(SA_POOL_SIZE_L2);
-    aclrtMemset((void *) shmemDeviceHostState.sPoolL2, SA_POOL_SIZE_L2, 0);
+    aclrtMemset((void *) shmemDeviceHostState.sPoolL2, SA_POOL_SIZE_L2, 0, SA_POOL_SIZE_L2);
 
     aclrtMalloc((void **)&(shmemDeviceHostState.cPoolL2), SC_POOL_SIZE_L2, ACL_MEM_MALLOC_HUGE_FIRST);
     ShmemiMemset((int32_t *) shmemDeviceHostState.cPoolL2, SC_POOL_SIZE_L2 / sizeof(int32_t), 1);

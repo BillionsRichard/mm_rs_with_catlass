@@ -146,8 +146,9 @@ SHMEM_AICORE_INLINE void ShmemiBarrier(ShmemTeam_t tid) {
 
     ShmemiBarrierL1();
 
-    if (AscendC::GetBlockIdx() == 0 && AscendC::GetSubBlockIdx() == 1) {
-        ShmemiBarrierL2(team);
+    if ASCEND_IS_AIV {
+        if (AscendC::GetBlockIdx() == 0)
+          ShmemiBarrierL2(team);
     }
 
     ShmemiBarrierL1();

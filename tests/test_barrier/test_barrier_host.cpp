@@ -68,7 +68,7 @@ static void TestBarrierWhiteBox(aclrtStream stream, uint32_t rankId, uint32_t ra
 }
 
 static void TestBarrierBlackBox(aclrtStream stream, uint32_t rankId, uint32_t rankSize) {
-    uint64_t *addrDev = ShmemMalloc(sizeof(uint64_t));
+    uint64_t *addrDev = (uint64_t *)ShmemMalloc(sizeof(uint64_t));
     uint64_t *addrHost;
     CHECK_ACL(aclrtMallocHost((void **)&addrHost, sizeof(uint64_t)));
     *addrHost = 0;
