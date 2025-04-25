@@ -5,5 +5,6 @@
 
 #include "team_device.h"
 #include "mem_device.h"
+#include "sync_device.h"
 
 #endif

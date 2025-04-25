@@ -15,4 +15,12 @@ SHMEM_AICORE_INLINE void ShmemBarrierAll() {
     ShmemBarrier(SHMEM_TEAM_WORLD);
 }
 
+SHMEM_AICORE_INLINE void ShmemQuiet() {
+    ShmemiQuiet();
+}
+
+SHMEM_AICORE_INLINE void ShmemFence() {
+    ShmemiQuiet();
+}
+
 #endif

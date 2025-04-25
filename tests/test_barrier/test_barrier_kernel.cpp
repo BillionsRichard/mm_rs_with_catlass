@@ -1,6 +1,6 @@
 #include "kernel_operator.h"
 
-#include "shmem_sync.h"
+#include "shmem_device_api.h"
 
 extern "C" __global__ __aicore__ void fetchAddr(GM_ADDR syncArray, GM_ADDR syncCounter) {
     ShmemTeam *team = getState()->teamPools[0];

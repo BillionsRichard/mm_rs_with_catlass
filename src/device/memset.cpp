@@ -1,7 +1,7 @@
 #include "acl/acl.h"
 #include "macros.h"
 #include "data_utils.h"
-#include "shmem_sync.h"
+#include "shmem_device_api.h"
 
 // kernels
 template<typename T>
