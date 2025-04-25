@@ -26,11 +26,13 @@ typedef SyncCounterL2 SCPoolL2[SHM_MAX_TEAMS];
 
 // level 3: sync between hosts?
 
+#define SHM_MAX_RANKS 2000
+#define SHM_MAX_TEAMS 32
+
 #define DEFAULT_FLAG 0
 #define STATE_SCALAR_INVALID -1
 #define DEFAULT_ID 0
-#define DEFAULT_IP_PORT "tcp://127.0.0.1:8666"
-#define DEFAULT_TIMEOUT 30
+
 #define DEFAULT_EXTRA_SIZE SHMEM_EXTRA_SIZE
 
 #define SHMEM_DEVICE_HOST_STATE_INITALIZER                                            \
@@ -40,45 +42,24 @@ typedef SyncCounterL2 SCPoolL2[SHM_MAX_TEAMS];
             STATE_SCALAR_INVALID,                    /* npes */                       \
             NULL,                                    /* heapBase */                   \
             {NULL},                                  /* p2pHeapBase */                \
+            {NULL},                                  /* sdmaHeapBase */               \
+            {NULL},                                  /* roceHeapBase */               \
             SIZE_MAX,                                /* heapSize */                   \
             {NULL},                                  /* teamPools */                  \
             NULL,                                    /* psyncPool */                  \
             NULL,                                    /* syncCounter */                \
-            NULL,                                    /* psyncPool */                  \
-            NULL,                                    /* syncCounter */                \
-            NULL,                                    /* psyncPool */                  \
-            NULL,                                    /* syncCounter */                \
-            false,                                   /* sheme_is_shmem_initialized */ \
-            false,                                   /* sheme_is_shmem_created */     \
+            false,                                   /* shmem_is_shmem_initialized */ \
+            false,                                   /* shmem_is_shmem_created */     \
+            {0, 16 * 1024, 0},                       /* shmem_mte_config */           \
     }
 
-#define SHMEM_COMM_ATTR                                                               \
-    {                                                                                 \
-        (1 << 16) + sizeof(ShmemDeviceHostStateT),  /* version */                     \
-            DEFAULT_ID,                             /* id */                          \
-            DEFAULT_IP_PORT,                        /* ipPort */                      \
-            STATE_SCALAR_INVALID,                   /* deviceId */                    \
-            SMEMS_DATA_OP_MTE,                      /* dataOpType */                  \
-            DEFAULT_TIMEOUT,                        /* timeout */                     \
-            DEFAULT_EXTRA_SIZE,                     /* extraSize */                   \
-            DEFAULT_EXTRA_SIZE,                     /* globalSize */                  \
-            DEFAULT_FLAG                            /* flag */                        \
-    }
 
-// commattr
+// MTEConfig
 typedef struct {
-    int version;
-    int id;
-    const char* ipPort;
-    int32_t deviceId;
-    smem_shm_data_op_type dataOpType;
-    int timeout;
-    uint64_t extraSize;
-    uint64_t globalSize;
-    uint32_t flag;
-} ShmemCommAttr;
-typedef ShmemCommAttr ShmemCommAttrT;
-extern ShmemCommAttrT shmemCommAttr;
+    int64_t shmemUB;        // __ubuf__ Ptr, Shmem memcpy needed.
+    uint32_t ubSize;        // UB's Size, in Bytes.
+    uint32_t eventID;       // TEventID, for Shmem memcpy sync.
+} ShmemMTEConfig;
 
 // state
 typedef struct {
@@ -87,23 +68,21 @@ typedef struct {
     int npes;
     void *heapBase;
     void *p2pHeapBase[SHM_MAX_RANKS];
+    void *sdmaHeapBase[SHM_MAX_RANKS];
+    void *roceHeapBase[SHM_MAX_RANKS];
     size_t heapSize;
 
     ShmemTeam *teamPools[SHM_MAX_TEAMS];
     
     // Using SyncBit instead of basic types to store flag, avoiding concurrent write due to cacheline sharing.
     // Refer to shmemi_barrier.h for more details.
-    SyncBit *syncArray;
-    SyncBit *syncCounter;
-
-    SyncBit *sArrL1;
-    SyncBit *sCntrL1;
-
     SyncBit *sPoolL2;
     SyncBit *cPoolL2;
 
     bool shemeIsShmemInitialized;
     bool shemeIsShmemCreated;
+
+    ShmemMTEConfig mteConfig;
 } ShmemDeviceHostState;
 typedef ShmemDeviceHostState ShmemDeviceHostStateT;
 extern ShmemDeviceHostStateT shmemDeviceHostState;

@@ -5,19 +5,47 @@ PROJECT_ROOT=$(dirname "$SCRIPT_DIR")
 cd ${PROJECT_ROOT}
 
 set -e
-rm -rf test_scalar_p
-cp ./build/bin/test_scalar_p ./
-
-rm -rf team_example
-cp ./build/bin/team_example ./
-
 RANK_SIZE="8"
-IP_PORT="tcp://127.0.0.1:8666"
-export LD_LIBRARY_PATH=$(pwd)/install/lib:${ASCEND_HOME_PATH}/lib64:$(pwd)/3rdparty/memfabric_hybrid/lib:$LD_LIBRARY_PATH
-./build/bin/shmem_unittest
+IPPORT="tcp://127.0.0.1:8666"
+GNPU_NUM="8"
 
-for (( idx = 0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
-    ./test_scalar_p ${RANK_SIZE} ${idx} ${IP_PORT} &
-    # ./team_example ${RANK_SIZE} ${idx} ${IP_PORT} &
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -ranks)
+            if [ -n "$2" ]; then
+                RANK_SIZE="$2"
+                shift 2
+            else
+                echo "Error: -ranks requires a value."
+                exit 1
+            fi
+            ;;
+        -ipport)
+            if [ -n "$2" ]; then
+                IPPORT="$2"
+                shift 2
+            else
+                echo "Error: -ipport requires a value."
+                exit 1
+            fi
+            ;;
+        -gnpus)
+            if [ -n "$2" ]; then
+                GNPU_NUM="$2"
+                shift 2
+            else
+                echo "Error: -gnpus requires a value."
+                exit 1
+            fi
+            ;;
+        *)
+            echo "Error: Unknown option $1."
+            exit 1
+            ;;
+    esac
 done
+
+export LD_LIBRARY_PATH=$(pwd)/install/lib:${ASCEND_HOME_PATH}/lib64:$(pwd)/3rdparty/memfabric_hybrid/lib:$LD_LIBRARY_PATH
+./build/bin/shmem_unittest "$RANK_SIZE" "$IPPORT" "$GNPU_NUM"
+
 cd ${CURRENT_DIR}

@@ -7,15 +7,12 @@
 
 using namespace std;
 
-#include "init.h"
+#include "init_internal.h"
 #include "team.h"
-#include "types.h"
-#include "acl/acl.h"
-#include "data_utils.h"
-#include "shmem_heap.h"
 
 #define SHMEM_MAX_TEAMS 32
 
+extern smem_shm_t handle;
 extern ShmemDeviceHostStateT shmemDeviceHostState;
 
 ShmemTeam shmemTeamWorld;
@@ -69,7 +66,7 @@ int ShmemTeamInit(int rank, int size)
     poolAvail = (long *)calloc(shmemMaxTeams, sizeof(long));
     poolAvail[0] = 1;
 
-    /* Initialize TEAM SYNC */
+    /* Initialize TEAM SYNC */    /* Initialize TEAM SYNC */
     shmemDeviceHostState.sPoolL2 = (SyncBit *)ShmemMalloc(SA_POOL_SIZE_L2);
     aclrtMemset((void *) shmemDeviceHostState.sPoolL2, SA_POOL_SIZE_L2, 0, SA_POOL_SIZE_L2);
 
@@ -183,7 +180,7 @@ void ShmemTeamDestroy(ShmemTeam_t team)
 
 int ShmemTeamFinalize() {
     /* Destroy all undestroyed teams*/
-    int shmemMaxTeams = shmemMaxTeams;
+    int shmemMaxTeams = SHMEM_MAX_TEAMS;
     for (int i = 0; i < shmemMaxTeams; i++) {
         if (shmemTeamPool[i] != NULL) ShmemTeamDestroy((ShmemTeam_t)i);
     }
