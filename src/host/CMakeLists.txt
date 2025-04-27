@@ -1,19 +1,17 @@
 #shmem库编译-host能力
 set(SHMEM_HOST_SOURCES
-    domain/team.cpp
+    team/team.cpp
     init/init.cpp
     mem/mem.cpp
     mem/mspace.cpp
     mem/shmem_heap.cpp
 )
 
-add_library(
-    shmem SHARED
-)
+add_library(shmem_host SHARED)
 
-target_sources(shmem PRIVATE ${SHMEM_HOST_SOURCES})
+target_sources(shmem_host PRIVATE ${SHMEM_HOST_SOURCES})
 
-target_include_directories(shmem
+target_include_directories(shmem_host
     PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/host/>
@@ -30,21 +28,21 @@ target_include_directories(shmem
     ${ASCEND_HOME_PATH}/${ARCH}-linux/include/experiment/msprof/
 )
 
-target_link_directories(shmem
+target_link_directories(shmem_host
     PUBLIC
     ${ASCEND_DRIVER_PATH}/lib64/driver
     ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/lib
     ${ASCEND_HOME_PATH}/${ARCH}-linux/lib64/
 )
 
-target_link_libraries(shmem
+target_link_libraries(shmem_host
     PUBLIC
     ${MPI_CXX_LIBRARIES}
     ascendcl runtime profapi c_sec ascend_hal mf_smem mf_hybm_core
 )
 
 # 安装配置
-install(TARGETS shmem
+install(TARGETS shmem_host
     LIBRARY DESTINATION lib
     PUBLIC_HEADER DESTINATION include
 )
