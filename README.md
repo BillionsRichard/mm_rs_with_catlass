@@ -53,6 +53,7 @@ run.sh目前支持-ranks -ipport -gnpus三个入参分别设置总rank数，ip�
 5. 编译算子工程
    
    实例CMakeList.txt
+
    include_directories(
         ${PROJECT_SOURCE_DIR}/include/host/
         ${PROJECT_SOURCE_DIR}/include/device/
