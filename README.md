@@ -51,38 +51,13 @@ run.sh目前支持-ranks -ipport -gnpus三个入参分别设置总rank数，ip�
 4. 编码算子文件。 具体示例可以参考本仓 test/test_barrier/ 中的源码
 
 5. 编译算子工程
-   
-   实例CMakeList.txt
-
-   include_directories(
-        ${PROJECT_SOURCE_DIR}/include/host/
-        ${PROJECT_SOURCE_DIR}/include/device/
-        ${PROJECT_SOURCE_DIR}/include/host_device/
-        ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/host/
-        ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/aicore/
-    )
-    
-    file(GLOB_RECURSE KERNEL_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*_kernel.cpp")
-    
-    ascendc_library(test_scalar_npu SHARED ${KERNEL_FILES})
-    ascendc_include_directories(test_scalar_npu
-        PUBLIC
-        ${PROJECT_SOURCE_DIR}/include/
-        ${PROJECT_SOURCE_DIR}/include/host/
-        ${PROJECT_SOURCE_DIR}/include/device/
-        ${PROJECT_SOURCE_DIR}/include/host_device/
-        ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/host/
-        ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/device/
-    )
-    
-    ascendc_compile_definitions(test_scalar_npu PRIVATE
-        -DASCENDC_DUMP=1
-    )
-    
-    install(TARGETS test_scalar_npu
-        LIBRARY DESTINATION lib
-        PUBLIC_HEADER DESTINATION include
-    )
-    
-    add_subdirectory(unittest)
-    add_subdirectory(test_barrier)
+   编译算子代码时， 需要使用到之前SHMEM的编译结果。 建议从按照3.b 指示的路径获取标准包。并将其解压
+   a. 获取SHMEM的标准包 shmem.zip
+   b. 将上述获取到的shmem.zip 解压到待编译算子工程的某个目录， 下面以 3rdparty为例
+       cd 3rdparty
+       unzip shmem.zip 
+   c. 编写CMakeList.txt, 使 include路径包含SHMEM的头文件。
+       参考 test/test_barrier/CMakeList.txt
+   注意： 这里可以选择静态链接方式将shmem.a编译到算子so文件中， 也可以选在动态链接，在后续加载时链接到shmem.so
+6. 加载
+   如果动态方式， 则还需要将shmem加载到执行机上。
