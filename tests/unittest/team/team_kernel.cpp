@@ -6,7 +6,7 @@
 class KernelStateTest {
 public:
     __aicore__ inline KernelStateTest() {}
-    __aicore__ inline void Init(GM_ADDR gva, ShmemTeam_t teamId)
+    __aicore__ inline void Init(GM_ADDR gva, ShmemTeam teamId)
     {
         gvaGm = (__gm__ int *)gva;
         teamIdx= teamId;
@@ -25,7 +25,7 @@ public:
     }
 private:
     __gm__ int *gvaGm;
-    ShmemTeam_t teamIdx;
+    ShmemTeam teamIdx;
 
     int64_t rank;
     int64_t rankSize;
@@ -34,11 +34,11 @@ private:
 extern "C" __global__ __aicore__ void DeviceStateTest(GM_ADDR gva, int teamId)
 {
     KernelStateTest op;
-    op.Init(gva, (ShmemTeam_t)teamId);
+    op.Init(gva, (ShmemTeam)teamId);
     op.Process();
 }
 
-void GetDeviceState(uint32_t blockDim, void* stream, uint8_t* gva, ShmemTeam_t teamId)
+void GetDeviceState(uint32_t blockDim, void* stream, uint8_t* gva, ShmemTeam teamId)
 {
     DeviceStateTest<<<blockDim, nullptr, stream>>>(gva, (int)teamId);
 }

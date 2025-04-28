@@ -1,15 +1,11 @@
 # kernel
 file(GLOB KERNEL_FILES test_barrier_kernel.cpp)
-# include(${ASCENDC_CMAKE_DIR}/ascendc.cmake)
+
 ascendc_library(test_barrier_kernel SHARED ${KERNEL_FILES})
 
 ascendc_include_directories(test_barrier_kernel
     PUBLIC
     ${PROJECT_SOURCE_DIR}/include/
-    ${PROJECT_SOURCE_DIR}/include/host/
-    ${PROJECT_SOURCE_DIR}/include/device/
-    ${PROJECT_SOURCE_DIR}/include/host_device/
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/host/
     ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/device/
 )
 

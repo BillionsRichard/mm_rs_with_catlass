@@ -1,11 +1,4 @@
-#shmem库编译-host能力
-set(SHMEM_HOST_SOURCES
-    team/team.cpp
-    init/init.cpp
-    mem/mem.cpp
-    mem/mspace.cpp
-    mem/shmem_heap.cpp
-)
+file(GLOB SHMEM_HOST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 
 add_library(shmem_host SHARED)
 
@@ -13,12 +6,8 @@ target_sources(shmem_host PRIVATE ${SHMEM_HOST_SOURCES})
 
 target_include_directories(shmem_host
     PUBLIC
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/>
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/host/>
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include/host_device/>
-    $<INSTALL_INTERFACE:include>
-    $<INSTALL_INTERFACE:include/host>
-    $<INSTALL_INTERFACE:include/host_device>
+    ${PROJECT_SOURCE_DIR}/include/
+    ${PROJECT_SOURCE_DIR}/src/include/
     ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/host/
     ${ASCEND_DRIVER_PATH}/kernel/inc
     ${ASCEND_HOME_PATH}/${ARCH}-linux/include/

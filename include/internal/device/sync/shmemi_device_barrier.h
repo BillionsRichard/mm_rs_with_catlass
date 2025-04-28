@@ -9,17 +9,29 @@ Be careful that synchronization between blocks is not guaranteed.
 #ifndef SHEMEI_BARRIER_H
 #define SHEMEI_BARRIER_H
 
-#include "internal/device/arch.h"
-#include "internal/device/shmemi_device_common.h"
-#include "internal/device/team/shmemi_team.h"
-#include "shmemi_quiet.h"
-#include "shmemi_p2p.h"
+#include "../shmemi_device_common.h"
+#include "shmemi_device_quiet.h"
+#include "shmemi_device_p2p.h"
 
 #include "kernel_operator.h"
 
 /* Level 1: barrier between cores (within a device) */
-SHMEM_AICORE_INLINE void ShmemiBarrierL1() {
+SHMEM_DEVICE void ShmemiBarrierCore() {
     AscendC::SyncAll<true>();
+}
+
+SHMEM_DEVICE 
+__gm__ ShmemiSyncBit *ShmemiGetTeamSyncArray(ShmemiTeam *team) {
+    uint64_t addr = (uint64_t) ShmemiGetState()->syncPool;
+    addr += team->teamIdx * SYNC_ARRAY_SIZE;
+    return (__gm__ ShmemiSyncBit *) addr;
+}
+
+SHMEM_DEVICE 
+__gm__ ShmemiSyncBit *ShmemiGetTeamSyncCounter(ShmemiTeam *team) {
+    uint64_t addr = (uint64_t) ShmemiGetState()->syncCounter;
+    addr += team->teamIdx * SYNC_COUNTER_SIZE;
+    return (__gm__ ShmemiSyncBit *) addr;
 }
 
 /* Level 2: barrier between devices (within a host)
@@ -79,7 +91,7 @@ d. rank n-2 overwrites rank n-1，so rank n may miss rank n-1's signal and wait 
    ... | 1 | 0 | 0 | ...
 --------------------------------------------
 
-To avoid this issue, separate elements must exist on different cachelines. See SyncBit for detailed definition.
+To avoid this issue, separate elements must exist on different cachelines. See ShmemiSyncBit for detailed definition.
 
 Additionly, instead of simply write a flag, each rank writes a 64-bit number into the array, indicating how many times this team has performed barrier. 
 
@@ -95,17 +107,17 @@ The temporal and spatial complexity of this implementation are O(logN) and O(N),
   c. Optimize spatial complexity to O(logN).
 */
 
-SHMEM_AICORE_INLINE void ShmemiBarrierL2(ShmemTeam *team) {
+SHMEM_DEVICE void ShmemiBarrierNpu(ShmemiTeam *team) {
     int myPe = team->mype;
     int start = team->start;
     int stride = team->stride;
     int size = team->size;
-    auto syncArrayL2 = ShmemiGetTeamSyncArrayL2(team);
-    auto syncCounterL2 = ShmemiGetTeamSyncCounterL2(team);
+    auto syncArray = ShmemiGetTeamSyncArray(team);
+    auto syncCounter = ShmemiGetTeamSyncCounter(team);
 
     int shift = 1;
     int myPeInTeam = (myPe - start) / stride;
-    int32_t count = load<int32_t>((__gm__ uint8_t *)syncCounterL2);
+    int32_t count = ShmemiLoad<int32_t>((__gm__ uint8_t *)syncCounter);
 
     while (shift < size) {
         int prePeInTeam = (myPeInTeam - shift + size) % size;
@@ -115,22 +127,22 @@ SHMEM_AICORE_INLINE void ShmemiBarrierL2(ShmemTeam *team) {
         int nextPe = start + nextPeInTeam * stride;
 
         // signal next pe
-        ShmemiSignal<int32_t>((__gm__ uint8_t *)(syncArrayL2 + myPe), nextPe, count);
+        ShmemiSignal<int32_t>((__gm__ uint8_t *)(syncArray + myPe), nextPe, count);
 
         // wait pre pe
-        ShmemiWait<int32_t>((__gm__ uint8_t *)(syncArrayL2 + prePe), count);
+        ShmemiWait<int32_t>((__gm__ uint8_t *)(syncArray + prePe), count);
         
         shift *= 2;
     } 
 
-    store<int32_t>((__gm__ uint8_t *)syncCounterL2, count + 1);
+    ShmemiStore<int32_t>((__gm__ uint8_t *)syncCounter, count + 1);
 }
 
 /* Level 3: barrier between hosts, TO BE IMPLEMENTED.*/ 
-SHMEM_AICORE_INLINE void ShmemiBarrierL3() {}
+SHMEM_DEVICE void ShmemiBarrierSys() {}
 
-SHMEM_AICORE_INLINE void ShmemiBarrier(ShmemTeam_t tid) {
-    ShmemTeam *team = getState()->teamPools[tid];
+SHMEM_DEVICE void ShmemiBarrier(ShmemTeam tid) {
+    ShmemiTeam *team = ShmemiGetState()->teamPools[tid];
 
     int mype = team->mype;
     int start = team->start;
@@ -144,14 +156,14 @@ SHMEM_AICORE_INLINE void ShmemiBarrier(ShmemTeam_t tid) {
 
     ShmemiQuiet();
 
-    ShmemiBarrierL1();
+    ShmemiBarrierCore();
 
     if ASCEND_IS_AIV {
         if (AscendC::GetBlockIdx() == 0)
-          ShmemiBarrierL2(team);
+          ShmemiBarrierNpu(team);
     }
 
-    ShmemiBarrierL1();
+    ShmemiBarrierCore();
 }
 
 #endif

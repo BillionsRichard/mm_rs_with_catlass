@@ -2,7 +2,7 @@
 #include <vector>
 #include <iostream>
 
-#include "mspace.h"
+#include "shmemi_mspace.h"
 
 #define alignSize(size) (((size) + SHMEMI_ALIGN_MASK) & (~SHMEMI_ALIGN_MASK))
 

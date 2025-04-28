@@ -3,9 +3,8 @@
 //
 #include <mutex>
 
-#include "types_internal.h"
-#include "mspace.h"
-#include "shmem_heap.h"
+#include "shmemi_host_intf.h"
+#include "shmemi_mspace.h"
 
 namespace {
 bool initialized = false;
@@ -17,7 +16,7 @@ void *ShmemMalloc(size_t size)
 {
     std::unique_lock<std::mutex> lockGuard{ shmMutex };
     if (!initialized) {
-        space.AddNewChunk(shmemDeviceHostState.heapBase, shmemDeviceHostState.heapSize - DEFAULT_EXTRA_SIZE);
+        space.AddNewChunk(gState.heapBase, gState.heapSize - SHMEM_EXTRA_SIZE);
         initialized = true;
     }
 

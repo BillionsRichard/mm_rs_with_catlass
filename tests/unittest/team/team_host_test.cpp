@@ -4,9 +4,8 @@
 using namespace std;
 
 #include <acl/acl.h>
-#include "data_utils.h"
-#include "shmem_heap.h"
-#include "shmem_api.h"
+#include "shmem_host_api.h"
+#include "shmemi_host_intf.h"
 
 #include <gtest/gtest.h>
 extern int testGlobalRanks;
@@ -14,9 +13,9 @@ extern int testGNpuNum;
 extern const char* testGlobalIpport;
 extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localMemSize, int processCount);
 
-extern void GetDeviceState(uint32_t blockDim, void* stream, uint8_t* gva, ShmemTeam_t teamId);
+extern void GetDeviceState(uint32_t blockDim, void* stream, uint8_t* gva, ShmemTeam teamId);
 
-static int32_t TestGetDeviceState(aclrtStream stream, uint8_t *gva, uint32_t rankId, uint32_t rankSize, ShmemTeam_t teamId)
+static int32_t TestGetDeviceState(aclrtStream stream, uint8_t *gva, uint32_t rankId, uint32_t rankSize, ShmemTeam teamId)
 {
     int *yHost;
     size_t inputSize = 1024 * sizeof(int);
@@ -57,7 +56,7 @@ void TestShmemTeam(int rankId, int nRanks, uint64_t localMemSize) {
     status = ShmemInit();
     EXPECT_EQ(status, SHMEM_SUCCESS);
     // #################### 子通信域切分测试 ############################
-    ShmemTeam_t team_odd;
+    ShmemTeam team_odd;
     int start = 1;
     int stride = 2;
     int team_size = 4;
@@ -73,7 +72,7 @@ void TestShmemTeam(int rankId, int nRanks, uint64_t localMemSize) {
 
     // #################### device代码测试 ##############################
 
-    status = TestGetDeviceState(stream, (uint8_t *)shmemDeviceHostState.heapBase, rankId, nRanks, team_odd);
+    status = TestGetDeviceState(stream, (uint8_t *)gState.heapBase, rankId, nRanks, team_odd);
     EXPECT_EQ(status, SHMEM_SUCCESS);
 
     // #################### 相关资源释放 ################################
