@@ -3,10 +3,8 @@
 using namespace std;
 
 #include "acl/acl.h"
-#include "data_utils.h"
-
-#include "shmem_api.h"
-#include "shmem_heap.h"
+#include "shmem_host_api.h"
+#include "shmemi_host_intf.h"
 
 extern void fetchAddrDo(uint8_t* syncArray, uint8_t* syncCounter);
 
@@ -18,16 +16,16 @@ static uint32_t gNpuNum = 8;
 static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 16;
 
 static void fetchFlags(uint32_t rankId, void *syncArray, void *syncCounter) {
-    static int32_t tmp[SYNCBIT_SIZE / sizeof(int32_t) * 8];
+    static int32_t tmp[SHMEMI_SYNCBIT_SIZE / sizeof(int32_t) * 8];
 
     std::cout << "Rank " << rankId << ": ";
 
-    CHECK_ACL(aclrtMemcpy(tmp, SYNCBIT_SIZE, syncCounter, SYNCBIT_SIZE, ACL_MEMCPY_DEVICE_TO_HOST));
+    CHECK_ACL(aclrtMemcpy(tmp, SHMEMI_SYNCBIT_SIZE, syncCounter, SHMEMI_SYNCBIT_SIZE, ACL_MEMCPY_DEVICE_TO_HOST));
     std::cout << "counter = " << *tmp << ", " << "flags = ";
     
-    CHECK_ACL(aclrtMemcpy(tmp, SYNCBIT_SIZE * 8, syncArray, SYNCBIT_SIZE * 8, ACL_MEMCPY_DEVICE_TO_HOST));
+    CHECK_ACL(aclrtMemcpy(tmp, SHMEMI_SYNCBIT_SIZE * 8, syncArray, SHMEMI_SYNCBIT_SIZE * 8, ACL_MEMCPY_DEVICE_TO_HOST));
     for (int i = 0; i < 8; i++) {
-        std::cout << *(tmp + i * SYNCBIT_SIZE / sizeof(int32_t)) << " ";
+        std::cout << *(tmp + i * SHMEMI_SYNCBIT_SIZE / sizeof(int32_t)) << " ";
     }
     std::cout << std::endl;
 }

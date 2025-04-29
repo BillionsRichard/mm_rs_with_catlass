@@ -1,19 +1,40 @@
-#ifndef DATA_UTILS_H
-#define DATA_UTILS_H
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <unistd.h>
-
-#include <cassert>
-#include <cstdio>
-#include <fstream>
-#include <iomanip>
+#ifndef SHMEM_HOST_DEF_H
+#define SHMEM_HOST_DEF_H
+#include <climits>
 #include <iostream>
-#include <string>
-#include <vector>
 
-#include "acl/acl.h"
-#include "constants.h"
+#include "host_device/shmem_types.h"
+
+enum Status : int {
+    SHMEM_SUCCESS = 0,
+    ERROR_INVALID_PARAM,
+    ERROR_INVALID_VALUE,
+    ERROR_SMEM_ERROR
+};
+
+enum {
+    SHMEM_STATUS_NOT_INITALIZED = 0,
+    SHMEM_STATUS_SHM_CREATED,
+    SHMEM_STATUS_IS_INITALIZED,
+    SHMEM_STATUS_INVALID = INT_MAX,
+};
+
+// attr
+typedef struct {
+    DataOpEngineType dataOpEngineType;
+    uint32_t shmInitTimeout;
+    uint32_t shmCreateTimeout;
+    uint32_t controlOperationTimeout;
+} ShmemInitOptionalAttr;
+
+typedef struct {
+    int version;
+    int myRank;
+    int nRanks;
+    const char* ipPort;
+    uint64_t localMemSize;
+    ShmemInitOptionalAttr optionAttr;
+} ShmemInitAttrT;
 
 #define INFO_LOG(fmt, args...) fprintf(stdout, "[INFO] " fmt "\n", ##args)
 #define WARN_LOG(fmt, args...) fprintf(stdout, "[WARN] " fmt "\n", ##args)
@@ -39,7 +60,7 @@
 #define CHECK_SHMEM(x, status)                                                              \
     do {                                                                                    \
         status = x;                                                                         \
-        if (status != ACL_ERROR_NONE) {                                                     \
+        if (status != SHMEM_SUCCESS) {                                                     \
             std::cerr << __FILE__ << ":" << __LINE__ << #x << " return ShmemError: "        \
                     << status << std::endl;                                                 \
             return status;                                                                  \
@@ -49,7 +70,7 @@
 #define CHECK_SHMEM_STATUS(x, status, msg)                                                  \
     do {                                                                                    \
         status = x;                                                                         \
-        if (status != ACL_ERROR_NONE) {                                                     \
+        if (status != SHMEM_SUCCESS) {                                                     \
             ERROR_LOG(msg);                                                                 \
             std::cerr << __FILE__ << ":" << __LINE__ << #x << " return ShmemError: "        \
                     << status << std::endl;                                                 \
@@ -57,4 +78,4 @@
         }                                                                                   \
     } while (0);
 
-#endif /*DATA_UTILS_H*/
+#endif

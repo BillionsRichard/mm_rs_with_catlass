@@ -1,11 +1,11 @@
 #include "acl/acl.h"
-#include "macros.h"
-#include "data_utils.h"
+
+#include "shmemi_host_intf.h"
 #include "shmem_device_api.h"
 
 // kernels
 template<typename T>
-SHMEM_AICORE_KERNEL void KMemset(GM_ADDR array, int len, T val) {
+SHMEM_GLOBAL void KMemset(GM_ADDR array, int len, T val) {
     auto tmp = (__gm__ T*) array;
     for (int i = 0; i < len; i++) {
         *tmp++ = val;

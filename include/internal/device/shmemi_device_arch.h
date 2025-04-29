@@ -1,9 +1,9 @@
-#ifndef ARCH_H
-#define ARCH_H
+#ifndef SHMEMI_DEVICE_ARCH_H
+#define SHMEMI_DEVICE_ARCH_H
 
 #include "kernel_operator.h"
 
-SHMEM_AICORE_INLINE void DcciCacheline(__gm__ uint8_t * addr) {
+SHMEM_DEVICE void DcciCacheline(__gm__ uint8_t * addr) {
     using namespace AscendC;
     GlobalTensor<uint8_t> global;
     global.SetGlobalBuffer(addr);
@@ -14,7 +14,7 @@ SHMEM_AICORE_INLINE void DcciCacheline(__gm__ uint8_t * addr) {
     __asm__ __volatile__("");
 }
 
-SHMEM_AICORE_INLINE void DcciEntireCache() {
+SHMEM_DEVICE void DcciEntireCache() {
     using namespace AscendC;
     GlobalTensor<uint8_t> global;
     

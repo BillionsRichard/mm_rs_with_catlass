@@ -1,10 +1,10 @@
-#ifndef _SHMEM_MEM_DEVICE_H_
-#define _SHMEM_MEM_DEVICE_H_
+#ifndef SHMEM_DEVICE_RMA_H
+#define SHMEM_DEVICE_RMA_H
 
 #include "kernel_operator.h"
-#include "lowlevel/smem_shm_aicore_base_api.h"
+#include "internal/device/shmemi_device_common.h"
+#include "shmem_device_team.h"
 
-#include "shmem_device_api.h"
 
 // Make Code Style Unified
 #define Half half
@@ -38,11 +38,10 @@
     fun(BFloat16)
 
 
-__aicore__ inline __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
+SHMEM_DEVICE __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
 {
     // Get Global State
-    __gm__ void* addrGM = smem_shm_get_extra_context_addr();
-    __gm__ ShmemDeviceHostState *deviceState = (__gm__ ShmemDeviceHostState *)addrGM;
+    __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();
 
     // Check whether ptr belongs to this rank.
     uint64_t lowerBound = (uint64_t)deviceState->p2pHeapBase[ShmemMype()];
@@ -62,7 +61,7 @@ __aicore__ inline __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
 
 
 #define SHMEM_TYPENAME_P_AICORE(inType)                                                     \
-    __aicore__ inline void ShmemP##inType(__gm__ inType* dst, const inType value, int pe)   \
+    SHMEM_DEVICE void ShmemP##inType(__gm__ inType* dst, const inType value, int pe)   \
     {                                                                                       \
         if (AscendC::GetSubBlockIdx() != 0) {                                               \
             return;                                                                         \
@@ -83,7 +82,7 @@ __aicore__ inline __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
 SHMEM_TYPE_FUNC(SHMEM_TYPENAME_P_AICORE);
 
 template <typename T>
-__aicore__ inline void ShmemMTEGetMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void ShmemMTEGetMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
     if (AscendC::GetSubBlockIdx() != 0) {
         return;
@@ -117,7 +116,7 @@ __aicore__ inline void ShmemMTEGetMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* 
 }
 
 template <typename T>
-__aicore__ inline void ShmemMTEGetMem(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void ShmemMTEGetMem(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
     if (AscendC::GetSubBlockIdx() != 0) {
         return;
@@ -156,7 +155,7 @@ __aicore__ inline void ShmemMTEGetMem(AscendC::GlobalTensor<T> dst, AscendC::Glo
 
 
 template <typename T>
-__aicore__ inline void ShmemMTEPutMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void ShmemMTEPutMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
     if (AscendC::GetSubBlockIdx() != 0) {
         return;
@@ -191,7 +190,7 @@ __aicore__ inline void ShmemMTEPutMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* 
 
 
 template <typename T>
-__aicore__ inline void ShmemMTEPutMem(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void ShmemMTEPutMem(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
     if (AscendC::GetSubBlockIdx() != 0) {
         return;
@@ -230,14 +229,14 @@ __aicore__ inline void ShmemMTEPutMem(AscendC::GlobalTensor<T> dst, AscendC::Glo
 
 
 #define SHMEM_GET_TYPENAME_MEM(inType)                                                                                  \
-    __aicore__ inline void ShmemGet##inType##Mem(__gm__ inType* dst, __gm__ inType* src, uint32_t elemSize, int pe)     \
+    SHMEM_DEVICE void ShmemGet##inType##Mem(__gm__ inType* dst, __gm__ inType* src, uint32_t elemSize, int pe)          \
     {                                                                                                                   \
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
         /* MTE  */                                                                                                      \
         /* Global State Get */                                                                                          \
         __gm__ void* addrGM = smem_shm_get_extra_context_addr();                                                        \
-        __gm__ ShmemDeviceHostState *deviceState = (__gm__ ShmemDeviceHostState *)addrGM;                               \
+        __gm__ ShmemiDeviceHostState *deviceState = (__gm__ ShmemiDeviceHostState *)addrGM;                             \
         /* CopyUB Config Set */                                                                                         \
         uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
         uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                            \
@@ -249,14 +248,14 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
 
 
 #define SHMEM_PUT_TYPENAME_MEM(inType)                                                                                  \
-    __aicore__ inline void ShmemPut##inType##Mem(__gm__ inType* dst, __gm__ inType* src, uint32_t elemSize, int pe)     \
+    SHMEM_DEVICE void ShmemPut##inType##Mem(__gm__ inType* dst, __gm__ inType* src, uint32_t elemSize, int pe)          \
     {                                                                                                                   \
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
         /* MTE  */                                                                                                      \
         /* Global State Get */                                                                                          \
         __gm__ void* addrGM = smem_shm_get_extra_context_addr();                                                        \
-        __gm__ ShmemDeviceHostState *deviceState = (__gm__ ShmemDeviceHostState *)addrGM;                               \
+        __gm__ ShmemiDeviceHostState *deviceState = (__gm__ ShmemiDeviceHostState *)addrGM;                             \
         /* CopyUB Config Set */                                                                                         \
         uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
         uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                            \
@@ -265,6 +264,5 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
     }
 
 SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
-
 
 #endif

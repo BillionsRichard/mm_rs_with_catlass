@@ -1,8 +1,8 @@
 #include <iostream>
 #include <unistd.h>
 #include <acl/acl.h>
-#include "data_utils.h"
-#include "shmem_api.h"
+#include "shmem_host_api.h"
+#include "shmemi_host_intf.h"
 
 #include <gtest/gtest.h>
 extern int testGlobalRanks;
@@ -19,12 +19,12 @@ void TestShmemInit(int rankId, int nRanks, uint64_t localMemSize) {
     ShmemSetAttr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
     status = ShmemInit();
     EXPECT_EQ(status, SHMEM_SUCCESS);
-    EXPECT_EQ(shmemDeviceHostState.mype, rankId);
-    EXPECT_EQ(shmemDeviceHostState.npes, nRanks);
-    EXPECT_NE(shmemDeviceHostState.heapBase, nullptr);
-    EXPECT_NE(shmemDeviceHostState.p2pHeapBase[rankId], nullptr);
-    EXPECT_EQ(shmemDeviceHostState.heapSize, localMemSize + DEFAULT_EXTRA_SIZE);
-    EXPECT_NE(shmemDeviceHostState.teamPools[0], nullptr);
+    EXPECT_EQ(gState.mype, rankId);
+    EXPECT_EQ(gState.npes, nRanks);
+    EXPECT_NE(gState.heapBase, nullptr);
+    EXPECT_NE(gState.p2pHeapBase[rankId], nullptr);
+    EXPECT_EQ(gState.heapSize, localMemSize + SHMEM_EXTRA_SIZE);
+    EXPECT_NE(gState.teamPools[0], nullptr);
     status = ShmemInitStatus();
     EXPECT_EQ(status, SHMEM_STATUS_IS_INITALIZED);
     status = ShmemFinalize();
@@ -36,22 +36,22 @@ void TestShmemInit(int rankId, int nRanks, uint64_t localMemSize) {
     }
 }
 
-void TestShmemInitAttr(int rankId, int nRanks, uint64_t localMemSize) {
+void TestShmemInitAttrT(int rankId, int nRanks, uint64_t localMemSize) {
     uint32_t deviceId = rankId % testGNpuNum;
     int status = SHMEM_SUCCESS;
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
 
-    ShmemInitAttrT* attributes = new ShmemInitAttrT{0, rankId, nRanks, testGlobalIpport, localMemSize, {SHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT}};
+    ShmemInitAttrT* attributes = new ShmemInitAttrT{0, rankId, nRanks, testGlobalIpport, localMemSize, {SHMEM_DATA_OP_MTE, 120, 120, 120}};
     status = ShmemInitAttr(attributes);
 
     EXPECT_EQ(status, SHMEM_SUCCESS);
-    EXPECT_EQ(shmemDeviceHostState.mype, rankId);
-    EXPECT_EQ(shmemDeviceHostState.npes, nRanks);
-    EXPECT_NE(shmemDeviceHostState.heapBase, nullptr);
-    EXPECT_NE(shmemDeviceHostState.p2pHeapBase[rankId], nullptr);
-    EXPECT_EQ(shmemDeviceHostState.heapSize, localMemSize + DEFAULT_EXTRA_SIZE);
-    EXPECT_NE(shmemDeviceHostState.teamPools[0], nullptr);
+    EXPECT_EQ(gState.mype, rankId);
+    EXPECT_EQ(gState.npes, nRanks);
+    EXPECT_NE(gState.heapBase, nullptr);
+    EXPECT_NE(gState.p2pHeapBase[rankId], nullptr);
+    EXPECT_EQ(gState.heapSize, localMemSize + SHMEM_EXTRA_SIZE);
+    EXPECT_NE(gState.teamPools[0], nullptr);
     status = ShmemInitStatus();
     EXPECT_EQ(status, SHMEM_STATUS_IS_INITALIZED);
     status = ShmemFinalize();
@@ -149,20 +149,20 @@ void TestShmemSetConfig(int rankId, int nRanks, uint64_t localMemSize) {
 
     SetDataOpEngineType(attr, SHMEM_DATA_OP_MTE);
     SetTimeout(attr, 50);
-    EXPECT_EQ(shmemInitAttr.optionAttr.controlOperationTimeout, 50);
-    EXPECT_EQ(shmemInitAttr.optionAttr.dataOpEngineType, SHMEM_DATA_OP_MTE);
+    EXPECT_EQ(gAttr.optionAttr.controlOperationTimeout, 50);
+    EXPECT_EQ(gAttr.optionAttr.dataOpEngineType, SHMEM_DATA_OP_MTE);
     
     status = ShmemInit();
     EXPECT_EQ(status, SHMEM_SUCCESS);
-    EXPECT_EQ(shmemDeviceHostState.mype, rankId);
-    EXPECT_EQ(shmemDeviceHostState.npes, nRanks);
-    EXPECT_NE(shmemDeviceHostState.heapBase, nullptr);
-    EXPECT_NE(shmemDeviceHostState.p2pHeapBase[rankId], nullptr);
-    EXPECT_EQ(shmemDeviceHostState.heapSize, localMemSize + DEFAULT_EXTRA_SIZE);
-    EXPECT_NE(shmemDeviceHostState.teamPools[0], nullptr);
+    EXPECT_EQ(gState.mype, rankId);
+    EXPECT_EQ(gState.npes, nRanks);
+    EXPECT_NE(gState.heapBase, nullptr);
+    EXPECT_NE(gState.p2pHeapBase[rankId], nullptr);
+    EXPECT_EQ(gState.heapSize, localMemSize + SHMEM_EXTRA_SIZE);
+    EXPECT_NE(gState.teamPools[0], nullptr);
 
-    EXPECT_EQ(shmemInitAttr.optionAttr.controlOperationTimeout, 50);
-    EXPECT_EQ(shmemInitAttr.optionAttr.dataOpEngineType, SHMEM_DATA_OP_MTE);
+    EXPECT_EQ(gAttr.optionAttr.controlOperationTimeout, 50);
+    EXPECT_EQ(gAttr.optionAttr.dataOpEngineType, SHMEM_DATA_OP_MTE);
 
     status = ShmemInitStatus();
     EXPECT_EQ(status, SHMEM_STATUS_IS_INITALIZED);
@@ -182,11 +182,11 @@ TEST(TestInitAPI, TestShmemInit)
     TestMutilTask(TestShmemInit, localMemSize, processCount);
 }
 
-TEST(TestInitAPI, TestShmemInitAttr)
+TEST(TestInitAPI, TestShmemInitAttrT)
 {   
     const int processCount = testGlobalRanks;
     uint64_t localMemSize = 1024UL * 1024UL * 1024;
-    TestMutilTask(TestShmemInitAttr, localMemSize, processCount);
+    TestMutilTask(TestShmemInitAttrT, localMemSize, processCount);
 }
 
 TEST(TestInitAPI, TestShmemInitErrorInvalidRankId)

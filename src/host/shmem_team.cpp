@@ -8,40 +8,34 @@
 using namespace std;
 
 #include "acl/acl.h"
-#include "shmem_heap.h"
-#include "init_internal.h"
-#include "team.h"
+#include "shmemi_host_intf.h"
 
-extern ShmemDeviceHostStateT shmemDeviceHostState;
-
-ShmemTeam shmemTeamWorld;
-ShmemTeam *shmemiDeviceTeamWorld;
-ShmemTeam **shmemTeamPool;
+ShmemiTeam shmemTeamWorld;
+ShmemiTeam *shmemiDeviceTeamWorld;
+ShmemiTeam **shmemTeamPool;
 
 long *shmemPsyncPool;
 long *shmemSyncCounter;
 long *poolAvail;
 
-void ShmemiMemset(int* array, int len, int val);
-
-void DeviceTeamUpdate(int teamIdx, ShmemTeam *hostTeamPtr)
+void DeviceTeamUpdate(int teamIdx, ShmemiTeam *hostTeamPtr)
 {
     // devicePtr Malloc
     void* teamPtr = NULL;
-    aclrtMalloc(&teamPtr, sizeof(ShmemTeam), ACL_MEM_MALLOC_NORMAL_ONLY);
-    aclrtMemcpy((ShmemTeam *)teamPtr, sizeof(ShmemTeam), hostTeamPtr, sizeof(ShmemTeam), ACL_MEMCPY_HOST_TO_DEVICE);
-    shmemDeviceHostState.teamPools[teamIdx] = (ShmemTeam *)teamPtr;
+    aclrtMalloc(&teamPtr, sizeof(ShmemiTeam), ACL_MEM_MALLOC_NORMAL_ONLY);
+    aclrtMemcpy((ShmemiTeam *)teamPtr, sizeof(ShmemiTeam), hostTeamPtr, sizeof(ShmemiTeam), ACL_MEMCPY_HOST_TO_DEVICE);
+    gState.teamPools[teamIdx] = (ShmemiTeam *)teamPtr;
 }
 
 void DeviceTeamDestroy(int teamIdx)
 {
     // devicePtr Free
-    ShmemTeam *deviceTeamPtr = shmemDeviceHostState.teamPools[teamIdx];
+    ShmemiTeam *deviceTeamPtr = gState.teamPools[teamIdx];
     aclrtFree((void *)deviceTeamPtr);
-    shmemDeviceHostState.teamPools[teamIdx] = nullptr;
+    gState.teamPools[teamIdx] = nullptr;
 }
 
-int ShmemTeamInit(int rank, int size)
+int ShmemiTeamInit(int rank, int size)
 {
     /* Initialize SHMEM_TEAM_WORLD */
     shmemTeamWorld.teamIdx = 0;
@@ -50,8 +44,8 @@ int ShmemTeamInit(int rank, int size)
     shmemTeamWorld.size = size;       // TODO state->npes
     shmemTeamWorld.mype = rank;       // TODO state->mype
 
-    int shmemMaxTeams = SHM_MAX_TEAMS;
-    shmemTeamPool = (ShmemTeam **)calloc(shmemMaxTeams, sizeof(ShmemTeam *));
+    int shmemMaxTeams = SHMEM_MAX_TEAMS;
+    shmemTeamPool = (ShmemiTeam **)calloc(shmemMaxTeams, sizeof(ShmemiTeam *));
     if (shmemTeamPool == nullptr) {
         std::cout << "shmemTeamPool calloc failed!" << std::endl;
         return 1;
@@ -66,11 +60,11 @@ int ShmemTeamInit(int rank, int size)
     poolAvail[0] = 1;
 
     /* Initialize TEAM SYNC */    /* Initialize TEAM SYNC */
-    shmemDeviceHostState.sPoolL2 = (SyncBit *)ShmemMalloc(SA_POOL_SIZE_L2);
-    aclrtMemset((void *) shmemDeviceHostState.sPoolL2, SA_POOL_SIZE_L2, 0, SA_POOL_SIZE_L2);
+    gState.syncPool = (ShmemiSyncBit *)ShmemMalloc(SYNC_POOL_SIZE);
+    aclrtMemset((void *) gState.syncPool, SYNC_POOL_SIZE, 0, SYNC_POOL_SIZE);
 
-    aclrtMalloc((void **)&(shmemDeviceHostState.cPoolL2), SC_POOL_SIZE_L2, ACL_MEM_MALLOC_HUGE_FIRST);
-    ShmemiMemset((int32_t *) shmemDeviceHostState.cPoolL2, SC_POOL_SIZE_L2 / sizeof(int32_t), 1);
+    aclrtMalloc((void **)&(gState.syncCounter), SYNC_COUNTERS_SIZE, ACL_MEM_MALLOC_HUGE_FIRST);
+    ShmemiMemset((int32_t *) gState.syncCounter, SYNC_COUNTERS_SIZE / sizeof(int32_t), 1);
 
     return 0;
 }
@@ -78,7 +72,7 @@ int ShmemTeamInit(int rank, int size)
 
 int FirstFreeIdxFetch()
 {
-    int shmemMaxTeams = SHM_MAX_TEAMS;
+    int shmemMaxTeams = SHMEM_MAX_TEAMS;
     for (int i = 0; i < shmemMaxTeams; i++) {
         if (poolAvail[i] == 0) {
             poolAvail[i] = 1;
@@ -90,16 +84,16 @@ int FirstFreeIdxFetch()
 
 
 int ShmemTeamSplitStrided(
-        ShmemTeam_t parentTeam,
+        ShmemTeam parentTeam,
         int peStart, int peStride, int peSize,
-        ShmemTeam_t &newTeam)
+        ShmemTeam &newTeam)
 {
     newTeam = SHMEM_TEAM_INVALID;
 
-    ShmemTeam *myteam = nullptr;
-    myteam = (ShmemTeam *)calloc(1, sizeof(ShmemTeam));
+    ShmemiTeam *myteam = nullptr;
+    myteam = (ShmemiTeam *)calloc(1, sizeof(ShmemiTeam));
 
-    ShmemTeam *srcTeam = shmemTeamPool[parentTeam];
+    ShmemiTeam *srcTeam = shmemTeamPool[parentTeam];
 
     int globalPE = srcTeam->mype;
     int globalPeStart = srcTeam->start + peStart * srcTeam->stride;
@@ -142,12 +136,12 @@ int ShmemTeamSplitStrided(
 
 
 int ShmemTeamTranslatePE(
-    ShmemTeam_t srcTeam, int srcPe,
-    ShmemTeam_t destTeam)
+    ShmemTeam srcTeam, int srcPe,
+    ShmemTeam destTeam)
 {
     if (srcTeam == SHMEM_TEAM_INVALID || destTeam == SHMEM_TEAM_INVALID) return -1;
-    ShmemTeam *srcTeamPtr = shmemTeamPool[srcTeam];
-    ShmemTeam *destTeamPtr = shmemTeamPool[destTeam];
+    ShmemiTeam *srcTeamPtr = shmemTeamPool[srcTeam];
+    ShmemiTeam *destTeamPtr = shmemTeamPool[destTeam];
 
     if (srcPe > srcTeamPtr->size) return -1;
 
@@ -164,7 +158,7 @@ int ShmemTeamTranslatePE(
 }
 
 
-void ShmemTeamDestroy(ShmemTeam_t team)
+void ShmemTeamDestroy(ShmemTeam team)
 {
     if (team == -1) {
         return;
@@ -177,11 +171,11 @@ void ShmemTeamDestroy(ShmemTeam_t team)
 }
 
 
-int ShmemTeamFinalize() {
+int ShmemiTeamFinalize() {
     /* Destroy all undestroyed teams*/
-    int shmemMaxTeams = SHM_MAX_TEAMS;
+    int shmemMaxTeams = SHMEM_MAX_TEAMS;
     for (int i = 0; i < shmemMaxTeams; i++) {
-        if (shmemTeamPool[i] != NULL) ShmemTeamDestroy((ShmemTeam_t)i);
+        if (shmemTeamPool[i] != NULL) ShmemTeamDestroy((ShmemTeam)i);
     }
 
     free(shmemTeamPool);
@@ -202,7 +196,7 @@ int ShmemNpes()
 }
 
 
-int ShmemTeamMype(ShmemTeam_t team)
+int ShmemTeamMype(ShmemTeam team)
 {
     if (team == SHMEM_TEAM_INVALID)
         return -1;
@@ -211,7 +205,7 @@ int ShmemTeamMype(ShmemTeam_t team)
 }
 
 
-int ShmemTeamNpes(ShmemTeam_t team)
+int ShmemTeamNpes(ShmemTeam team)
 {
     if (team == SHMEM_TEAM_INVALID)
         return -1;

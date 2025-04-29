@@ -3,9 +3,9 @@
 #include "shmem_device_api.h"
 
 extern "C" __global__ __aicore__ void fetchAddr(GM_ADDR syncArray, GM_ADDR syncCounter) {
-    ShmemTeam *team = getState()->teamPools[0];
-    *((__gm__ uint64_t*) syncArray) = (uint64_t) ShmemiGetTeamSyncArrayL2(team);
-    *((__gm__ uint64_t*) syncCounter) = (uint64_t) ShmemiGetTeamSyncCounterL2(team);
+    ShmemiTeam *team = ShmemiGetState()->teamPools[0];
+    *((__gm__ uint64_t*) syncArray) = (uint64_t) ShmemiGetTeamSyncArray(team);
+    *((__gm__ uint64_t*) syncCounter) = (uint64_t) ShmemiGetTeamSyncCounter(team);
 }
 
 extern "C" __global__ __aicore__ void barrier(GM_ADDR stub) {
@@ -24,11 +24,11 @@ extern "C" __global__ __aicore__ void increase(GM_ADDR addr, int rankId, int ran
 #endif
 
 #ifdef __DAV_C220_VEC__
-    uint64_t val = load<uint64_t>(addr);
+    uint64_t val = ShmemiLoad<uint64_t>(addr);
 
     ShmemBarrierAll();
     GM_ADDR remote = ShmemiPtr(addr, (rankId + 1) % rankSize);
-    store<uint64_t>(remote, val + 1);
+    ShmemiStore<uint64_t>(remote, val + 1);
     ShmemBarrierAll();
 #endif
 }

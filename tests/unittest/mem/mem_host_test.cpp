@@ -3,9 +3,8 @@
 using namespace std;
 
 #include "acl/acl.h"
-#include "data_utils.h"
-#include "shmem_heap.h"
-#include "shmem_api.h"
+#include "shmem_host_api.h"
+#include "shmemi_host_intf.h"
 
 #include <gtest/gtest.h>
 extern int testGlobalRanks;
@@ -85,7 +84,7 @@ void TestShmemMem(int rankId, int nRanks, uint64_t localMemSize) {
     ShmemSetAttr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
     status = ShmemInit();
     EXPECT_EQ(status, SHMEM_SUCCESS);
-    status = TestPutGet(stream, (uint8_t *)shmemDeviceHostState.heapBase, rankId, nRanks);
+    status = TestPutGet(stream, (uint8_t *)gState.heapBase, rankId, nRanks);
     EXPECT_EQ(status, SHMEM_SUCCESS);
 
     std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
