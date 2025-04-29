@@ -48,7 +48,6 @@ __aicore__ inline __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
     uint64_t lowerBound = (uint64_t)deviceState->p2pHeapBase[ShmemMype()];
     uint64_t upperBound = lowerBound + deviceState->heapSize;
     if (uint64_t(ptr) < lowerBound || uint64_t(ptr) >= upperBound) {
-        AscendC::printf("Rank %d Got Illegal Address !!\n", ShmemMype());
         return nullptr;
     }
 
@@ -117,6 +116,44 @@ __aicore__ inline void ShmemMTEGetMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* 
     }
 }
 
+template <typename T>
+__aicore__ inline void ShmemMTEGetMem(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+{
+    if (AscendC::GetSubBlockIdx() != 0) {
+        return;
+    }
+
+    auto ptr = ShmemPtr((__gm__ void *)src.GetPhyAddr(), pe);
+    if (ptr == nullptr) return;
+
+    AscendC::GlobalTensor<T> remoteBuff;
+    remoteBuff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
+
+    // blockSize: dataMove Unit
+    uint32_t blockSize = ubSize / sizeof(T) * sizeof(T);
+    uint32_t remain = (elemSize * sizeof(T)) % blockSize;
+
+    // TODO: USE DoubleBuffer.
+    int repeat_times = (elemSize * sizeof(T)) / blockSize;
+    int repeat_elem = blockSize / sizeof(T);
+    for (int i = 0; i < repeat_times; i++) {
+        AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+        smem_shm_copy_gm2ub(buf, remoteBuff[i * repeat_elem], blockSize);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        smem_shm_copy_ub2gm(dst[i * repeat_elem], buf, blockSize);
+        AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+    }
+    if (remain > 0) {
+        AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+        smem_shm_copy_gm2ub(buf, remoteBuff[repeat_times * repeat_elem], remain);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        smem_shm_copy_ub2gm(dst[repeat_times * repeat_elem], buf, remain);
+        AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+    }
+}
+
 
 template <typename T>
 __aicore__ inline void ShmemMTEPutMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
@@ -149,6 +186,45 @@ __aicore__ inline void ShmemMTEPutMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* 
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         smem_shm_copy_ub2gm(remotePtr + repeat_times * repeat_elem, buf, remain);
+    }
+}
+
+
+template <typename T>
+__aicore__ inline void ShmemMTEPutMem(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+{
+    if (AscendC::GetSubBlockIdx() != 0) {
+        return;
+    }
+
+    auto ptr = ShmemPtr((__gm__ void *)dst.GetPhyAddr(), pe);
+    if (ptr == nullptr) return;
+
+    AscendC::GlobalTensor<T> remoteBuff;
+    remoteBuff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
+
+    // blockSize: dataMove Unit
+    uint32_t blockSize = ubSize / sizeof(T) * sizeof(T);
+    uint32_t remain = (elemSize * sizeof(T)) % blockSize;
+
+    // TODO: USE DoubleBuffer.
+    int repeat_times = (elemSize * sizeof(T)) / blockSize;
+    int repeat_elem = blockSize / sizeof(T);
+    for (int i = 0; i < repeat_times; i++) {
+        AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+        smem_shm_copy_gm2ub(buf, src[i * repeat_elem], blockSize);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        smem_shm_copy_ub2gm(remoteBuff[i * repeat_elem], buf, blockSize);
+        AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+    }
+    if (remain > 0) {
+        AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+        smem_shm_copy_gm2ub(buf, src[repeat_times * repeat_elem], remain);
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
+        smem_shm_copy_ub2gm(remoteBuff[repeat_times * repeat_elem], buf, remain);
+        AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
     }
 }
 

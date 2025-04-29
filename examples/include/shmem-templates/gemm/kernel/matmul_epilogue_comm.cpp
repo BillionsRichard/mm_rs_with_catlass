@@ -1,4 +1,4 @@
-ifndef ACT_GEMM_KERNEL_MATMUL_EPILOGUE_COMM_HPP
+#ifndef ACT_GEMM_KERNEL_MATMUL_EPILOGUE_COMM_HPP
 #define ACT_GEMM_KERNEL_MATMUL_EPILOGUE_COMM_HPP
 
 // from ascendc-templates
@@ -11,8 +11,6 @@ ifndef ACT_GEMM_KERNEL_MATMUL_EPILOGUE_COMM_HPP
 // from shmem-templates
 #include "shmem-templates/epilogue/block/epilogue_allreduce.hpp"
 #include "shmem-templates/epilogue/block/block_swizzle_dynamic.hpp"
-#include "shmem-templates/epilogue/tile/remote_copy_op.hpp"
-#include "shmem-templates/arch/cross_rank_sync.hpp"
 
 namespace Act::Gemm::Kernel {
 
@@ -161,7 +159,7 @@ public:
                 Arch::CrossCoreSetFlagWithReverse<0x2, PIPE_FIX>(flagAicFinishStore);
             }
         }
-        PipeBarrier<PIPE_ALL>();
+        AscendC::PipeBarrier<PIPE_ALL>();
     }
 
     template <>
@@ -195,9 +193,6 @@ public:
             Arch::CrossCoreWaitFlagWithReverse<0x2, PIPE_MTE3>(flagAicFinishStore);
 
             blockAllReduceEpilogue(blockShape, actualCommBlockCount, commBlockCount, calIdx, params.rankIdx, params.rankSize, params.pValue);
-
-            // // 发送aic同步
-            // arch::CrossCoreSetFlag<0x2, PIPE_MTE3>(flagAivFinishCompute[flagIdx]);
         }
 
     }
@@ -208,8 +203,6 @@ private:
     static constexpr Arch::FlagID RV_FLAG_AIC_FINISH_STORE = 1;
     Arch::CrossCoreFlagWithReverse<> flagAicFinishStore{FLAG_AIC_FINISH_STORE, RV_FLAG_AIC_FINISH_STORE};
     Arch::Resource<ArchTag> resource;
-
-    __ubuf__ int32_t *ctrl_flags_UB = (__ubuf__ int32_t *)(131072);
 };
 
 } // namespace Act::Gemm::Kernel

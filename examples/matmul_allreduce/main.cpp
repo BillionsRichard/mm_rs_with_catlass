@@ -37,9 +37,7 @@
 #include "act/layout/layout.hpp"
 
 // from shmem-templates
-// #include "shmem-templates/epilogue/block/epilogue_dynamic_comm.hpp"
 #include "shmem-templates/epilogue/block/epilogue_allreduce.hpp"
-#include "shmem-templates/epilogue/tile/remote_copy_op.hpp"
 #include "shmem-templates/epilogue/block/block_swizzle_dynamic.hpp"
 #include "shmem-templates/gemm/kernel/matmul_epilogue_comm.hpp"
 
@@ -162,7 +160,7 @@ using LayoutC = layout::RowMajor;
 
 ACT_GLOBAL
 void ShmemMatmulAllReduce(
-    uint64_t fftsAddr, GemmCoord problemShape, GM_ADDR a, GM_ADDR b, GM_ADDR c, GM_ADDR gmWorkspace, CoCTiling cocTiling)
+    uint64_t fftsAddr, GemmCoord problemShape, GM_ADDR a, GM_ADDR b, GM_ADDR c, GM_ADDR symmetricPtr, CoCTiling cocTiling)
 {
     // Set FFTS address
     AscendC::SetSyncBaseAddr(fftsAddr);
@@ -189,15 +187,6 @@ void ShmemMatmulAllReduce(
     uint32_t rank = ShmemMype();
     uint32_t rankSize = ShmemNpes();
     using ElementC = half;
-    __gm__ ElementC *peerMems[SHM_MAX_RANKS] = {};
-    __gm__ void* addrGM = smem_shm_get_extra_context_addr();
-    __gm__ ShmemDeviceHostState *deviceState = (__gm__ ShmemDeviceHostState *)addrGM;
-    for (int i = 0; i < rankSize; i++) {
-        uint64_t remotePtr = reinterpret_cast<uint64_t>(deviceState->p2pHeapBase[i]) + 1024;
-        __gm__ void *rankPtr = reinterpret_cast<__gm__ void*>(remotePtr);
-        __gm__ ElementC *realPtr = reinterpret_cast<__gm__ ElementC*>(rankPtr);
-        peerMems[i] = realPtr;
-    }
 
     // Block level, Define the layout of each input matrix
     layout::RowMajor layoutA{m, k, k};
@@ -222,22 +211,14 @@ void ShmemMatmulAllReduce(
     using BlockScheduler = typename Gemm::Block::GemmIdentityBlockSwizzle<7, 1>;        // TODO Need Set Manually
     using CommBlockSwizzle = Gemm::Block::CommBlockSwizzleDynamic;
 
-    using ComputeAttachedReduceScatter = Epilogue::Block::RemoteCopyOp<
-        ArchTag, ElementStore, Gemm::Block::ReduceScatterSchedule>;
-    using ComputeAttachedAllGather =  Epilogue::Block::RemoteCopyOp<
-        ArchTag, ElementStore, Gemm::Block::AllGatherSchedule>;
-
-    // Block level, define BlockEpiloguei
-    using BlockAllReduceEpilogue = Epilogue::Block::EpilogueAllReduce<
-        BlockScheduler, CommBlockSwizzle,
-        ComputeAttachedReduceScatter,
-        ComputeAttachedAllGather>;
+    // Block level, define BlockAllReduceEpilogue(ReduceScatter + AllGather)
+    using BlockAllReduceEpilogue = Epilogue::Block::EpilogueAllReduce<BlockScheduler, CommBlockSwizzle>;
 
     // Kernel level
     using MatmulAllReduceKernel = Gemm::Kernel::MatmulEpilogueComm<BlockMmad, BlockAllReduceEpilogue, BlockScheduler>;
 
     // Prepare EpilogueComm params
-    uint32_t maxUbPingPongSize = ubMoveNum / 2; // 8192
+    uint32_t maxUbPingPongSize = ubMoveNum / 2;
 
     BlockScheduler matmulBlockScheduler(problemShape, MakeCoord(L1TileShape::M, L1TileShape::N));
 
@@ -251,7 +232,7 @@ void ShmemMatmulAllReduce(
     typename BlockAllReduceEpilogue::Params epilogueCommParams{
             refC, layout::RowMajor(m, n, n),
             0,
-            (__gm__ ElementC **)(peerMems),
+            (__gm__ ElementC *)symmetricPtr,
             commBlockShape, commProcessShape,
             matmulBlockScheduler, commSwizzle};
 
@@ -261,7 +242,7 @@ void ShmemMatmulAllReduce(
         pValue, rank, rankSize,
         a, layoutA,
         b, layoutB,
-        reinterpret_cast<GM_ADDR>(peerMems[rank]),
+        symmetricPtr,
         epilogueCommParams};
 
     // call kernel
@@ -335,8 +316,9 @@ struct Options {
     }
 };
 
-nt main(int argc, char **argv)
+int main(int argc, char **argv)
 {
+    int status = SHMEM_SUCCESS;
     int rankSize = atoi(argv[1]);
     int rankId = atoi(argv[2]);
     std::string ipport = argv[3];
@@ -347,7 +329,9 @@ nt main(int argc, char **argv)
     ACL_CHECK(aclrtSetDevice(deviceId));
     aclrtStream stream = nullptr;
     ACL_CHECK(aclrtCreateStream(&stream));
-    ShmemInit(rankId, rankSize, gNpuMallocSpace);
+    ShmemInitAttrT* attributes;
+    ShmemSetAttr(rankId, rankSize, gNpuMallocSpace, ipport.c_str(), &attributes);
+    status = ShmemInit();
 
     // Prepare FFTS address
     uint64_t fftsAddr{0};
@@ -398,8 +382,7 @@ nt main(int argc, char **argv)
     ReadFile("./examples/matmul_allreduce/out/c_gm.bin", cHost, cSize);
     ACL_CHECK(aclrtMemcpy(cDevice, cSize, cHost, cSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
-    uint8_t *deviceWorkspace{nullptr};
-    ACL_CHECK(aclrtMalloc(reinterpret_cast<void **>(&deviceWorkspace), workspaceSize, ACL_MEM_MALLOC_HUGE_FIRST));
+    uint8_t *symmetricPtr = (uint8_t *)shmemDeviceHostState.heapBase + 1024;
 
     CoCTiling cocTiling;
     cocTiling.m = m;
@@ -418,7 +401,7 @@ nt main(int argc, char **argv)
 
     ACL_CHECK(aclrtSynchronizeStream(stream));
     for (int i = 0; i < 1; i++) {
-        ShmemMatmulAllReduce<<<BLOCK_NUM, nullptr, stream>>>(fftsAddr, problemShape, aDevice, bDevice, cDevice, deviceWorkspace, cocTiling);
+        ShmemMatmulAllReduce<<<BLOCK_NUM, nullptr, stream>>>(fftsAddr, problemShape, aDevice, bDevice, cDevice, symmetricPtr, cocTiling);
     }
     ACL_CHECK(aclrtSynchronizeStream(stream));
 
@@ -433,7 +416,6 @@ nt main(int argc, char **argv)
     ACL_CHECK(aclrtFree(aDevice));
     ACL_CHECK(aclrtFree(bDevice));
     ACL_CHECK(aclrtFree(cDevice));
-    ACL_CHECK(aclrtFree(deviceWorkspace));
 
     std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
     ShmemFinalize();

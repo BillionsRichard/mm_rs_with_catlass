@@ -1,4 +1,4 @@
-pragmaticonce
+#pragma once
 #include "act/act.hpp"
 #include "act/detail/alignment.hpp"
 #include "act/gemm_coord.hpp"
@@ -87,19 +87,19 @@ struct CommBlockSwizzleDynamic {
     MatrixCoord GetBlockIdx(uint32_t taskIdx) const {
         uint32_t innerIdx = taskIdx % (mLoops * nLoops);
         if (swizzleDirection == 0) { // Zn
-            uint32_t tileBlockLoop = CeilDiv(mLoops, swizzleOffset);        // 16
-            uint32_t tileBlockIdx = innerIdx / (swizzleOffset * nLoops);    // 3
-            uint32_t inTileBlockIdx = innerIdx % (swizzleOffset * nLoops);  // 1
+            uint32_t tileBlockLoop = CeilDiv(mLoops, swizzleOffset);
+            uint32_t tileBlockIdx = innerIdx / (swizzleOffset * nLoops);
+            uint32_t inTileBlockIdx = innerIdx % (swizzleOffset * nLoops);
 
-            uint32_t nRow = swizzleOffset;                                  // 1
+            uint32_t nRow = swizzleOffset;
             if (tileBlockIdx == tileBlockLoop - 1) {
                 nRow = mLoops - swizzleOffset * tileBlockIdx;
             }
-            uint32_t mIdx = tileBlockIdx * swizzleOffset + inTileBlockIdx % nRow;   // 3
-            uint32_t nIdx =        inTileBlockIdx / nRow;                                  // 1  nIdx = (nIdx * nStride) % nLoops + (nIdx * nStride) / nLoops;           // 1
-            nIdx = (nIdx + mIdx) % nLoops;                                          // 1
+            uint32_t mIdx = tileBlockIdx * swizzleOffset + inTileBlockIdx % nRow;
+            uint32_t nIdx = inTileBlockIdx / nRow;
+            nIdx = (nIdx + mIdx) % nLoops;
 
-            return MatrixCoord{mIdx, nIdx};                                         // {1, 1}
+            return MatrixCoord{mIdx, nIdx};
         } else if (swizzleDirection == 1) { // Nz
             uint32_t tileBlockLoop = CeilDiv(nLoops, swizzleOffset);
             uint32_t tileBlockIdx = innerIdx / (swizzleOffset * mLoops);
