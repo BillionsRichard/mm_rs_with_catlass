@@ -1,20 +1,16 @@
 #include "acl/acl.h"
 
-#include "macros.h"
-#include "data_utils.h"
-#include "team.h"
-#include "internal/device/sync/shmemi_barrier.h"
-#include "internal/device/sync/shmemi_p2p.h"
-#include "internal/device/sync/shmemi_quiet.h"
+#include "shmemi_host_intf.h"
+#include "shmem_device_api.h"
 
 // kernels
-SHMEM_AICORE_KERNEL void KShmemBarrier(int tid) {
+SHMEM_GLOBAL void KShmemBarrier(int tid) {
     CVGuard();
     ShmemiBarrier(tid);
 } 
 
 // interfaces
-void ShmemBarrierOnStream(ShmemTeam_t tid, aclrtStream stream) {
+void ShmemBarrierOnStream(ShmemTeam tid, aclrtStream stream) {
     // TODO: clear all internal working streams
 
     // call barrier kernel
@@ -26,7 +22,7 @@ void ShmemBarrierAllOnStream(aclrtStream stream) {
     ShmemBarrierOnStream(SHMEM_TEAM_WORLD, stream);
 }
 
-void ShmemBarrier(ShmemTeam_t tid) {
+void ShmemBarrier(ShmemTeam tid) {
     // using default stream to do barrier
     ShmemBarrierOnStream(tid, nullptr);
 }

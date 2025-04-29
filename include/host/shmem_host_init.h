@@ -1,9 +1,7 @@
-#ifndef _SHMEM_API_H
-#define _SHMEM_API_H
+#ifndef SHMEM_HOST_INIT_H
+#define SHMEM_HOST_INIT_H
 
-#include "stdint.h"
-#include "types.h"
-#include "team.h"
+#include "host_device/shmem_types.h"
 
 /**
  * @brief 查询当前初始化状态

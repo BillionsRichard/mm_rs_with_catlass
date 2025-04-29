@@ -5,4 +5,4 @@ target_include_directories(shmem_unittest PRIVATE ${PROJECT_SOURCE_DIR}/3rdparty
 target_include_directories(shmem_unittest PRIVATE ${ASCEND_HOME_PATH}/include)
 target_link_directories(shmem_unittest PRIVATE ${PROJECT_SOURCE_DIR}/3rdparty/googletest/lib ${ASCEND_HOME_PATH}/lib64/ pthread)
 target_link_directories(shmem_unittest PRIVATE ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/lib)
-target_link_libraries(shmem_unittest PRIVATE shmem_host shmem_device test_scalar_npu mf_smem mf_hybm_core pthread -lgtest -lgtest_main)
+target_link_libraries(shmem_unittest PRIVATE shmem_host shmem_device unittest_kernel mf_smem mf_hybm_core pthread -lgtest -lgtest_main)

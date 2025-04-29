@@ -1,9 +1,9 @@
 #ifndef SHEMEI_QUIET_H
 #define SHEMEI_QUIET_H
 
-#include "../arch.h"
+#include "../shmemi_device_common.h"
 
-SHMEM_AICORE_INLINE void ShmemiQuiet() {
+SHMEM_DEVICE void ShmemiQuiet() {
     // clear instruction pipes
     pipe_barrier(PIPE_ALL);
 
