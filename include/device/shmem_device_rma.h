@@ -40,13 +40,12 @@
 SHMEM_DEVICE __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
 {
     // Get Global State
-    __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();;
+    __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();
 
     // Check whether ptr belongs to this rank.
     uint64_t lowerBound = (uint64_t)deviceState->p2pHeapBase[ShmemMype()];
     uint64_t upperBound = lowerBound + deviceState->heapSize;
     if (uint64_t(ptr) < lowerBound || uint64_t(ptr) >= upperBound) {
-        AscendC::printf("Rank %d Got Illegal Address !!\n", ShmemMype());
         return nullptr;
     }
 
@@ -78,7 +77,7 @@ SHMEM_DEVICE __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
 SHMEM_TYPE_FUNC(SHMEM_TYPENAME_P_AICORE);
 
 template <typename T>
-SHMEM_DEVICE void ShmemMTEGetMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void ShmemMTEGetMemNBI(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = ShmemPtr(src, pe);
     if (ptr == nullptr) return;
@@ -91,12 +90,13 @@ SHMEM_DEVICE void ShmemMTEGetMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, 
     // TODO: USE DoubleBuffer.
     int repeat_times = (elemSize * sizeof(T)) / blockSize;
     int repeat_elem = blockSize / sizeof(T);
+    int loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
     for (int i = 0; i < repeat_times; i++) {
         smem_shm_copy_gm2ub(buf, remotePtr + i * repeat_elem, blockSize);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         smem_shm_copy_ub2gm(dst + i * repeat_elem, buf, blockSize);
-        if (i != repeat_times - 1) {    // Last PIPE Sync Should be done in Kernel
+        if (i != loop_times - 1) {      // Last PIPE Sync Should be done in Kernel
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
         }
@@ -126,12 +126,13 @@ SHMEM_DEVICE void ShmemMTEGetMemNBI(AscendC::GlobalTensor<T> dst, AscendC::Globa
     // TODO: USE DoubleBuffer.
     int repeat_times = (elemSize * sizeof(T)) / blockSize;
     int repeat_elem = blockSize / sizeof(T);
+    int loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
     for (int i = 0; i < repeat_times; i++) {
         smem_shm_copy_gm2ub(buf, remoteBuff[i * repeat_elem], blockSize);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         smem_shm_copy_ub2gm(dst[i * repeat_elem], buf, blockSize);
-        if (i != repeat_times - 1) {    // Last PIPE Sync Should be done in Kernel
+        if (i != loop_times - 1) {      // Last PIPE Sync Should be done in Kernel
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
         }
@@ -146,7 +147,7 @@ SHMEM_DEVICE void ShmemMTEGetMemNBI(AscendC::GlobalTensor<T> dst, AscendC::Globa
 
 
 template <typename T>
-SHMEM_DEVICE void ShmemMTEPutMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void ShmemMTEPutMemNBI(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = ShmemPtr(dst, pe);
     if (ptr == nullptr) return;
@@ -159,12 +160,13 @@ SHMEM_DEVICE void ShmemMTEPutMem(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, 
     // TODO: USE DoubleBuffer.
     int repeat_times = (elemSize * sizeof(T)) / blockSize;
     int repeat_elem = blockSize / sizeof(T);
+    int loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
     for (int i = 0; i < repeat_times; i++) {
         smem_shm_copy_gm2ub(buf, src + i * repeat_elem, blockSize);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         smem_shm_copy_ub2gm(remotePtr + i * repeat_elem, buf, blockSize);
-        if (i != repeat_times - 1) {    // Last PIPE Sync Should be done in Kernel
+        if (i != loop_times - 1) {      // Last PIPE Sync Should be done in Kernel
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
         }
@@ -194,12 +196,13 @@ SHMEM_DEVICE void ShmemMTEPutMemNBI(AscendC::GlobalTensor<T> dst, AscendC::Globa
     // TODO: USE DoubleBuffer.
     int repeat_times = (elemSize * sizeof(T)) / blockSize;
     int repeat_elem = blockSize / sizeof(T);
+    int loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
     for (int i = 0; i < repeat_times; i++) {
         smem_shm_copy_gm2ub(buf, src[i * repeat_elem], blockSize);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         smem_shm_copy_ub2gm(remoteBuff[i * repeat_elem], buf, blockSize);
-        if (i != repeat_times - 1) {    // Last PIPE Sync Should be done in Kernel
+        if (i != loop_times - 1) {      // Last PIPE Sync Should be done in Kernel
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
         }
@@ -214,19 +217,19 @@ SHMEM_DEVICE void ShmemMTEPutMemNBI(AscendC::GlobalTensor<T> dst, AscendC::Globa
 
 
 #define SHMEM_GET_TYPENAME_MEM(inType)                                                                                  \
-    SHMEM_DEVICE void ShmemGet##inType##Mem(__gm__ inType* dst, __gm__ inType* src, uint32_t elemSize, int pe)     \
+    SHMEM_DEVICE void ShmemGet##inType##MemNBI(__gm__ inType* dst, __gm__ inType* src, uint32_t elemSize, int pe)       \
     {                                                                                                                   \
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
         /* MTE  */                                                                                                      \
         /* Global State Get */                                                                                          \
         __gm__ void* addrGM = smem_shm_get_extra_context_addr();                                                        \
-        __gm__ ShmemiDeviceHostState *deviceState = (__gm__ ShmemiDeviceHostState *)addrGM;                               \
+        __gm__ ShmemiDeviceHostState *deviceState = (__gm__ ShmemiDeviceHostState *)addrGM;                             \
         /* CopyUB Config Set */                                                                                         \
         uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
         uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                            \
         AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                              \
-        ShmemMTEGetMem(dst, src, reinterpret_cast<__ubuf__ inType*>(copyUB), copyUBSize, elemSize, pe, copyEventID);    \
+        ShmemMTEGetMemNBI(dst, src, reinterpret_cast<__ubuf__ inType*>(copyUB), copyUBSize, elemSize, pe, copyEventID); \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
@@ -256,19 +259,19 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR);
 
 
 #define SHMEM_PUT_TYPENAME_MEM(inType)                                                                                  \
-    SHMEM_DEVICE void ShmemPut##inType##Mem(__gm__ inType* dst, __gm__ inType* src, uint32_t elemSize, int pe)     \
+    SHMEM_DEVICE void ShmemPut##inType##MemNBI(__gm__ inType* dst, __gm__ inType* src, uint32_t elemSize, int pe)       \
     {                                                                                                                   \
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
         /* MTE  */                                                                                                      \
         /* Global State Get */                                                                                          \
         __gm__ void* addrGM = smem_shm_get_extra_context_addr();                                                        \
-        __gm__ ShmemiDeviceHostState *deviceState = (__gm__ ShmemiDeviceHostState *)addrGM;                               \
+        __gm__ ShmemiDeviceHostState *deviceState = (__gm__ ShmemiDeviceHostState *)addrGM;                             \
         /* CopyUB Config Set */                                                                                         \
         uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
         uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                            \
         AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                              \
-        ShmemMTEPutMem(dst, src, reinterpret_cast<__ubuf__ inType*>(copyUB), copyUBSize, elemSize, pe, copyEventID);    \
+        ShmemMTEPutMemNBI(dst, src, reinterpret_cast<__ubuf__ inType*>(copyUB), copyUBSize, elemSize, pe, copyEventID); \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
