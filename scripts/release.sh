@@ -1,24 +1,4 @@
 #!/bin/bash
-if [ -n "$ASCEND_HOME_PATH" ]; then
-    _ASCEND_INSTALL_PATH=$ASCEND_HOME_PATH
-fi
-
-export ASCEND_TOOLKIT_HOME=${_ASCEND_INSTALL_PATH}
-export ASCEND_HOME_PATH=${_ASCEND_INSTALL_PATH}
-
-source ${_ASCEND_INSTALL_PATH}/bin/setenv.bash
-
-CURRENT_DIR=$(pwd)
-SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-PROJECT_ROOT=$(dirname "$SCRIPT_DIR")
-VERSION="1.0.0"
-OUTPUT_DIR=$PROJECT_ROOT/install
-THIRD_PARTY_DIR=$PROJECT_ROOT/3rdparty
-RELEASE_DIR=$PROJECT_ROOT/ci/release
-
-cann_default_path="/usr/local/Ascend/ascend-toolkit"
-
-cd ${PROJECT_ROOT}
 
 function fn_make_run_package()
 {
@@ -45,11 +25,7 @@ EOF
     mkdir -p $OUTPUT_DIR/scripts
     mkdir -p $RELEASE_DIR/$ARCH
     cp $PROJECT_ROOT/scripts/install.sh $OUTPUT_DIR
-    cp $PROJECT_ROOT/scripts/set_env.sh $OUTPUT_DIR
     cp $PROJECT_ROOT/scripts/uninstall.sh $OUTPUT_DIR/scripts
-
-    cp -r $PROJECT_ROOT/3rdparty/memfabric_hybrid $OUTPUT_DIR
-
     sed -i "s/SHMEMPKGARCH/${ARCH}/" $OUTPUT_DIR/install.sh
     sed -i "s!VERSION_PLACEHOLDER!${VERSION}!" $OUTPUT_DIR/install.sh
     sed -i "s!VERSION_PLACEHOLDER!${VERSION}!" $OUTPUT_DIR/scripts/uninstall.sh
@@ -59,37 +35,34 @@ EOF
     ${makeself_dir}/makeself.sh --header ${makeself_dir}/makeself-header.sh \
         --help-header $PROJECT_ROOT/scripts/help.info --gzip --complevel 4 --nomd5 --sha256 --chown \
         ${OUTPUT_DIR} $RELEASE_DIR/$ARCH/SHMEM_${VERSION}_linux-${ARCH}.run "SHMEM-api" ./install.sh
-    [ -d "$OUTPUT_DIR/$ARCH" ] && rm -rf "$OUTPUT_DIR/$ARCH"
+    
+    rm -rf $OUTPUT_DIR/*
     mv $RELEASE_DIR/$ARCH $OUTPUT_DIR
     echo "SHMEM_${VERSION}_linux-${ARCH}.run is successfully generated in $OUTPUT_DIR"
 }
 
-function fn_build_googletest()
+function fn_main()
 {
-    if [ -d "$THIRD_PARTY_DIR/googletest/lib" ]; then
-        return 0
-    fi
-    cd $THIRD_PARTY_DIR
-    [[ ! -d "googletest" ]] && git clone --branch v1.14.0 --depth 1 https://github.com/google/googletest.git
-    cd googletest
-    rm -rf build && mkdir build && cd build
-    cmake .. -DCMAKE_INSTALL_PREFIX=$THIRD_PARTY_DIR/googletest -DCMAKE_SKIP_RPATH=TRUE -DCMAKE_CXX_FLAGS="-fPIC"
-    cmake --build . --parallel $(nproc)
-    cmake --install . > /dev/null
-    [[ -d "$THIRD_PARTY_DIR/googletest/lib64" ]] && cp -rf $THIRD_PARTY_DIR/googletest/lib64 $THIRD_PARTY_DIR/googletest/lib
-    echo "Googletest is successfully installed to $THIRD_PARTY_DIR/googletest"
-    cd ${PROJECT_ROOT}
+    fn_make_run_package
 }
 set -e
-fn_build_googletest
-rm -rf build
-mkdir -p build
+CURRENT_DIR=$(pwd)
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+PROJECT_ROOT=$(dirname "$SCRIPT_DIR")
+VERSION="1.0.0"
+OUTPUT_DIR=$PROJECT_ROOT/install
+THIRD_PARTY_DIR=$PROJECT_ROOT/3rdparty
+RELEASE_DIR=$PROJECT_ROOT/ci/release
 
-cd build
-cmake -DCMAKE_INSTALL_PREFIX=../install ..
-make install -j8
-cd -
+cann_default_path="/usr/local/Ascend/ascend-toolkit"
+cd ${PROJECT_ROOT}
+set +e
+if [ -d "$cann_default_path" ]; then
+    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+else
+    echo "CANN is not installed in $cann_default_path"
+    exit 1
+fi
 
-fn_make_run_package
-
-cd ${CURRENT_DIR}
+set -e
+fn_main "$@"
