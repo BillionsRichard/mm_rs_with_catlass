@@ -5,15 +5,18 @@ using namespace std;
 #include "acl/acl.h"
 #include "shmem_host_api.h"
 #include "shmemi_host_intf.h"
+#include <gtest/gtest.h>
+extern int testGlobalRanks;
+extern int testGNpuNum;
+extern const char* testGlobalIpport;
+extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localMemSize, int processCount);
+
 
 extern void fetchAddrDo(uint8_t* syncArray, uint8_t* syncCounter);
 
 extern void barrierDo(uint8_t *stub);
 
 extern void increaseDo(uint8_t *addr, int rankId, int rankSize);
-
-static uint32_t gNpuNum = 8;
-static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 16;
 
 static void fetchFlags(uint32_t rankId, void *syncArray, void *syncCounter) {
     static int32_t tmp[SHMEMI_SYNCBIT_SIZE / sizeof(int32_t) * 8];
@@ -84,35 +87,44 @@ static void TestBarrierBlackBox(aclrtStream stream, uint32_t rankId, uint32_t ra
 
 void ShmemBarrierAll();
 
-int main(int argc, char* argv[]) 
-{
-    int rankSize = atoi(argv[1]);
-    int rankId = atoi(argv[2]);
-    std::string ipport = argv[3];
-    std::cout << "[TEST] input rank_size: " << rankSize << " rank_id:" << rankId << " input_ip: " << ipport << std::endl;
+static void TestShmemBarrier(int rankId, int nRanks, uint64_t localMemSize) {
+    int status = SHMEM_SUCCESS;
+    std::cout << "[TEST] input rank_size: " << nRanks << " rank_id:" << rankId << " input_ip: " << testGlobalIpport << std::endl;
 
-    if (rankSize != (rankSize & (~(rankSize - 1)))) {
-        std::cout << "[TEST] input rank_size: "<< rankSize << " is not the power of 2" << std::endl;
-        return -1;
+    if (nRanks != (nRanks & (~(nRanks - 1)))) {
+        std::cout << "[TEST] input rank_size: "<< nRanks << " is not the power of 2" << std::endl;
+        status = ERROR_INVALID_VALUE;
     }
-
+    EXPECT_EQ(status, SHMEM_SUCCESS);
     CHECK_ACL(aclInit(nullptr));
-    int32_t deviceId = rankId % gNpuNum;
+    int32_t deviceId = rankId % testGNpuNum;
     CHECK_ACL(aclrtSetDevice(deviceId));
     aclrtStream stream = nullptr;
-
     CHECK_ACL(aclrtCreateStream(&stream));
+
     ShmemInitAttrT* attributes;
-    ShmemSetAttr(rankId, rankSize, gNpuMallocSpace, ipport.c_str(), &attributes);
-    ShmemInit();
+    ShmemSetAttr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
+    status = ShmemInit();
+    EXPECT_EQ(status, SHMEM_SUCCESS);
 
-    TestBarrierWhiteBox(stream, rankId, rankSize);
-    TestBarrierBlackBox(stream, rankId, rankSize);
+    TestBarrierWhiteBox(stream, rankId, nRanks);
+    TestBarrierBlackBox(stream, rankId, nRanks);
 
-    std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
-    ShmemFinalize();
+    status = ShmemFinalize();
+    EXPECT_EQ(status, SHMEM_SUCCESS);
     CHECK_ACL(aclrtDestroyStream(stream));
     CHECK_ACL(aclrtResetDevice(deviceId));
     CHECK_ACL(aclFinalize());
-    return 0;
+    if (::testing::Test::HasFailure()){
+        exit(1);
+    }
+}
+
+
+
+TEST(TestBarrierApi, TestShmemBarrier)
+{   
+    const int processCount = testGlobalRanks;
+    uint64_t localMemSize = 1024UL * 1024UL * 1024;
+    TestMutilTask(TestShmemBarrier, localMemSize, processCount);
 }
