@@ -10,7 +10,7 @@ ascendc_library(unittest_kernel SHARED ${KERNEL_FILES})
 ascendc_include_directories(unittest_kernel
     PUBLIC
     ${PROJECT_SOURCE_DIR}/include/
-    ${PROJECT_SOURCE_DIR}/install/memfabric_hybrid/include/smem/device/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/device/
 )
 
 ascendc_compile_definitions(unittest_kernel PRIVATE
