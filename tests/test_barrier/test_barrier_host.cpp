@@ -108,7 +108,6 @@ int main(int argc, char* argv[])
 
     TestBarrierWhiteBox(stream, rankId, rankSize);
     TestBarrierBlackBox(stream, rankId, rankSize);
-    ShmemBarrierAll();
 
     std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
     ShmemFinalize();

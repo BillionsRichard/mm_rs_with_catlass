@@ -1,3 +1,11 @@
+/*
+    WARNING： 
+    
+    1. Barriers can be used only in MIX kernels. The compiler will optimize the kernel to VEC or CUBE if it lacks effective cube instructions (eg. Mmad) or vector instructions (eg: DataCopy). 
+    Need compiler updates to remove this character, or insert Mmad/DataCopy calls manully.
+    2. Scalar unit of cube core is not affected by barrier. Make sure don
+*/
+
 #include "acl/acl.h"
 
 #include "shmemi_host_intf.h"
@@ -5,7 +13,6 @@
 
 // kernels
 SHMEM_GLOBAL void KShmemBarrier(int tid) {
-    CVGuard();
     ShmemiBarrier(tid);
 } 
 

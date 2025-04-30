@@ -37,7 +37,5 @@ install(TARGETS shmem_host
 )
 
 install (FILES
-    ${PROJECT_SOURCE_DIR}/include/host/shmem_api.h
-    ${PROJECT_SOURCE_DIR}/include/host/team.h
     DESTINATION include
 )
