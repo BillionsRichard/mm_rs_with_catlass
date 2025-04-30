@@ -21,16 +21,16 @@ SHMEM_DEVICE void ShmemiBarrierCore() {
 }
 
 SHMEM_DEVICE 
-__gm__ ShmemiSyncBit *ShmemiGetTeamSyncArray(ShmemiTeam *team) {
+__gm__ ShmemiSyncBit *ShmemiGetTeamSyncArray(shmem_team_t teamIdx) {
     uint64_t addr = (uint64_t) ShmemiGetState()->syncPool;
-    addr += team->teamIdx * SYNC_ARRAY_SIZE;
+    addr += teamIdx * SYNC_ARRAY_SIZE;
     return (__gm__ ShmemiSyncBit *) addr;
 }
 
 SHMEM_DEVICE 
-__gm__ ShmemiSyncBit *ShmemiGetTeamSyncCounter(ShmemiTeam *team) {
+__gm__ ShmemiSyncBit *ShmemiGetTeamSyncCounter(shmem_team_t teamIdx) {
     uint64_t addr = (uint64_t) ShmemiGetState()->syncCounter;
-    addr += team->teamIdx * SYNC_COUNTER_SIZE;
+    addr += teamIdx * SYNC_COUNTER_SIZE;
     return (__gm__ ShmemiSyncBit *) addr;
 }
 
@@ -112,8 +112,8 @@ SHMEM_DEVICE void ShmemiBarrierNpu(ShmemiTeam *team) {
     int start = team->start;
     int stride = team->stride;
     int size = team->size;
-    auto syncArray = ShmemiGetTeamSyncArray(team);
-    auto syncCounter = ShmemiGetTeamSyncCounter(team);
+    auto syncArray = ShmemiGetTeamSyncArray(team->teamIdx);
+    auto syncCounter = ShmemiGetTeamSyncCounter(team->teamIdx);
 
     int shift = 1;
     int myPeInTeam = (myPe - start) / stride;
@@ -141,7 +141,7 @@ SHMEM_DEVICE void ShmemiBarrierNpu(ShmemiTeam *team) {
 /* Level 3: barrier between hosts, TO BE IMPLEMENTED.*/ 
 SHMEM_DEVICE void ShmemiBarrierSys() {}
 
-SHMEM_DEVICE void ShmemiBarrier(ShmemTeam tid) {
+SHMEM_DEVICE void ShmemiBarrier(shmem_team_t tid) {
     ShmemiTeam *team = ShmemiGetState()->teamPools[tid];
 
     int mype = team->mype;

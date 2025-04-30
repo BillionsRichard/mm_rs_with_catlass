@@ -1,7 +1,7 @@
 #include "kernel_operator.h"
 #include "lowlevel/smem_shm_aicore_base_api.h"
 
-#include "shmem_device_api.h"
+#include "shmem_api.h"
 
 class KernelPutNum {
 public:
@@ -16,7 +16,7 @@ public:
     }
     __aicore__ inline void Process()
     {
-        ShmemPutFloatMemNBI(gvaGm, devGm, rankSize * 16, rank);
+        shmem_put_float_mem_nbi(gvaGm, devGm, rankSize * 16, rank);
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
     }
@@ -69,7 +69,7 @@ public:
     }
 private:
     AscendC::TPipe pipe;
-    AscendC::TQue<AscendC::TPosition::VECIN, BUFFER_NUM> bufQueue;
+    AscendC::TQue<AscendC::TPosition::VECIN, 2> bufQueue;
     __gm__ float *gvaGm;
     __gm__ float *devGm;
 
