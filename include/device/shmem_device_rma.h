@@ -254,14 +254,14 @@ SHMEM_DEVICE void ShmemMTEPutMemNBI(AscendC::GlobalTensor<T> dst, AscendC::Globa
         uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
         uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                            \
         AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                              \
-        ShmemMTEGetMem(dst, src, reinterpret_cast<__ubuf__ inType*>(copyUB), copyUBSize, elemSize, pe, copyEventID);    \
+        ShmemMTEGetMemNBI(dst, src, reinterpret_cast<__ubuf__ inType*>(copyUB), copyUBSize, elemSize, pe, copyEventID); \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
 
 
 #define SHMEM_GET_TYPENAME_MEM_TENSOR(inType)                                                                           \
-    SHMEM_DEVICE void ShmemGet##inType##MemNBI(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, uint32_t elemSize, int pe)   \
+    SHMEM_DEVICE void ShmemGet##inType##MemNBI(AscendC::GlobalTensor<inType> dst, AscendC::GlobalTensor<inType> src, uint32_t elemSize, int pe)   \
     {                                                                                                                   \
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
@@ -272,12 +272,12 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
         /* CopyUB Config Set */                                                                                         \
         uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
         /* Create LocalTensor */                                                                                        \
-        AscendC::LocalTensor<T> ubTensor;                                                                               \
+        AscendC::LocalTensor<inType> ubTensor;                                                                          \
         ubTensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                   \
         ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copyUB);                                              \
         uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                            \
         AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                              \
-        ShmemMTEGetMem(dst, src, ubTensor, copyUBSize, elemSize, pe, copyEventID);                                      \
+        ShmemMTEGetMemNBI(dst, src, ubTensor, copyUBSize, elemSize, pe, copyEventID);                                   \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR);
@@ -296,14 +296,14 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR);
         uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
         uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                            \
         AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                              \
-        ShmemMTEPutMem(dst, src, reinterpret_cast<__ubuf__ inType*>(copyUB), copyUBSize, elemSize, pe, copyEventID);    \
+        ShmemMTEPutMemNBI(dst, src, reinterpret_cast<__ubuf__ inType*>(copyUB), copyUBSize, elemSize, pe, copyEventID); \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
 
 
 #define SHMEM_PUT_TYPENAME_MEM_TENSOR(inType)                                                                           \
-    SHMEM_DEVICE void ShmemPut##inType##MemNBI(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, uint32_t elemSize, int pe)   \
+    SHMEM_DEVICE void ShmemPut##inType##MemNBI(AscendC::GlobalTensor<inType> dst, AscendC::GlobalTensor<inType> src, uint32_t elemSize, int pe)   \
     {                                                                                                                   \
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
@@ -314,12 +314,12 @@ SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
         /* CopyUB Config Set */                                                                                         \
         uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
         /* Create LocalTensor */                                                                                        \
-        AscendC::LocalTensor<T> ubTensor;                                                                               \
+        AscendC::LocalTensor<inType> ubTensor;                                                                          \
         ubTensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                   \
         ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copyUB);                                              \
         uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                            \
         AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                              \
-        ShmemMTEPutMem(dst, src, ubTensor, copyUBSize, elemSize, pe, copyEventID);                                      \
+        ShmemMTEPutMemNBI(dst, src, ubTensor, copyUBSize, elemSize, pe, copyEventID);                                   \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM_TENSOR);
