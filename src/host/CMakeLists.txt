@@ -36,6 +36,7 @@ install(TARGETS shmem_host
     PUBLIC_HEADER DESTINATION include
 )
 
-install (FILES
+install (DIRECTORY ${PROJECT_SOURCE_DIR}/include/
     DESTINATION include
+    FILES_MATCHING PATTERN "*.h"
 )
