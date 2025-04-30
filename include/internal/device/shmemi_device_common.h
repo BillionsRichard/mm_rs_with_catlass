@@ -39,26 +39,4 @@ SHMEM_DEVICE __gm__ uint8_t *ShmemiPtr(__gm__ uint8_t *local, int pe) {
     uint64_t remote = reinterpret_cast<uint64_t>(local) + shmSize * (pe - myPe);
     return reinterpret_cast<__gm__ uint8_t*>(remote);
 }
-
-SHMEM_DEVICE void CubeGuard() {
-#ifdef __DAV_C220_CUBE__
-    mad(reinterpret_cast<__cc__ float *>((uint64_t)0),
-        reinterpret_cast<__ca__ float *>((uint64_t)0),
-        reinterpret_cast<__cb__ float *>((uint64_t)0),
-        128, 0, 0, 0, 1, 0, 1);
-#endif
-}
-
-SHMEM_DEVICE void VecGuard() {
-#ifdef __DAV_C220_VEC__
-    __ubuf__ float *buf = (__ubuf__ float *) get_imm(0);
-    copy_ubuf_to_gm((__gm__ float *)0, buf, 0, 1, 0, 0, 0);
-    copy_gm_to_ubuf(buf, (__gm__ float *)0, 0, 1, 0, 0, 0);
-#endif
-}
-
-SHMEM_DEVICE void CVGuard() {
-    CubeGuard();
-    VecGuard();
-}
 #endif

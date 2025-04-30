@@ -59,7 +59,7 @@ int ShmemiTeamInit(int rank, int size)
     poolAvail = (long *)calloc(shmemMaxTeams, sizeof(long));
     poolAvail[0] = 1;
 
-    /* Initialize TEAM SYNC */    /* Initialize TEAM SYNC */
+    /* Initialize TEAM SYNC */
     gState.syncPool = (ShmemiSyncBit *)ShmemMalloc(SYNC_POOL_SIZE);
     aclrtMemset((void *) gState.syncPool, SYNC_POOL_SIZE, 0, SYNC_POOL_SIZE);
 

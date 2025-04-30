@@ -5,7 +5,7 @@
 
 SHMEM_DEVICE void ShmemiQuiet() {
     // clear instruction pipes
-    pipe_barrier(PIPE_ALL);
+    AscendC::PipeBarrier<PIPE_ALL>();
 
     // flush data cache to GM
     DcciEntireCache();

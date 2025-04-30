@@ -5,7 +5,6 @@
 
 // kernels
 SHMEM_GLOBAL void KShmemBarrier(int tid) {
-    CVGuard();
     ShmemiBarrier(tid);
 } 
 
