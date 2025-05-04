@@ -1,6 +1,11 @@
 #ifndef SHMEMI_TYPES_H
 #define SHMEMI_TYPES_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 #define SHMEM_MAX_CORES_PER_RANK 32
 #define SHMEM_MAX_RANKS 2048
 #define SHMEM_MAX_TEAMS 32
@@ -63,10 +68,14 @@ typedef struct {
     ShmemiSyncBit *syncPool;
     ShmemiSyncBit *syncCounter;
 
-    bool shemeIsShmemInitialized;
-    bool shemeIsShmemCreated;
+    bool isShmemInitialized;
+    bool isShmemCreated;
 
     ShmemiMTEConfig mteConfig;
 } ShmemiDeviceHostState;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -5,45 +5,29 @@
 #include "internal/device/shmemi_device_common.h"
 #include "shmem_device_team.h"
 
-// Make Code Style Unified
-#define Half half
-#define Float float
-#define Int8 int8_t
-#define Int int
-#define UInt8 uint8_t
-#define Int16 int16_t
-#define UInt16 uint16_t
-#define Int64 int64_t
-#define UInt64 uint64_t
-#define Double double
-#define Char char
-#define Bool bool
-#define BFloat16 bfloat16_t
+#define SHMEM_TYPE_FUNC(FUNC)        \
+    FUNC(half, half);                \
+    FUNC(float, float);              \
+    FUNC(double, double);            \
+    FUNC(int8, int8_t);              \
+    FUNC(int16, int16_t);            \
+    FUNC(int32, int32_t);            \
+    FUNC(int64, int64_t);            \
+    FUNC(uint8, uint8_t);            \
+    FUNC(uint16, uint16_t);          \
+    FUNC(uint32, uint32_t);          \
+    FUNC(uint64, uint64_t);          \
+    FUNC(char, char);                \
+    FUNC(bfloat16, bfloat16_t)
 
 
-#define SHMEM_TYPE_FUNC(fun)    \
-    fun(Half);                  \
-    fun(Float);                 \
-    fun(Int8);                  \
-    fun(Int);                   \
-    fun(UInt8);                 \
-    fun(Int16);                 \
-    fun(UInt16);                \
-    fun(Int64);                 \
-    fun(UInt64);                \
-    fun(Double);                \
-    fun(Char);                  \
-    fun(Bool);                  \
-    fun(BFloat16)
-
-
-SHMEM_DEVICE __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
+SHMEM_DEVICE __gm__ void* shmem_ptr(__gm__ void* ptr, int pe)
 {
     // Get Global State
     __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();
 
     // Check whether ptr belongs to this rank.
-    uint64_t lowerBound = (uint64_t)deviceState->p2pHeapBase[ShmemMype()];
+    uint64_t lowerBound = (uint64_t)deviceState->p2pHeapBase[shmem_my_pe()];
     uint64_t upperBound = lowerBound + deviceState->heapSize;
     if (uint64_t(ptr) < lowerBound || uint64_t(ptr) >= upperBound) {
         return nullptr;
@@ -59,27 +43,36 @@ SHMEM_DEVICE __gm__ void* ShmemPtr(__gm__ void* ptr, int pe)
 }
 
 
-#define SHMEM_TYPENAME_P_AICORE(inType)                                                     \
-    SHMEM_DEVICE void ShmemP##inType(__gm__ inType* dst, const inType value, int pe)   \
+#define SHMEM_TYPENAME_P_AICORE(NAME, TYPE)                                                 \
+    SHMEM_DEVICE void shmem_##NAME##_p(__gm__ TYPE* dst, const TYPE value, int pe)          \
     {                                                                                       \
-        auto ptr = ShmemPtr(dst, pe);                                                       \
+        auto ptr = shmem_ptr(dst, pe);                                                      \
         if (ptr == nullptr) return;                                                         \
-        __gm__ inType* addrGm = reinterpret_cast<__gm__ inType*>(ptr);                      \
+        __gm__ TYPE* addrGm = reinterpret_cast<__gm__ TYPE*>(ptr);                          \
                                                                                             \
         *addrGm = value;                                                                    \
-        AscendC::GlobalTensor<uint64_t> global;                                             \
-        global.SetGlobalBuffer((__gm__ uint64_t*)addrGm);                                   \
-                                                                                            \
-        /* 首地址64B对齐，调用DataCacheCleanAndInvalid指令后，会立刻刷新前8个数 */              \
-        AscendC::DataCacheCleanAndInvalid<uint64_t, AscendC::CacheLine::SINGLE_CACHE_LINE, AscendC::DcciDst::CACHELINE_OUT>(global);    \
+        DcciCacheline((__gm__ uint8_t *)addrGm);                                            \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_TYPENAME_P_AICORE);
 
+#define SHMEM_TYPENAME_G_AICORE(NAME, TYPE)                                                 \
+    SHMEM_DEVICE TYPE shmem_##NAME##_g(__gm__ TYPE* src, int32_t pe)                        \
+    {                                                                                       \
+        auto ptr = shmem_ptr(src, pe);                                                      \
+        __gm__ TYPE* addrGm = reinterpret_cast<__gm__ TYPE*>(ptr);                          \
+                                                                                            \
+        DcciCacheline((__gm__ uint8_t *)addrGm);                                            \
+        return *addrGm;                                                                     \
+    }
+
+SHMEM_TYPE_FUNC(SHMEM_TYPENAME_G_AICORE);
+
+
 template <typename T>
 SHMEM_DEVICE void ShmemMTEGetMemNBI(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
-    auto ptr = ShmemPtr(src, pe);
+    auto ptr = shmem_ptr(src, pe);
     if (ptr == nullptr) return;
     __gm__ T* remotePtr = reinterpret_cast<__gm__ T*>(ptr);
 
@@ -113,7 +106,7 @@ SHMEM_DEVICE void ShmemMTEGetMemNBI(__gm__ T* dst, __gm__ T* src, __ubuf__ T* bu
 template <typename T>
 SHMEM_DEVICE void ShmemMTEGetMemNBI(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
-    auto ptr = ShmemPtr((__gm__ void *)src.GetPhyAddr(), pe);
+    auto ptr = shmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
     if (ptr == nullptr) return;
 
     AscendC::GlobalTensor<T> remoteBuff;
@@ -149,7 +142,7 @@ SHMEM_DEVICE void ShmemMTEGetMemNBI(AscendC::GlobalTensor<T> dst, AscendC::Globa
 template <typename T>
 SHMEM_DEVICE void ShmemMTEPutMemNBI(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
-    auto ptr = ShmemPtr(dst, pe);
+    auto ptr = shmem_ptr(dst, pe);
     if (ptr == nullptr) return;
     __gm__ T* remotePtr = reinterpret_cast<__gm__ T*>(ptr);
 
@@ -179,11 +172,10 @@ SHMEM_DEVICE void ShmemMTEPutMemNBI(__gm__ T* dst, __gm__ T* src, __ubuf__ T* bu
     }
 }
 
-
 template <typename T>
 SHMEM_DEVICE void ShmemMTEPutMemNBI(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
-    auto ptr = ShmemPtr((__gm__ void *)dst.GetPhyAddr(), pe);
+    auto ptr = shmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
     if (ptr == nullptr) return;
 
     AscendC::GlobalTensor<T> remoteBuff;
@@ -215,39 +207,35 @@ SHMEM_DEVICE void ShmemMTEPutMemNBI(AscendC::GlobalTensor<T> dst, AscendC::Globa
     }
 }
 
-
-#define SHMEM_GET_TYPENAME_MEM(inType)                                                                                  \
-    SHMEM_DEVICE void ShmemGet##inType##MemNBI(__gm__ inType* dst, __gm__ inType* src, uint32_t elemSize, int pe)       \
+#define SHMEM_GET_TYPENAME_MEM(NAME, TYPE)                                                                              \
+    SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elemSize, int32_t pe)         \
     {                                                                                                                   \
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
         /* MTE  */                                                                                                      \
         /* Global State Get */                                                                                          \
-        __gm__ void* addrGM = smem_shm_get_extra_context_addr();                                                        \
-        __gm__ ShmemiDeviceHostState *deviceState = (__gm__ ShmemiDeviceHostState *)addrGM;                             \
+        __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();                                                   \
         /* CopyUB Config Set */                                                                                         \
         uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
         uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                            \
         AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                              \
-        ShmemMTEGetMemNBI(dst, src, reinterpret_cast<__ubuf__ inType*>(copyUB), copyUBSize, elemSize, pe, copyEventID); \
+        ShmemMTEGetMemNBI(dst, src, reinterpret_cast<__ubuf__ TYPE*>(copyUB), copyUBSize, elemSize, pe, copyEventID);      \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
 
-
-#define SHMEM_GET_TYPENAME_MEM_TENSOR(inType)                                                                           \
-    SHMEM_DEVICE void ShmemGet##inType##MemNBI(AscendC::GlobalTensor<inType> dst, AscendC::GlobalTensor<inType> src, uint32_t elemSize, int pe)   \
+#define SHMEM_GET_TYPENAME_MEM_TENSOR(NAME, TYPE)                                                                           \
+    SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, uint32_t elemSize, int pe)   \
     {                                                                                                                   \
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
         /* MTE  */                                                                                                      \
         /* Global State Get */                                                                                          \
-        __gm__ void* addrGM = smem_shm_get_extra_context_addr();                                                        \
-        __gm__ ShmemiDeviceHostState *deviceState = (__gm__ ShmemiDeviceHostState *)addrGM;                             \
+        __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();                                                   \
         /* CopyUB Config Set */                                                                                         \
         uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
         /* Create LocalTensor */                                                                                        \
-        AscendC::LocalTensor<inType> ubTensor;                                                                          \
+        AscendC::LocalTensor<TYPE> ubTensor;                                                                          \
         ubTensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                   \
         ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copyUB);                                              \
         ubTensor.address_.dataLen = deviceState->mteConfig.ubSize;                                                      \
@@ -257,39 +245,35 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
 
 SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR);
 
-
-#define SHMEM_PUT_TYPENAME_MEM(inType)                                                                                  \
-    SHMEM_DEVICE void ShmemPut##inType##MemNBI(__gm__ inType* dst, __gm__ inType* src, uint32_t elemSize, int pe)       \
+#define SHMEM_PUT_TYPENAME_MEM(NAME, TYPE)                                                                              \
+    SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elemSize, int32_t pe)         \
     {                                                                                                                   \
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
         /* MTE  */                                                                                                      \
         /* Global State Get */                                                                                          \
-        __gm__ void* addrGM = smem_shm_get_extra_context_addr();                                                        \
-        __gm__ ShmemiDeviceHostState *deviceState = (__gm__ ShmemiDeviceHostState *)addrGM;                             \
+        __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();                                                   \
         /* CopyUB Config Set */                                                                                         \
         uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
         uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                            \
         AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                              \
-        ShmemMTEPutMemNBI(dst, src, reinterpret_cast<__ubuf__ inType*>(copyUB), copyUBSize, elemSize, pe, copyEventID); \
+        ShmemMTEPutMemNBI(dst, src, reinterpret_cast<__ubuf__ TYPE*>(copyUB), copyUBSize, elemSize, pe, copyEventID);      \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
 
-
-#define SHMEM_PUT_TYPENAME_MEM_TENSOR(inType)                                                                           \
-    SHMEM_DEVICE void ShmemPut##inType##MemNBI(AscendC::GlobalTensor<inType> dst, AscendC::GlobalTensor<inType> src, uint32_t elemSize, int pe)   \
+#define SHMEM_PUT_TYPENAME_MEM_TENSOR(NAME, TYPE)                                                                           \
+    SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, uint32_t elemSize, int pe)   \
     {                                                                                                                   \
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
         /* MTE  */                                                                                                      \
         /* Global State Get */                                                                                          \
-        __gm__ void* addrGM = smem_shm_get_extra_context_addr();                                                        \
-        __gm__ ShmemiDeviceHostState *deviceState = (__gm__ ShmemiDeviceHostState *)addrGM;                             \
+        __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();                                                   \
         /* CopyUB Config Set */                                                                                         \
         uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
         /* Create LocalTensor */                                                                                        \
-        AscendC::LocalTensor<inType> ubTensor;                                                                          \
+        AscendC::LocalTensor<TYPE> ubTensor;                                                                          \
         ubTensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                   \
         ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copyUB);                                              \
         ubTensor.address_.dataLen = deviceState->mteConfig.ubSize;                                                      \
@@ -298,6 +282,5 @@ SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
     }
 
 SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM_TENSOR);
-
 
 #endif

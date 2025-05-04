@@ -1,6 +1,6 @@
 #include "kernel_operator.h"
-
-#include "shmem_device_api.h"
+#include "device/shmem_device_def.h"
+#include "shmem_api.h"
 
 SHMEM_DEVICE void CubeGuard() {
     using namespace AscendC;
@@ -37,7 +37,7 @@ SHMEM_DEVICE void VecGuard() {
     
     GlobalTensor<half> global;
     ShmemiTeam *team = ShmemiGetState()->teamPools[0];
-    auto addr = (__gm__ half *) ((uint64_t) ShmemiGetTeamSyncCounter(team) + SHMEMI_SYNCBIT_SIZE);
+    auto addr = (__gm__ half *) ((uint64_t) ShmemiGetTeamSyncCounter(team->teamIdx) + SHMEMI_SYNCBIT_SIZE);
     global.SetGlobalBuffer(addr, 32);
 
     DataCopy<half>(local, global, 32);
@@ -55,13 +55,13 @@ SHMEM_DEVICE void CVGuard() {
 
 extern "C" SHMEM_GLOBAL void fetchAddr(GM_ADDR syncArray, GM_ADDR syncCounter) {
     ShmemiTeam *team = ShmemiGetState()->teamPools[0];
-    *((__gm__ uint64_t*) syncArray) = (uint64_t) ShmemiGetTeamSyncArray(team);
-    *((__gm__ uint64_t*) syncCounter) = (uint64_t) ShmemiGetTeamSyncCounter(team);
+    *((__gm__ uint64_t*) syncArray) = (uint64_t) ShmemiGetTeamSyncArray(team->teamIdx);
+    *((__gm__ uint64_t*) syncCounter) = (uint64_t) ShmemiGetTeamSyncCounter(team->teamIdx);
 }
 
 extern "C" SHMEM_GLOBAL void barrier(GM_ADDR stub) {
     CubeGuard();
-    ShmemBarrierAll();
+    shmem_barrier_all();
     VecGuard();
 }
 
@@ -70,17 +70,17 @@ extern "C" SHMEM_GLOBAL void increase(GM_ADDR addr, int rankId, int rankSize) {
     
 #ifdef __DAV_C220_CUBE__
     // scalar unit of cube core is not affected by barrier
-    ShmemBarrierAll();
-    ShmemBarrierAll();
+    shmem_barrier_all();
+    shmem_barrier_all();
 #endif
 
 #ifdef __DAV_C220_VEC__
     uint64_t val = ShmemiLoad<uint64_t>(addr);
 
-    ShmemBarrierAll();
+    shmem_barrier_all();
     GM_ADDR remote = ShmemiPtr(addr, (rankId + 1) % rankSize);
     ShmemiStore<uint64_t>(remote, val + 1);
-    ShmemBarrierAll();
+    shmem_barrier_all();
 #endif
 }
 

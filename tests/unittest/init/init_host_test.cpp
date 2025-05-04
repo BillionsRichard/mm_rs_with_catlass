@@ -1,36 +1,39 @@
 #include <iostream>
 #include <unistd.h>
 #include <acl/acl.h>
-#include "shmem_host_api.h"
-#include "shmemi_host_intf.h"
-
+#include "shmem_api.h"
+#include "shmemi_host_common.h"
 #include <gtest/gtest.h>
 extern int testGlobalRanks;
 extern int testGNpuNum;
 extern const char* testGlobalIpport;
 extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localMemSize, int processCount);
 
+namespace shm {
+extern shmem_init_attr_t gAttr;
+}
+
 void TestShmemInit(int rankId, int nRanks, uint64_t localMemSize) {
     uint32_t deviceId = rankId % testGNpuNum;
     int status = SHMEM_SUCCESS;
-    CHECK_ACL(aclInit(nullptr));
-    CHECK_ACL(aclrtSetDevice(deviceId));
-    ShmemInitAttrT* attributes;
-    ShmemSetAttr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
-    status = ShmemInit();
+    EXPECT_EQ(aclInit(nullptr), 0);
+    EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
+    shmem_init_attr_t* attributes;
+    shmem_set_attr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
+    status = shmem_init();
     EXPECT_EQ(status, SHMEM_SUCCESS);
-    EXPECT_EQ(gState.mype, rankId);
-    EXPECT_EQ(gState.npes, nRanks);
-    EXPECT_NE(gState.heapBase, nullptr);
-    EXPECT_NE(gState.p2pHeapBase[rankId], nullptr);
-    EXPECT_EQ(gState.heapSize, localMemSize + SHMEM_EXTRA_SIZE);
-    EXPECT_NE(gState.teamPools[0], nullptr);
-    status = ShmemInitStatus();
+    EXPECT_EQ(shm::gState.mype, rankId);
+    EXPECT_EQ(shm::gState.npes, nRanks);
+    EXPECT_NE(shm::gState.heapBase, nullptr);
+    EXPECT_NE(shm::gState.p2pHeapBase[rankId], nullptr);
+    EXPECT_EQ(shm::gState.heapSize, localMemSize + SHMEM_EXTRA_SIZE);
+    EXPECT_NE(shm::gState.teamPools[0], nullptr);
+    status = shmem_init_attributes();
     EXPECT_EQ(status, SHMEM_STATUS_IS_INITALIZED);
-    status = ShmemFinalize();
+    status = shmem_finalize();
     EXPECT_EQ(status, SHMEM_SUCCESS);
-    CHECK_ACL(aclrtResetDevice(deviceId));
-    CHECK_ACL(aclFinalize());
+    EXPECT_EQ(aclrtResetDevice(deviceId), 0);
+    EXPECT_EQ(aclFinalize(), 0);
     if (::testing::Test::HasFailure()){
         exit(1);
     }
@@ -39,26 +42,26 @@ void TestShmemInit(int rankId, int nRanks, uint64_t localMemSize) {
 void TestShmemInitAttrT(int rankId, int nRanks, uint64_t localMemSize) {
     uint32_t deviceId = rankId % testGNpuNum;
     int status = SHMEM_SUCCESS;
-    CHECK_ACL(aclInit(nullptr));
-    CHECK_ACL(aclrtSetDevice(deviceId));
+    EXPECT_EQ(aclInit(nullptr), 0);
+    EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
 
-    ShmemInitAttrT* attributes = new ShmemInitAttrT{0, rankId, nRanks, testGlobalIpport, localMemSize, {SHMEM_DATA_OP_MTE, 120, 120, 120}};
-    status = ShmemInitAttr(attributes);
+    shmem_init_attr_t* attributes = new shmem_init_attr_t{0, rankId, nRanks, testGlobalIpport, localMemSize, {SHMEM_DATA_OP_MTE, 120, 120, 120}};
+    status = shmem_init_attr(attributes);
 
     EXPECT_EQ(status, SHMEM_SUCCESS);
-    EXPECT_EQ(gState.mype, rankId);
-    EXPECT_EQ(gState.npes, nRanks);
-    EXPECT_NE(gState.heapBase, nullptr);
-    EXPECT_NE(gState.p2pHeapBase[rankId], nullptr);
-    EXPECT_EQ(gState.heapSize, localMemSize + SHMEM_EXTRA_SIZE);
-    EXPECT_NE(gState.teamPools[0], nullptr);
-    status = ShmemInitStatus();
+    EXPECT_EQ(shm::gState.mype, rankId);
+    EXPECT_EQ(shm::gState.npes, nRanks);
+    EXPECT_NE(shm::gState.heapBase, nullptr);
+    EXPECT_NE(shm::gState.p2pHeapBase[rankId], nullptr);
+    EXPECT_EQ(shm::gState.heapSize, localMemSize + SHMEM_EXTRA_SIZE);
+    EXPECT_NE(shm::gState.teamPools[0], nullptr);
+    status = shmem_init_attributes();
     EXPECT_EQ(status, SHMEM_STATUS_IS_INITALIZED);
-    status = ShmemFinalize();
+    status = shmem_finalize();
     delete attributes;
     EXPECT_EQ(status, SHMEM_SUCCESS);
-    CHECK_ACL(aclrtResetDevice(deviceId));
-    CHECK_ACL(aclFinalize());
+    EXPECT_EQ(aclrtResetDevice(deviceId), 0);
+    EXPECT_EQ(aclFinalize(), 0);
     if (::testing::Test::HasFailure()){
         exit(1);
     }
@@ -68,16 +71,16 @@ void TestShmemInitInvalidRankId(int rankId, int nRanks, uint64_t localMemSize) {
     int erankId = -1;
     uint32_t deviceId = rankId % testGNpuNum;
     int status = SHMEM_SUCCESS;
-    CHECK_ACL(aclInit(nullptr));
-    CHECK_ACL(aclrtSetDevice(deviceId));
-    ShmemInitAttrT* attributes;
-    ShmemSetAttr(erankId, nRanks, localMemSize, testGlobalIpport, &attributes);
-    status = ShmemInit();
-    EXPECT_EQ(status, ERROR_INVALID_VALUE);
-    status = ShmemInitStatus();
+    EXPECT_EQ(aclInit(nullptr), 0);
+    EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
+    shmem_init_attr_t* attributes;
+    shmem_set_attr(erankId, nRanks, localMemSize, testGlobalIpport, &attributes);
+    status = shmem_init();
+    EXPECT_EQ(status, SHMEM_INVALID_VALUE);
+    status = shmem_init_attributes();
     EXPECT_EQ(status, SHMEM_STATUS_NOT_INITALIZED);
-    CHECK_ACL(aclrtResetDevice(deviceId));
-    CHECK_ACL(aclFinalize());
+    EXPECT_EQ(aclrtResetDevice(deviceId), 0);
+    EXPECT_EQ(aclFinalize(), 0);
     if (::testing::Test::HasFailure()){
         exit(1);
     }
@@ -86,16 +89,16 @@ void TestShmemInitInvalidRankId(int rankId, int nRanks, uint64_t localMemSize) {
 void TestShmemInitRankIdOverSize(int rankId, int nRanks, uint64_t localMemSize) {
     uint32_t deviceId = rankId % testGNpuNum;
     int status = SHMEM_SUCCESS;
-    CHECK_ACL(aclInit(nullptr));
-    CHECK_ACL(aclrtSetDevice(deviceId));
-    ShmemInitAttrT* attributes;
-    ShmemSetAttr(rankId + nRanks, nRanks, localMemSize, testGlobalIpport, &attributes);
-    status = ShmemInit();
-    EXPECT_EQ(status, ERROR_INVALID_PARAM);
-    status = ShmemInitStatus();
+    EXPECT_EQ(aclInit(nullptr), 0);
+    EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
+    shmem_init_attr_t* attributes;
+    shmem_set_attr(rankId + nRanks, nRanks, localMemSize, testGlobalIpport, &attributes);
+    status = shmem_init();
+    EXPECT_EQ(status, SHMEM_INVALID_PARAM);
+    status = shmem_init_attributes();
     EXPECT_EQ(status, SHMEM_STATUS_NOT_INITALIZED);
-    CHECK_ACL(aclrtResetDevice(deviceId));
-    CHECK_ACL(aclFinalize());
+    EXPECT_EQ(aclrtResetDevice(deviceId), 0);
+    EXPECT_EQ(aclFinalize(), 0);
     if (::testing::Test::HasFailure()){
         exit(1);
     }
@@ -105,16 +108,16 @@ void TestShmemInitZeroMem(int rankId, int nRanks, uint64_t localMemSize) {
     //localMemSize = 0
     uint32_t deviceId = rankId % testGNpuNum;
     int status = SHMEM_SUCCESS;
-    CHECK_ACL(aclInit(nullptr));
-    CHECK_ACL(aclrtSetDevice(deviceId));
-    ShmemInitAttrT* attributes;
-    ShmemSetAttr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
-    status = ShmemInit();
-    EXPECT_EQ(status, ERROR_INVALID_VALUE);
-    status = ShmemInitStatus();
+    EXPECT_EQ(aclInit(nullptr), 0);
+    EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
+    shmem_init_attr_t* attributes;
+    shmem_set_attr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
+    status = shmem_init();
+    EXPECT_EQ(status, SHMEM_INVALID_VALUE);
+    status = shmem_init_attributes();
     EXPECT_EQ(status, SHMEM_STATUS_NOT_INITALIZED);
-    CHECK_ACL(aclrtResetDevice(deviceId));
-    CHECK_ACL(aclFinalize());
+    EXPECT_EQ(aclrtResetDevice(deviceId), 0);
+    EXPECT_EQ(aclFinalize(), 0);
     if (::testing::Test::HasFailure()){
         exit(1);
     }
@@ -124,16 +127,16 @@ void TestShmemInitInvalidMem(int rankId, int nRanks, uint64_t localMemSize) {
     //localMemSize = invalid
     uint32_t deviceId = rankId % testGNpuNum;
     int status = SHMEM_SUCCESS;
-    CHECK_ACL(aclInit(nullptr));
-    CHECK_ACL(aclrtSetDevice(deviceId));
-    ShmemInitAttrT* attributes;
-    ShmemSetAttr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
-    status = ShmemInit();
-    EXPECT_EQ(status, ERROR_SMEM_ERROR);
-    status = ShmemInitStatus();
+    EXPECT_EQ(aclInit(nullptr), 0);
+    EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
+    shmem_init_attr_t* attributes;
+    shmem_set_attr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
+    status = shmem_init();
+    EXPECT_EQ(status, SHMEM_SMEM_ERROR);
+    status = shmem_init_attributes();
     EXPECT_EQ(status, SHMEM_STATUS_NOT_INITALIZED);
-    CHECK_ACL(aclrtResetDevice(deviceId));
-    CHECK_ACL(aclFinalize());
+    EXPECT_EQ(aclrtResetDevice(deviceId), 0);
+    EXPECT_EQ(aclFinalize(), 0);
     if (::testing::Test::HasFailure()){
         exit(1);
     }
@@ -142,34 +145,34 @@ void TestShmemInitInvalidMem(int rankId, int nRanks, uint64_t localMemSize) {
 void TestShmemSetConfig(int rankId, int nRanks, uint64_t localMemSize) {
     uint32_t deviceId = rankId % testGNpuNum;
     int status = SHMEM_SUCCESS;
-    CHECK_ACL(aclInit(nullptr));
-    CHECK_ACL(aclrtSetDevice(deviceId));
-    ShmemInitAttrT* attr;
-    ShmemSetAttr(rankId, nRanks, localMemSize, testGlobalIpport, &attr);
+    EXPECT_EQ(aclInit(nullptr), 0);
+    EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
+    shmem_init_attr_t* attr;
+    shmem_set_attr(rankId, nRanks, localMemSize, testGlobalIpport, &attr);
 
-    SetDataOpEngineType(attr, SHMEM_DATA_OP_MTE);
-    SetTimeout(attr, 50);
-    EXPECT_EQ(gAttr.optionAttr.controlOperationTimeout, 50);
-    EXPECT_EQ(gAttr.optionAttr.dataOpEngineType, SHMEM_DATA_OP_MTE);
+    shmem_set_data_op_engine_type(attr, SHMEM_DATA_OP_MTE);
+    shmem_set_timeout(attr, 50);
+    EXPECT_EQ(shm::gAttr.optionAttr.controlOperationTimeout, 50);
+    EXPECT_EQ(shm::gAttr.optionAttr.dataOpEngineType, SHMEM_DATA_OP_MTE);
     
-    status = ShmemInit();
+    status = shmem_init();
     EXPECT_EQ(status, SHMEM_SUCCESS);
-    EXPECT_EQ(gState.mype, rankId);
-    EXPECT_EQ(gState.npes, nRanks);
-    EXPECT_NE(gState.heapBase, nullptr);
-    EXPECT_NE(gState.p2pHeapBase[rankId], nullptr);
-    EXPECT_EQ(gState.heapSize, localMemSize + SHMEM_EXTRA_SIZE);
-    EXPECT_NE(gState.teamPools[0], nullptr);
+    EXPECT_EQ(shm::gState.mype, rankId);
+    EXPECT_EQ(shm::gState.npes, nRanks);
+    EXPECT_NE(shm::gState.heapBase, nullptr);
+    EXPECT_NE(shm::gState.p2pHeapBase[rankId], nullptr);
+    EXPECT_EQ(shm::gState.heapSize, localMemSize + SHMEM_EXTRA_SIZE);
+    EXPECT_NE(shm::gState.teamPools[0], nullptr);
 
-    EXPECT_EQ(gAttr.optionAttr.controlOperationTimeout, 50);
-    EXPECT_EQ(gAttr.optionAttr.dataOpEngineType, SHMEM_DATA_OP_MTE);
+    EXPECT_EQ(shm::gAttr.optionAttr.controlOperationTimeout, 50);
+    EXPECT_EQ(shm::gAttr.optionAttr.dataOpEngineType, SHMEM_DATA_OP_MTE);
 
-    status = ShmemInitStatus();
+    status = shmem_init_attributes();
     EXPECT_EQ(status, SHMEM_STATUS_IS_INITALIZED);
-    status = ShmemFinalize();
+    status = shmem_finalize();
     EXPECT_EQ(status, SHMEM_SUCCESS);
-    CHECK_ACL(aclrtResetDevice(deviceId));
-    CHECK_ACL(aclFinalize());
+    EXPECT_EQ(aclrtResetDevice(deviceId), 0);
+    EXPECT_EQ(aclFinalize(), 0);
     if (::testing::Test::HasFailure()){
         exit(1);
     }
