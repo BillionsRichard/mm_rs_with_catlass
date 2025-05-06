@@ -3,7 +3,8 @@
 #include <gtest/gtest.h>
 
 #include "acl/acl.h"
-#include "aclshmem_api.h"
+#include "shmem_api.h"
+#include "internal/host_device/shmemi_types.h"
 
 using namespace std;
 extern int32_t testGlobalRanks;
@@ -23,7 +24,7 @@ static void fetchFlags(uint32_t rankId, int32_t t, void *syncArray, void *syncCo
     static int32_t tmp[SHMEMI_SYNCBIT_SIZE / sizeof(int32_t) * 8];
 
     EXPECT_EQ(aclrtMemcpy(tmp, SHMEMI_SYNCBIT_SIZE, syncCounter, SHMEMI_SYNCBIT_SIZE, ACL_MEMCPY_DEVICE_TO_HOST), 0);
-    EXPECT_EQ(tmp[0], t);
+    EXPECT_EQ(tmp[0], t + 1);
 
     EXPECT_EQ(aclrtMemcpy(tmp, SHMEMI_SYNCBIT_SIZE * 8, syncArray, SHMEMI_SYNCBIT_SIZE * 8, ACL_MEMCPY_DEVICE_TO_HOST), 0);
     for (int32_t i = 0; i < testGNpuNum; i++) {

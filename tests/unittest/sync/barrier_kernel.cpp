@@ -84,14 +84,14 @@ extern "C" SHMEM_GLOBAL void increase(GM_ADDR addr, int rankId, int rankSize) {
 #endif
 }
 
-void fetchAddrDo(uint8_t* syncArray, uint8_t* syncCounter) {
-    fetchAddr<<<1, nullptr, nullptr>>>(syncArray, syncCounter);
+void fetchAddrDo(void* stream, uint8_t* syncArray, uint8_t* syncCounter) {
+    fetchAddr<<<1, nullptr, stream>>>(syncArray, syncCounter);
 }
 
-void barrierDo(uint8_t *stub) {
-    barrier<<<16, nullptr, nullptr>>>(stub);
+void barrierDo(void* stream, uint8_t *stub) {
+    barrier<<<16, nullptr, stream>>>(stub);
 }
 
-void increaseDo(uint8_t *addr, int rankId, int rankSize) {
-    increase<<<16, nullptr, nullptr>>>(addr, rankId, rankSize);
+void increaseDo(void* stream, uint8_t *addr, int rankId, int rankSize) {
+    increase<<<16, nullptr, stream>>>(addr, rankId, rankSize);
 }
