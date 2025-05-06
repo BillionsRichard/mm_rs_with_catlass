@@ -12,12 +12,12 @@
 #include "acl/acl.h"
 #include "shmem_host_def.h"
 
-void ShmemBarrierOnStream(ShmemTeam tid, aclrtStream stream);
+void shmem_barrier_on_stream(shmem_team_t tid, aclrtStream stream);
 
-void ShmemBarrierAllOnStream(aclrtStream stream);
+void shmem_barrier_all_on_stream(aclrtStream stream);
 
-void ShmemBarrier(ShmemTeam tid);
+void shmem_barrier(shmem_team_t tid);
 
-void ShmemBarrierAll();
+void shmem_barrier_all();
 
 #endif

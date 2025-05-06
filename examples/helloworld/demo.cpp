@@ -1,7 +1,16 @@
 #include <iostream>
 #include <unistd.h>
 #include <acl/acl.h>
-#include "shmem_host_api.h"
+#include "shmem_api.h"
+
+#define CHECK_ACL(x)                                                                        \
+    do {                                                                                    \
+        aclError __ret = x;                                                                 \
+        if (__ret != ACL_ERROR_NONE) {                                                      \
+            std::cerr << "[ERROR]" << __FILE__ << ":" << __LINE__ << " aclError:" << __ret << std::endl; \
+        }                                                                                   \
+    } while (0);
+
 int main(int argc, char* argv[]) 
 {
     int nRanks = atoi(argv[1]);
@@ -14,25 +23,25 @@ int main(int argc, char* argv[])
     int status = SHMEM_SUCCESS;
     CHECK_ACL(aclInit(nullptr));
     CHECK_ACL(aclrtSetDevice(deviceId));
-    ShmemInitAttrT* attributes;
-    status = ShmemSetAttr(rankId, nRanks, localMemSize, Ipport, &attributes);
+    shmem_init_attr_t *attributes;
+    status = shmem_set_attr(rankId, nRanks, localMemSize, Ipport, &attributes);
     if ( status != SHMEM_SUCCESS) {
         std::cout << "[ERROR] demo run failed!" << std::endl;
         std::exit(status);
     }
-    status = ShmemInit();
+    status = shmem_init();
     if ( status != SHMEM_SUCCESS) {
         std::cout << "[ERROR] demo run failed!" << std::endl;
         std::exit(status);
     }
-    status = ShmemInitStatus();
+    status = shmem_init_attributes();
     if (status == SHMEM_STATUS_IS_INITALIZED) {
         std::cout << "[SUCCESS] Shmem init success!" << std::endl;
     } else {
         std::cout << "[ERROR] demo run failed!" << std::endl;
         std::exit(status);
     }
-    status = ShmemFinalize();
+    status = shmem_finalize();
     if ( status != SHMEM_SUCCESS) {
         std::cout << "[ERROR] demo run failed!" << std::endl;
         std::exit(status);

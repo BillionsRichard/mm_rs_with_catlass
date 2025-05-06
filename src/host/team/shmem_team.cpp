@@ -291,3 +291,13 @@ void shmem_barrier(shmem_team_t tid) {
 void shmem_barrier_all() {
     shmem_barrier(SHMEM_TEAM_WORLD);
 }
+
+void shmem_barrier_on_stream(shmem_team_t tid, aclrtStream stream)
+{
+    ShmemiBarrierOnStream(tid, stream);
+}
+
+void shmem_barrier_all_on_stream(aclrtStream stream)
+{
+    ShmemiBarrierOnStream(SHMEM_TEAM_WORLD, stream);
+}
