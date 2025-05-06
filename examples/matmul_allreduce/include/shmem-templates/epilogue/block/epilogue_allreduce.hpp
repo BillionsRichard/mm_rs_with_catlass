@@ -195,6 +195,9 @@ public:
                 // [ReduceScatter] 1. Alloc TmpUB
                 AscendC::LocalTensor<half> inputBuffer = resource.ubBuf.template GetBufferByByte<ElementC>(32);
 
+                // [ReduceScatter] 2. Pre Interface Sync
+                AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+
                 for (uint32_t processIndex = 0; processIndex < processLoop; ++processIndex) {
                     MatrixCoord processCoord{processIndex / processCount.column(), processIndex % processCount.column()};
                     auto actualProcessShape = GetActualShape(
@@ -209,23 +212,22 @@ public:
                     auto inputOffset = offsetIn + subBlockOffset + processOffset;
                     auto outputOffset = offsetOut + subBlockOffset + processOffset;
 
-                    uint32_t ubSize = 16 * 1024;
                     uint32_t copySize = actualProcessShape.row() * actualProcessShape.column();
 
                     int64_t inputElemOffset = layoutPeerMemStore.GetOffset(inputOffset);
                     int64_t outputElemOffset = layoutPeerMemStore.GetOffset(outputOffset);
 
-                    // [ReduceScatter] 2. Set CopyFlag
-                    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+                    // [ReduceScatter] 2. Pre Interface Sync
                     AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
 
                     // [ReduceScatter] 3. Start shmem_mte_get_mem_nbi
                     shmem_mte_get_mem_nbi(peerMem[outputElemOffset], peerMem[inputElemOffset], inputBuffer, copySize, mRankIdx % rankSize, EVENT_ID0);
                     
-                    // [ReduceScatter] 4. Wait CopyFlag
+                    // [ReduceScatter] 4. Post Interface Sync
                     AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
-                    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
                 }
+                // [ReduceScatter] 4. Post Interface Sync
+                AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
             }
         }
 
@@ -256,7 +258,10 @@ public:
 
                 // [AllGather] 1. Alloc TmpUB
                 AscendC::LocalTensor<half> inputBuffer = resource.ubBuf.template GetBufferByByte<ElementC>(32);
-                
+
+                // [AllGather] 2. Pre Interface Sync
+                AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+
                 for (uint32_t processIndex = 0; processIndex < processLoop; ++processIndex) {
                     MatrixCoord processCoord{processIndex / processCount.column(), processIndex % processCount.column()};
                     auto actualProcessShape = GetActualShape(
@@ -273,23 +278,22 @@ public:
                     auto inputOffset = offsetIn + subBlockOffset + processOffset;
                     auto outputOffset = offsetOut + subBlockOffset + processOffset;
 
-                    uint32_t ubSize = 16 * 1024;
                     uint32_t copySize = actualProcessShape.row() * actualProcessShape.column();
 
                     int64_t inputElemOffset = layoutPeerMemStore.GetOffset(inputOffset);
                     int64_t outputElemOffset = layoutPeerMemStore.GetOffset(outputOffset);
 
-                    // [AllGather] 2. Set CopyFlag
-                    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+                    // [AllGather] 2. Pre Interface Sync
                     AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
 
                     // [AllGather] 3. Start shmem_mte_get_mem_nbi
                     shmem_mte_get_mem_nbi(params.destination[outputElemOffset], peerMem[inputElemOffset], inputBuffer, copySize, mRankIdx % rankSize, EVENT_ID0);
-                
-                    // [AllGather] 4. Wait CopyFlag
+
+                    // [AllGather] 4. Post Interface Sync
                     AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
-                    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
                 }
+                // [AllGather] 4. Post Interface Sync
+                AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
             }
         }
 

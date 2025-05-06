@@ -70,7 +70,6 @@ inline bool WriteFile(const std::string &filePath, const void *buffer, size_t si
         return false;
     }
 
-    // file.write(static_cast<const char *>(buffer), size);
     // 写入数据
     if (write(fd, static_cast<const char *>(buffer), size) != static_cast<ssize_t>(size)) {
         std::cerr << "Failed to write to file: " << strerror(errno) << std::endl;
