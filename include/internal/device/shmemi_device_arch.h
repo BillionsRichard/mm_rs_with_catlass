@@ -1,7 +1,7 @@
 #ifndef SHMEMI_DEVICE_ARCH_H
 #define SHMEMI_DEVICE_ARCH_H
 
-#include "kernel_operator.h"
+#include "device/shmem_device_def.h"
 
 SHMEM_DEVICE void DcciCacheline(__gm__ uint8_t * addr) {
     using namespace AscendC;

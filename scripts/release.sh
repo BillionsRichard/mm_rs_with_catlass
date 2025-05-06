@@ -1,0 +1,68 @@
+#!/bin/bash
+
+function fn_make_run_package()
+{
+    if [ $( uname -a | grep -c -i "x86_64" ) -ne 0 ]; then
+        echo "it is system of x86_64"
+        ARCH="x86_64"
+    elif [ $( uname -a | grep -c -i "aarch64" ) -ne 0 ]; then
+        echo "it is system of aarch64"
+        ARCH="aarch64"
+    else
+        echo "it is not system of x86_64 or aarch64"
+        exit 1
+    fi
+    branch=$(git symbolic-ref -q --short HEAD || git describe --tags --exact-match 2> /dev/null || echo $branch)
+    commit_id=$(git rev-parse HEAD)
+    touch $OUTPUT_DIR/version.info
+    cat>$OUTPUT_DIR/version.info<<EOF
+        SHMEM Version :  ${VERSION}
+        Platform : ${ARCH}
+        branch : ${branch}
+        commit id : ${commit_id}
+EOF
+
+    mkdir -p $OUTPUT_DIR/scripts
+    mkdir -p $RELEASE_DIR/$ARCH
+    cp $PROJECT_ROOT/scripts/install.sh $OUTPUT_DIR
+    cp $PROJECT_ROOT/scripts/uninstall.sh $OUTPUT_DIR/scripts
+    sed -i "s/SHMEMPKGARCH/${ARCH}/" $OUTPUT_DIR/install.sh
+    sed -i "s!VERSION_PLACEHOLDER!${VERSION}!" $OUTPUT_DIR/install.sh
+    sed -i "s!VERSION_PLACEHOLDER!${VERSION}!" $OUTPUT_DIR/scripts/uninstall.sh
+
+    chmod +x $OUTPUT_DIR/*
+    makeself_dir=${ASCEND_HOME_PATH}/toolkit/tools/op_project_templates/ascendc/customize/cmake/util/makeself/
+    ${makeself_dir}/makeself.sh --header ${makeself_dir}/makeself-header.sh \
+        --help-header $PROJECT_ROOT/scripts/help.info --gzip --complevel 4 --nomd5 --sha256 --chown \
+        ${OUTPUT_DIR} $RELEASE_DIR/$ARCH/SHMEM_${VERSION}_linux-${ARCH}.run "SHMEM-api" ./install.sh
+    
+    rm -rf $OUTPUT_DIR/*
+    mv $RELEASE_DIR/$ARCH $OUTPUT_DIR
+    echo "SHMEM_${VERSION}_linux-${ARCH}.run is successfully generated in $OUTPUT_DIR"
+}
+
+function fn_main()
+{
+    fn_make_run_package
+}
+set -e
+CURRENT_DIR=$(pwd)
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+PROJECT_ROOT=$(dirname "$SCRIPT_DIR")
+VERSION="1.0.0"
+OUTPUT_DIR=$PROJECT_ROOT/install
+THIRD_PARTY_DIR=$PROJECT_ROOT/3rdparty
+RELEASE_DIR=$PROJECT_ROOT/ci/release
+
+cann_default_path="/usr/local/Ascend/ascend-toolkit"
+cd ${PROJECT_ROOT}
+set +e
+if [ -d "$cann_default_path" ]; then
+    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+else
+    echo "CANN is not installed in $cann_default_path"
+    exit 1
+fi
+
+set -e
+fn_main "$@"

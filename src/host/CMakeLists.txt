@@ -1,4 +1,4 @@
-file(GLOB SHMEM_HOST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+file(GLOB_RECURSE SHMEM_HOST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 
 add_library(shmem_host SHARED)
 
@@ -7,7 +7,12 @@ target_sources(shmem_host PRIVATE ${SHMEM_HOST_SOURCES})
 target_include_directories(shmem_host
     PUBLIC
     ${PROJECT_SOURCE_DIR}/include/
-    ${PROJECT_SOURCE_DIR}/src/include/
+    ${CMAKE_CURRENT_SOURCE_DIR}/
+    ${CMAKE_CURRENT_SOURCE_DIR}/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/init
+    ${CMAKE_CURRENT_SOURCE_DIR}/mem
+    ${CMAKE_CURRENT_SOURCE_DIR}/team
+    ${CMAKE_CURRENT_SOURCE_DIR}/../device
     ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/host/
     ${ASCEND_DRIVER_PATH}/kernel/inc
     ${ASCEND_HOME_PATH}/${ARCH}-linux/include/
@@ -36,8 +41,7 @@ install(TARGETS shmem_host
     PUBLIC_HEADER DESTINATION include
 )
 
-install (FILES
-    ${PROJECT_SOURCE_DIR}/include/host/shmem_api.h
-    ${PROJECT_SOURCE_DIR}/include/host/team.h
+install (DIRECTORY ${PROJECT_SOURCE_DIR}/include/
     DESTINATION include
+    FILES_MATCHING PATTERN "*.h"
 )

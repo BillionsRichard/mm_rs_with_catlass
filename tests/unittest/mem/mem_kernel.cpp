@@ -1,7 +1,7 @@
 #include "kernel_operator.h"
 #include "lowlevel/smem_shm_aicore_base_api.h"
 
-#include "shmem_device_api.h"
+#include "shmem_api.h"
 
 class KernelPutNum {
 public:
@@ -16,8 +16,9 @@ public:
     }
     __aicore__ inline void Process()
     {
-        ShmemPutFloatMem(gvaGm, devGm, rankSize * 16, rank);
-        AscendC::PipeBarrier<PIPE_ALL>();
+        shmem_put_float_mem_nbi(gvaGm, devGm, rankSize * 16, rank);
+        AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
     }
 private:
     __gm__ float *gvaGm;
@@ -59,15 +60,16 @@ public:
         __ubuf__ float *buf = (__ubuf__ float *)bufTensor.address_.bufferAddr;
 
         for (int i = 0; i < rankSize; i++) {
-            ShmemMTEGetMem(devGm + 16 * i, gvaGm, buf, (uint32_t)256, 16, i % rankSize, EVENT_ID0);
-            AscendC::PipeBarrier<PIPE_ALL>();
+            ShmemMTEGetMemNBI(devGm + 16 * i, gvaGm, buf, (uint32_t)256, 16, i % rankSize, EVENT_ID0);
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         }
 
         bufQueue.FreeTensor(bufTensor);
     }
 private:
     AscendC::TPipe pipe;
-    AscendC::TQue<AscendC::TPosition::VECIN, BUFFER_NUM> bufQueue;
+    AscendC::TQue<AscendC::TPosition::VECIN, 2> bufQueue;
     __gm__ float *gvaGm;
     __gm__ float *devGm;
 

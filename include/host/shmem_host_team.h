@@ -3,18 +3,26 @@
 
 #include "host_device/shmem_types.h"
 
-int ShmemTeamSplitStrided(ShmemTeam parentTeam, int peStart, int peStride, int peSize, ShmemTeam &newTeam);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-int ShmemTeamTranslatePE(ShmemTeam srcTeam, int srcPe, ShmemTeam destTeam);
+SHMEM_HOST_API int shmem_team_split_strided(shmem_team_t parentTeam, int peStart, int peStride, int peSize, shmem_team_t &newTeam);
 
-void ShmemTeamDestroy(ShmemTeam team);
+SHMEM_HOST_API int shmem_team_translate_pe(shmem_team_t srcTeam, int srcPe, shmem_team_t destTeam);
 
-int ShmemMype();
+SHMEM_HOST_API void shmem_team_destroy(shmem_team_t team);
 
-int ShmemNpes();
+SHMEM_HOST_API int shmem_my_pe();
 
-int ShmemTeamMype(ShmemTeam team);
+SHMEM_HOST_API int shmem_n_pes();
 
-int ShmemTeamNpes(ShmemTeam team);
+SHMEM_HOST_API int shmem_team_my_pe(shmem_team_t team);
+
+SHMEM_HOST_API int shmem_team_n_pes(shmem_team_t team);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

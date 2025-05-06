@@ -1,7 +1,7 @@
 #ifndef SHEMEI_P2P_H
 #define SHEMEI_P2P_H
 
-#include "../shmemi_device_common.h"
+#include "internal/device/shmemi_device_common.h"
 
 template<typename T>
 SHMEM_DEVICE void ShmemiSignal(__gm__ uint8_t *addr, T val) {

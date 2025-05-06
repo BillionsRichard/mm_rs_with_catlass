@@ -11,8 +11,58 @@ source ${_ASCEND_INSTALL_PATH}/bin/setenv.bash
 CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 PROJECT_ROOT=$(dirname "$SCRIPT_DIR")
+VERSION="1.0.0"
+OUTPUT_DIR=$PROJECT_ROOT/install
 THIRD_PARTY_DIR=$PROJECT_ROOT/3rdparty
+RELEASE_DIR=$PROJECT_ROOT/ci/release
+
+cann_default_path="/usr/local/Ascend/ascend-toolkit"
+
 cd ${PROJECT_ROOT}
+
+function fn_make_run_package()
+{
+    if [ $( uname -a | grep -c -i "x86_64" ) -ne 0 ]; then
+        echo "it is system of x86_64"
+        ARCH="x86_64"
+    elif [ $( uname -a | grep -c -i "aarch64" ) -ne 0 ]; then
+        echo "it is system of aarch64"
+        ARCH="aarch64"
+    else
+        echo "it is not system of x86_64 or aarch64"
+        exit 1
+    fi
+    branch=$(git symbolic-ref -q --short HEAD || git describe --tags --exact-match 2> /dev/null || echo $branch)
+    commit_id=$(git rev-parse HEAD)
+    touch $OUTPUT_DIR/version.info
+    cat>$OUTPUT_DIR/version.info<<EOF
+        SHMEM Version :  ${VERSION}
+        Platform : ${ARCH}
+        branch : ${branch}
+        commit id : ${commit_id}
+EOF
+
+    mkdir -p $OUTPUT_DIR/scripts
+    mkdir -p $RELEASE_DIR/$ARCH
+    cp $PROJECT_ROOT/scripts/install.sh $OUTPUT_DIR
+    cp $PROJECT_ROOT/scripts/set_env.sh $OUTPUT_DIR
+    cp $PROJECT_ROOT/scripts/uninstall.sh $OUTPUT_DIR/scripts
+
+    cp -r $PROJECT_ROOT/3rdparty/memfabric_hybrid $OUTPUT_DIR
+
+    sed -i "s/SHMEMPKGARCH/${ARCH}/" $OUTPUT_DIR/install.sh
+    sed -i "s!VERSION_PLACEHOLDER!${VERSION}!" $OUTPUT_DIR/install.sh
+    sed -i "s!VERSION_PLACEHOLDER!${VERSION}!" $OUTPUT_DIR/scripts/uninstall.sh
+
+    chmod +x $OUTPUT_DIR/*
+    makeself_dir=${ASCEND_HOME_PATH}/toolkit/tools/op_project_templates/ascendc/customize/cmake/util/makeself/
+    ${makeself_dir}/makeself.sh --header ${makeself_dir}/makeself-header.sh \
+        --help-header $PROJECT_ROOT/scripts/help.info --gzip --complevel 4 --nomd5 --sha256 --chown \
+        ${OUTPUT_DIR} $RELEASE_DIR/$ARCH/SHMEM_${VERSION}_linux-${ARCH}.run "SHMEM-api" ./install.sh
+    [ -d "$OUTPUT_DIR/$ARCH" ] && rm -rf "$OUTPUT_DIR/$ARCH"
+    mv $RELEASE_DIR/$ARCH $OUTPUT_DIR
+    echo "SHMEM_${VERSION}_linux-${ARCH}.run is successfully generated in $OUTPUT_DIR"
+}
 
 function fn_build_googletest()
 {
@@ -40,45 +90,6 @@ cmake -DCMAKE_INSTALL_PREFIX=../install ..
 make install -j8
 cd -
 
-MEMFABRIC_INCLUDE_PATH=$PROJECT_ROOT/3rdparty/memfabric_hybrid/include/smem/
-MEMFABRIC_LIB_PATH=$PROJECT_ROOT/3rdparty/memfabric_hybrid/lib/
-
-SHMEM_INCLUDE_PATH=$PROJECT_ROOT/include/
-SHMEM_LIB_PATH=$PROJECT_ROOT/install/lib/
-
-cd examples/matmul_allreduce
-mkdir -p out
-ccec -O2 -std=c++17 -xcce --cce-aicore-arch=dav-c220                \
-    -mllvm -cce-aicore-stack-size=0x8000                            \
-    -mllvm -cce-aicore-function-stack-size=0x8000                   \
-    -mllvm -cce-aicore-record-overflow=true                         \
-    -mllvm -cce-aicore-addr-transform                               \
-    -mllvm -cce-aicore-dcci-insert-for-scalar=false                 \
-    -DL2_CACHE_HINT                                                 \
-    -I${ASCEND_HOME_PATH}/compiler/tikcpp                           \
-    -I${ASCEND_HOME_PATH}/compiler/tikcpp/tikcfw                    \
-    -I${ASCEND_HOME_PATH}/compiler/tikcpp/tikcfw/impl               \
-    -I${ASCEND_HOME_PATH}/compiler/tikcpp/tikcfw/interface          \
-    -I${ASCEND_HOME_PATH}/include                                   \
-    -I${ASCEND_HOME_PATH}/include/experiment/runtime                \
-    -I${ASCEND_HOME_PATH}/include/experiment/msprof                 \
-    -I$PROJECT_ROOT/3rdparty/ascendc-templates/examples/common      \
-    -I$PROJECT_ROOT/examples/include/                               \
-    -I$PROJECT_ROOT/include/                                        \
-    -I$MEMFABRIC_INCLUDE_PATH/host/                                 \
-    -I$MEMFABRIC_INCLUDE_PATH/device/                               \
-    -I$SHMEM_INCLUDE_PATH/host/                                     \
-    -I$SHMEM_INCLUDE_PATH/host_device/                              \
-    -I$SHMEM_INCLUDE_PATH/device/                                   \
-    -I$PROJECT_ROOT/3rdparty/ascendc-templates/include/             \
-    -I..                                                            \
-    -I.                                                             \
-    -L${ASCEND_HOME_PATH}/lib64                                     \
-    -L$MEMFABRIC_LIB_PATH/ -lmf_smem -lmf_hybm_core                 \
-    -L$SHMEM_LIB_PATH/ -lshmem_host -lshmem_device                  \
-    -Wno-macro-redefined -Wno-ignored-attributes                    \
-    -lruntime -lstdc++ -lascendcl -lm -ltiling_api                  \
-    -lplatform -lc_sec -ldl -lnnopbase                              \
-    main.cpp -o out/matmul_allreduce
+fn_make_run_package
 
 cd ${CURRENT_DIR}

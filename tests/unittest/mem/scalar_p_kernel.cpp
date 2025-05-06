@@ -1,7 +1,5 @@
 #include "kernel_operator.h"
-#include "lowlevel/smem_shm_aicore_base_api.h"
-
-#include "shmem_device_api.h"
+#include "shmem_api.h"
 
 class KernelP {
 public:
@@ -16,7 +14,7 @@ public:
     }
     __aicore__ inline void Process()
     {
-        ShmemPFloat(gvaGm, value, (rank + 1) % rankSize);
+        shmem_float_p(gvaGm, value, (rank + 1) % rankSize);
     }
 private:
     __gm__ float *gvaGm;
