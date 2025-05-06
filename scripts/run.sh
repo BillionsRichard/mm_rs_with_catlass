@@ -8,7 +8,10 @@ set -e
 RANK_SIZE="8"
 IPPORT="tcp://127.0.0.1:8666"
 GNPU_NUM="8"
-TEST_FILTER="*.*"
+if [ -z "${GTEST_FILTER}" ]; then
+    TEST_FILTER="*.*"
+else
+    TEST_FILTER="${GTEST_FILTER}"    
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
