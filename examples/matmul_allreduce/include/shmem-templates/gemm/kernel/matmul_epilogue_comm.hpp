@@ -13,34 +13,6 @@
 #include "shmem-templates/epilogue/block/block_swizzle_dynamic.hpp"
 
 namespace Act::Gemm::Kernel {
-
-ACT_DEVICE
-MatrixCoord GetActualShape(
-    const MatrixCoord &blockCount,
-    const MatrixCoord &blockCoord,
-    const MatrixCoord &blockShape,
-    const MatrixCoord &residue
-)
-{
-    MatrixCoord c = blockShape;
-
-    if ((residue.row() != 0) && (blockCoord.row() == blockCount.row() - 1)) {
-        c.row() = residue.row();
-    }
-    else if (blockCoord.row() >= blockCount.row()){
-        c.row() = 0;
-    }
-
-    if ((residue.column() != 0) && (blockCoord.column() == blockCount.column() - 1)) {
-        c.column() = residue.column();
-    }
-    else if (blockCoord.column() >= blockCount.column()){
-        c.column() = 0;
-    }
-    return c;
-}
-
-// Template for matmul add kernel. Compute D = A * B + X
 template <
     class BlockMmad_,
     class BlockEpilogue_,

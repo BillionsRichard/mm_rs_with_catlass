@@ -41,13 +41,21 @@
 #include "shmem-templates/epilogue/block/block_swizzle_dynamic.hpp"
 #include "shmem-templates/gemm/kernel/matmul_epilogue_comm.hpp"
 
-
 // shmem_host
-#include "data_utils.h"
-#include "shmem_api.h"
+#include "host/shmem_host_def.h"
+#include "host/shmem_host_heap.h"
+#include "host/shmem_host_init.h"
+#include "host/shmem_host_rma.h"
+#include "host/shmem_host_team.h"
 
 // shmem_device
-#include "shmem_device_api.h"
+#include "device/shmem_device_def.h"
+#include "device/shmem_device_rma.h"
+#include "device/shmem_device_sync.h"
+#include "device/shmem_device_team.h"
+
+// utils
+#include "utils.h"
 
 static uint32_t gNpuNum = 8;
 static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 1024;
@@ -64,7 +72,7 @@ struct CoCTiling {
     uint32_t m0 = 0;
     uint32_t k0 = 0;
     uint32_t n0 = 0;
-    uint32_t swizzlDirect = 0;
+    uint32_t swizzleDirect = 0;
     uint32_t swizzleOffset = 0;
     uint32_t ubMoveNum = 0;
     uint32_t pValue = 0;
@@ -75,84 +83,6 @@ struct CoCTiling {
 
 constexpr uint32_t BLOCK_NUM = 20;
 constexpr int32_t BLOCK_SIZE_16 = 16;
-
-inline bool ReadFile(const std::string &filePath, void *buffer, size_t bufferSize)
-{
-    struct stat sBuf;
-    int fileStatus = stat(filePath.data(), &sBuf);
-    if (fileStatus == -1) {
-        ERROR_LOG("Failed to get file");
-        return false;
-    }
-    if (S_ISREG(sBuf.st_mode) == 0) {
-        ERROR_LOG("%s is not a file, please enter a file.", filePath.c_str());
-        return false;
-    }
-
-    std::ifstream file;
-    file.open(filePath, std::ios::binary);
-    if (!file.is_open()) {
-        ERROR_LOG("Open file failed. path = %s.", filePath.c_str());
-        return false;
-    }
-
-    std::filebuf *buf = file.rdbuf();
-    size_t size = buf->pubseekoff(0, std::ios::end, std::ios::in);
-    if (size == 0) {
-        ERROR_LOG("File size is 0");
-        file.close();
-        return false;
-    }
-    if (size > bufferSize) {
-        ERROR_LOG("File size is larger than buffer size.");
-        file.close();
-        return false;
-    }
-    buf->pubseekpos(0, std::ios::in);
-    buf->sgetn(static_cast<char *>(buffer), size);
-    file.close();
-    return true;
-}
-
-inline bool WriteFile(const std::string &filePath, const void *buffer, size_t size, size_t offset = 0)
-{
-    if (buffer == nullptr) {
-        ERROR_LOG("Write file failed. Buffer is nullptr.");
-        return false;
-    }
-
-    int fd = open(filePath.c_str(), O_RDWR | O_CREAT, 0666);
-    if (!fd) {
-        ERROR_LOG("Open file failed. path = %s", filePath.c_str());
-        return false;
-    }
-
-    // 尝试获取写锁tB =
-    if (flock(fd, LOCK_EX) == -1) {
-        std::cerr << "Failed to acquire lock: " << strerror(errno) << std::endl;
-        close(fd);
-        return false;
-    }
-
-    // 将文件指针定位到指定的偏移量
-    if (lseek(fd, offset, SEEK_SET) == -1) {
-        std::cerr << "Failed to seek in file: " << strerror(errno) << std::endl;
-        close(fd);
-        return false;
-    }
-
-    // file.write(static_cast<const char *>(buffer), size);
-    // 写入数据
-    if (write(fd, static_cast<const char *>(buffer), size) != static_cast<ssize_t>(size)) {
-        std::cerr << "Failed to write to file: " << strerror(errno) << std::endl;
-    }
-
-    // 释放锁
-    flock(fd, LOCK_UN);
-
-    close(fd);
-    return true;
-}
 
 using LayoutA = layout::RowMajor;
 using LayoutB = layout::RowMajor;
@@ -176,7 +106,7 @@ void ShmemMatmulAllReduce(
     uint32_t k0 = cocTiling.k0;
     uint32_t n0 = cocTiling.n0;
     uint32_t swizzleOffset = cocTiling.swizzleOffset;
-    uint32_t swizzlDirect = cocTiling.swizzlDirect;
+    uint32_t swizzleDirect = cocTiling.swizzleDirect;
     uint32_t pValue = cocTiling.pValue;
     uint32_t commDataSplit = cocTiling.commDataSplit;
     uint32_t commNpuSplit = cocTiling.commNpuSplit;
@@ -184,8 +114,8 @@ void ShmemMatmulAllReduce(
     uint32_t lenPerLoop = cocTiling.lenPerLoop;
 
     // Prepare comm address
-    uint32_t rank = ShmemMype();
-    uint32_t rankSize = ShmemNpes();
+    uint32_t rank = shmem_my_pe();
+    uint32_t rankSize = shmem_n_pes();
     using ElementC = half;
 
     // Block level, Define the layout of each input matrix
@@ -256,7 +186,7 @@ uint32_t GetAscendCoreSyncAddr(void **addr);
 
 struct Options {
     static constexpr auto helper = 
-       "Usage: matmul_allreduce m n k transA transB [--block m0 n0 k0 --ubMoveNum ubMoveNum --pValue pValue --split commNpuSplit commDataSplit lenPerLoop --swizzle swizzleOffset swizzlDirect]\n";
+       "Usage: matmul_allreduce m n k transA transB [--block m0 n0 k0 --ubMoveNum ubMoveNum --pValue pValue --split commNpuSplit commDataSplit lenPerLoop --swizzle swizzleOffset swizzleDirect]\n";
 
     uint32_t m = 0;
     uint32_t n = 0;
@@ -266,7 +196,7 @@ struct Options {
     uint32_t n0 = 256;
     uint32_t transA = 0;
     uint32_t transB = 0;
-    uint32_t swizzlDirect = 1;
+    uint32_t swizzleDirect = 1;
     uint32_t swizzleOffset = 7;
     uint32_t ubMoveNum = 16 * 1024;
     uint32_t pValue = 3;
@@ -305,7 +235,7 @@ struct Options {
                 k0 = std::atoi(argv[argIndex++]);
             } else if (flag == "--swizzle") {
                 swizzleOffset = std::atoi(argv[argIndex++]);
-                swizzlDirect = std::atoi(argv[argIndex++]);
+                swizzleDirect = std::atoi(argv[argIndex++]);
             } else {
                 printf(helper);
                 return -1;
@@ -329,9 +259,10 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtSetDevice(deviceId));
     aclrtStream stream = nullptr;
     ACL_CHECK(aclrtCreateStream(&stream));
-    ShmemInitAttrT* attributes;
-    ShmemSetAttr(rankId, rankSize, gNpuMallocSpace, ipport.c_str(), &attributes);
-    status = ShmemInit();
+    shmem_init_attr_t *attributes;
+    status = shmem_set_attr(rankId, rankSize, gNpuMallocSpace, ipport.c_str(), &attributes);
+    status = shmem_init();
+    status = shmem_init_attributes();
 
     // Prepare FFTS address
     uint64_t fftsAddr{0};
@@ -345,7 +276,7 @@ int main(int argc, char **argv)
     uint32_t m0 = 128;
     uint32_t k0 = 256;
     uint32_t n0 = 256;
-    uint32_t swizzlDirect = 1;
+    uint32_t swizzleDirect = 1;
     uint32_t swizzleOffset = 7;
     uint32_t ubMoveNum = 16 * 1024;
     uint32_t pValue = 3;
@@ -365,24 +296,25 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtMalloc((void **)(&aDevice), aSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *aHost;
     ACL_CHECK(aclrtMallocHost((void **)(&aHost), aSize));
-    ReadFile("./examples/matmul_allreduce/out/a_gm.bin", aHost, aSize);
+    ReadFile("./out/a_gm.bin", aHost, aSize);
     ACL_CHECK(aclrtMemcpy(aDevice, aSize, aHost, aSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint8_t *bDevice;
     ACL_CHECK(aclrtMalloc((void **)(&bDevice), bSize, ACL_MEM_MALLOC_HUGE_FIRST));
    uint8_t *bHost;
     ACL_CHECK(aclrtMallocHost((void **)(&bHost), bSize));
-    ReadFile("./examples/matmul_allreduce/out/b_gm.bin", bHost, bSize);
+    ReadFile("./out/b_gm.bin", bHost, bSize);
     ACL_CHECK(aclrtMemcpy(bDevice, bSize, bHost, bSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint8_t *cDevice;
     ACL_CHECK(aclrtMalloc((void **)(&cDevice), cSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *cHost;
     ACL_CHECK(aclrtMallocHost((void **)(&cHost), cSize));
-    ReadFile("./examples/matmul_allreduce/out/c_gm.bin", cHost, cSize);
+    ReadFile("./out/c_gm.bin", cHost, cSize);
     ACL_CHECK(aclrtMemcpy(cDevice, cSize, cHost, cSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
-    uint8_t *symmetricPtr = (uint8_t *)shmemDeviceHostState.heapBase + 1024;
+    void *symmPtr = shmem_malloc((1024 * 1024) * sizeof(__fp16));
+    uint8_t *symmetricPtr = (uint8_t *)symmPtr;
 
     CoCTiling cocTiling;
     cocTiling.m = m;
@@ -392,7 +324,7 @@ int main(int argc, char **argv)
     cocTiling.n0 = n0;
     cocTiling.k0 = k0;
     cocTiling.swizzleOffset = swizzleOffset;
-    cocTiling.swizzlDirect = swizzlDirect;
+    cocTiling.swizzleDirect = swizzleDirect;
     cocTiling.pValue = pValue;
     cocTiling.ubMoveNum = ubMoveNum;
     cocTiling.commNpuSplit = commNpuSplit;
@@ -407,9 +339,12 @@ int main(int argc, char **argv)
 
     ACL_CHECK(aclrtMemcpy(cHost, cSize, cDevice, cSize, ACL_MEMCPY_DEVICE_TO_HOST));
     if (rankId == 0) {
-        WriteFile("./examples/matmul_allreduce/out/output.bin", cHost, cSize);
+        WriteFile("./out/output.bin", cHost, cSize);
         std::printf("test finished\n");
     }
+
+    shmem_free(symmPtr);
+
     ACL_CHECK(aclrtFreeHost(aHost));
     ACL_CHECK(aclrtFreeHost(bHost));
     ACL_CHECK(aclrtFreeHost(cHost));
@@ -418,7 +353,7 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtFree(cDevice));
 
     std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
-    ShmemFinalize();
+    status = shmem_finalize();
     ACL_CHECK(aclrtDestroyStream(stream));
     ACL_CHECK(aclrtResetDevice(deviceId));
     ACL_CHECK(aclFinalize());

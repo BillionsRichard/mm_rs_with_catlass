@@ -12,9 +12,9 @@
 #include "shmem-templates/epilogue/block/block_swizzle_dynamic.hpp"
 
 // from shmem-device
-#include "shmem_device_api.h"
+#include "shmem_api.h"
 
-namespace Act::Epilogue::Block {
+using namespace Act;
 
 ACT_DEVICE
 MatrixCoord GetActualShape(
@@ -42,6 +42,7 @@ MatrixCoord GetActualShape(
     return c;
 }
 
+namespace Act::Epilogue::Block {
 template <
     class... Args
 >
@@ -168,7 +169,7 @@ public:
         peerMem.SetGlobalBuffer(params.symmetricPtr);
 
         // 卡内matmul结果准备就绪软同步
-        ShmemBarrierAll();
+        shmem_barrier_all();
 
         AscendC::SetAtomicAdd<ElementC>();
         AscendC::PipeBarrier<PIPE_ALL>();
@@ -194,10 +195,6 @@ public:
                 // [ReduceScatter] 1. Alloc TmpUB
                 AscendC::LocalTensor<half> inputBuffer = resource.ubBuf.template GetBufferByByte<ElementC>(32);
 
-                // [ReduceScatter] 2. Set CopyFlag
-                AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
-                
-                // [ReduceScatter] 3. Start ShmemMTEGetMem
                 for (uint32_t processIndex = 0; processIndex < processLoop; ++processIndex) {
                     MatrixCoord processCoord{processIndex / processCount.column(), processIndex % processCount.column()};
                     auto actualProcessShape = GetActualShape(
@@ -218,10 +215,17 @@ public:
                     int64_t inputElemOffset = layoutPeerMemStore.GetOffset(inputOffset);
                     int64_t outputElemOffset = layoutPeerMemStore.GetOffset(outputOffset);
 
-                    ShmemMTEGetMem(peerMem[outputElemOffset], peerMem[inputElemOffset], inputBuffer, ubSize, copySize, mRankIdx % rankSize, EVENT_ID0);
+                    // [ReduceScatter] 2. Set CopyFlag
+                    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+                    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+
+                    // [ReduceScatter] 3. Start ShmemMTEGetMemNBI
+                    ShmemMTEGetMemNBI(peerMem[outputElemOffset], peerMem[inputElemOffset], inputBuffer, copySize, mRankIdx % rankSize, EVENT_ID0);
+                    
+                    // [ReduceScatter] 4. Wait CopyFlag
+                    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+                    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
                 }
-                // [ReduceScatter] 4. Wait CopyFlag
-                AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
             }
         }
 
@@ -231,7 +235,7 @@ public:
         AscendC::PipeBarrier<PIPE_ALL>();
 
         // 第一部分通信完成软同步
-        ShmemBarrierAll();
+        shmem_barrier_all();
 
         if (aivIndex == 0 && aicoreIndex < realAicoreNum) {
             for (uint32_t idx = aicoreIndex; idx < commCoreLoops; idx += realAicoreNum) {
@@ -252,11 +256,7 @@ public:
 
                 // [AllGather] 1. Alloc TmpUB
                 AscendC::LocalTensor<half> inputBuffer = resource.ubBuf.template GetBufferByByte<ElementC>(32);
-
-                // [AllGather] 2. Set CopyFlag
-                AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
                 
-                // [AllGather] 3. Start ShmemMTEGetMem
                 for (uint32_t processIndex = 0; processIndex < processLoop; ++processIndex) {
                     MatrixCoord processCoord{processIndex / processCount.column(), processIndex % processCount.column()};
                     auto actualProcessShape = GetActualShape(
@@ -279,15 +279,22 @@ public:
                     int64_t inputElemOffset = layoutPeerMemStore.GetOffset(inputOffset);
                     int64_t outputElemOffset = layoutPeerMemStore.GetOffset(outputOffset);
 
-                    ShmemMTEGetMem(params.destination[outputElemOffset], peerMem[inputElemOffset], inputBuffer, ubSize, copySize, mRankIdx % rankSize, EVENT_ID0);
+                    // [AllGather] 2. Set CopyFlag
+                    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+                    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+
+                    // [AllGather] 3. Start ShmemMTEGetMemNBI
+                    ShmemMTEGetMemNBI(params.destination[outputElemOffset], peerMem[inputElemOffset], inputBuffer, copySize, mRankIdx % rankSize, EVENT_ID0);
+                
+                    // [AllGather] 4. Wait CopyFlag
+                    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+                    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
                 }
-                // [AllGather] 4. Wait CopyFlag
-                AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
             }
         }
 
         // 第二部分通信完成软同步
-        ShmemBarrierAll();
+        shmem_barrier_all();
     }
 
 private:
