@@ -52,17 +52,4 @@ ccec -O2 -std=c++17 -xcce --cce-aicore-arch=dav-c220                \
     -lplatform -lc_sec -ldl -lnnopbase                              \
     main.cpp -o out/matmul_allreduce
 
-# Generate Matmul_AllReduce Golden
-python3 utils/gen_data.py 1 2 1024 1024 16 0 0
-
-RANK_SIZE="2"
-IPPORT="tcp://127.0.0.1:8766"
-
-for (( idx =0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
-    ./out/matmul_allreduce "$RANK_SIZE" "$idx" "$IPPORT" &
-done
-
-# Verify Matmul_AllReduce Output
-python3 utils/verify_result.py ./out/output.bin ./out/golden.bin 1 1024 1024 16
-
 cd ${CURRENT_DIR}

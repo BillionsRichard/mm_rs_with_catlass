@@ -55,7 +55,7 @@
 #include "device/shmem_device_team.h"
 
 // utils
-#include "utils.h"
+#include "utils/utils.h"
 
 static uint32_t gNpuNum = 8;
 static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 1024;
