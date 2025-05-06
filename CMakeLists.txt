@@ -40,6 +40,7 @@ set(ASCEND_CANN_PACKAGE_PATH "${ASCEND_HOME_PATH}" CACHE STRING "ASCEND_CANN_PAC
 set(ASCENDC_CMAKE_DIR ${ASCEND_HOME_PATH}/compiler/tikcpp/ascendc_kernel_cmake)
 
 include(${ASCENDC_CMAKE_DIR}/ascendc.cmake)
+set(SHMEM_SOURCE_ROOT ${PROJECT_SOURCE_DIR})
 
 # 添加子目录
 add_subdirectory(src/host)
