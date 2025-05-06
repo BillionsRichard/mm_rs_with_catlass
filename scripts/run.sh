@@ -11,7 +11,8 @@ GNPU_NUM="8"
 if [ -z "${GTEST_FILTER}" ]; then
     TEST_FILTER="*.*"
 else
-    TEST_FILTER="${GTEST_FILTER}"    
+    TEST_FILTER="${GTEST_FILTER}"
+fi
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
