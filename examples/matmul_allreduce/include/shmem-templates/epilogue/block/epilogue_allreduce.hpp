@@ -193,7 +193,7 @@ public:
                 uint32_t processLoop = processCount.row() * processCount.column();
 
                 // [ReduceScatter] 1. Alloc TmpUB
-                AscendC::LocalTensor<half> inputBuffer = resource.ubBuf.template GetBufferByByte<ElementC>(32);
+                AscendC::LocalTensor<half> inputBuffer = resource.ubBuf.template GetBufferByByte<ElementC>(0);
 
                 // [ReduceScatter] 2. Pre Interface Sync
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
@@ -257,7 +257,7 @@ public:
                 uint32_t processLoop = processCount.row() * processCount.column();
 
                 // [AllGather] 1. Alloc TmpUB
-                AscendC::LocalTensor<half> inputBuffer = resource.ubBuf.template GetBufferByByte<ElementC>(32);
+                AscendC::LocalTensor<half> inputBuffer = resource.ubBuf.template GetBufferByByte<ElementC>(0);
 
                 // [AllGather] 2. Pre Interface Sync
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
