@@ -16,7 +16,7 @@ cd ${SCRIPT_DIR}
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/install/shmem/lib:${ASCEND_HOME_PATH}/lib64:${PROJECT_ROOT}/install/memfabric_hybrid/lib:$LD_LIBRARY_PATH
 
 mkdir -p out
-ccec -O2 -std=c++17 -xcce --cce-aicore-arch=dav-c220                \
+bisheng -O2 -std=c++17 -xcce --cce-aicore-arch=dav-c220             \
     -mllvm -cce-aicore-stack-size=0x8000                            \
     -mllvm -cce-aicore-function-stack-size=0x8000                   \
     -mllvm -cce-aicore-record-overflow=true                         \

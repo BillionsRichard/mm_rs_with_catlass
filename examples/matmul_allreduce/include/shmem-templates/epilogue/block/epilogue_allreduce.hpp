@@ -219,8 +219,8 @@ public:
                     AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
                     AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
 
-                    // [ReduceScatter] 3. Start ShmemMTEGetMemNBI
-                    ShmemMTEGetMemNBI(peerMem[outputElemOffset], peerMem[inputElemOffset], inputBuffer, copySize, mRankIdx % rankSize, EVENT_ID0);
+                    // [ReduceScatter] 3. Start shmem_mte_get_mem_nbi
+                    shmem_mte_get_mem_nbi(peerMem[outputElemOffset], peerMem[inputElemOffset], inputBuffer, copySize, mRankIdx % rankSize, EVENT_ID0);
                     
                     // [ReduceScatter] 4. Wait CopyFlag
                     AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
@@ -283,8 +283,8 @@ public:
                     AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
                     AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
 
-                    // [AllGather] 3. Start ShmemMTEGetMemNBI
-                    ShmemMTEGetMemNBI(params.destination[outputElemOffset], peerMem[inputElemOffset], inputBuffer, copySize, mRankIdx % rankSize, EVENT_ID0);
+                    // [AllGather] 3. Start shmem_mte_get_mem_nbi
+                    shmem_mte_get_mem_nbi(params.destination[outputElemOffset], peerMem[inputElemOffset], inputBuffer, copySize, mRankIdx % rankSize, EVENT_ID0);
                 
                     // [AllGather] 4. Wait CopyFlag
                     AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);

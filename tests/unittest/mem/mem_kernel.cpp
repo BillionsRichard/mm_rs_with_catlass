@@ -60,7 +60,7 @@ public:
         __ubuf__ float *buf = (__ubuf__ float *)bufTensor.address_.bufferAddr;
 
         for (int i = 0; i < rankSize; i++) {
-            ShmemMTEGetMemNBI(devGm + 16 * i, gvaGm, buf, (uint32_t)256, 16, i % rankSize, EVENT_ID0);
+            shmem_mte_get_mem_nbi(devGm + 16 * i, gvaGm, buf, (uint32_t)256, 16, i % rankSize, EVENT_ID0);
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         }

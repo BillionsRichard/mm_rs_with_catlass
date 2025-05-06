@@ -70,7 +70,7 @@ SHMEM_TYPE_FUNC(SHMEM_TYPENAME_G_AICORE);
 
 
 template <typename T>
-SHMEM_DEVICE void ShmemMTEGetMemNBI(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr(src, pe);
     if (ptr == nullptr) return;
@@ -104,7 +104,7 @@ SHMEM_DEVICE void ShmemMTEGetMemNBI(__gm__ T* dst, __gm__ T* src, __ubuf__ T* bu
 
 
 template <typename T>
-SHMEM_DEVICE void ShmemMTEGetMemNBI(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
     if (ptr == nullptr) return;
@@ -140,7 +140,7 @@ SHMEM_DEVICE void ShmemMTEGetMemNBI(AscendC::GlobalTensor<T> dst, AscendC::Globa
 
 
 template <typename T>
-SHMEM_DEVICE void ShmemMTEPutMemNBI(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr(dst, pe);
     if (ptr == nullptr) return;
@@ -173,7 +173,7 @@ SHMEM_DEVICE void ShmemMTEPutMemNBI(__gm__ T* dst, __gm__ T* src, __ubuf__ T* bu
 }
 
 template <typename T>
-SHMEM_DEVICE void ShmemMTEPutMemNBI(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
     if (ptr == nullptr) return;
@@ -219,7 +219,7 @@ SHMEM_DEVICE void ShmemMTEPutMemNBI(AscendC::GlobalTensor<T> dst, AscendC::Globa
         uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
         uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                            \
         AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                              \
-        ShmemMTEGetMemNBI(dst, src, reinterpret_cast<__ubuf__ TYPE*>(copyUB), copyUBSize, elemSize, pe, copyEventID);      \
+        shmem_mte_get_mem_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE*>(copyUB), copyUBSize, elemSize, pe, copyEventID);      \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
@@ -240,7 +240,7 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
         ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copyUB);                                              \
         ubTensor.address_.dataLen = deviceState->mteConfig.ubSize;                                                      \
         AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                              \
-        ShmemMTEGetMemNBI(dst, src, ubTensor, elemSize, pe, copyEventID);                                               \
+        shmem_mte_get_mem_nbi(dst, src, ubTensor, elemSize, pe, copyEventID);                                               \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR);
@@ -257,7 +257,7 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR);
         uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
         uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                            \
         AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                              \
-        ShmemMTEPutMemNBI(dst, src, reinterpret_cast<__ubuf__ TYPE*>(copyUB), copyUBSize, elemSize, pe, copyEventID);      \
+        shmem_mte_put_mem_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE*>(copyUB), copyUBSize, elemSize, pe, copyEventID);      \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
@@ -278,7 +278,7 @@ SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
         ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copyUB);                                              \
         ubTensor.address_.dataLen = deviceState->mteConfig.ubSize;                                                      \
         AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                              \
-        ShmemMTEPutMemNBI(dst, src, ubTensor, elemSize, pe, copyEventID);                                               \
+        shmem_mte_put_mem_nbi(dst, src, ubTensor, elemSize, pe, copyEventID);                                               \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM_TENSOR);
