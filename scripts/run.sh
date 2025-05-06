@@ -8,6 +8,7 @@ set -e
 RANK_SIZE="8"
 IPPORT="tcp://127.0.0.1:8666"
 GNPU_NUM="8"
+TEST_FILTER="*.*"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -38,6 +39,15 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        -test_filter)
+            if [ -n "$2" ]; then
+                TEST_FILTER="*$2*"
+                shift 2
+            else
+                echo "Error: -test_filter requires a value."
+                exit 1
+            fi
+            ;;
         *)
             echo "Error: Unknown option $1."
             exit 1
@@ -46,6 +56,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 export LD_LIBRARY_PATH=$(pwd)/install/shmem/lib:${ASCEND_HOME_PATH}/lib64:$(pwd)/install/memfabric_hybrid/lib:$LD_LIBRARY_PATH
-./build/bin/shmem_unittest "$RANK_SIZE" "$IPPORT" "$GNPU_NUM"
+GTEST_FILTER=${TEST_FILTER} ./build/bin/shmem_unittest "$RANK_SIZE" "$IPPORT" "$GNPU_NUM" --gtest_output=xml:test_detail.xml
 
 cd ${CURRENT_DIR}
