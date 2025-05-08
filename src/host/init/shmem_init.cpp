@@ -188,7 +188,7 @@ int32_t shmem_set_attr(int32_t myRank, int32_t nRanks, uint64_t localMemSize, co
     return SHMEM_SUCCESS;
 }
 
-int32_t shmem_init_attributes()
+int32_t shmem_init_status()
 {
     if (!shm::gState.isShmemCreated) return SHMEM_STATUS_NOT_INITALIZED;
     else if (!shm::gState.isShmemInitialized) return SHMEM_STATUS_SHM_CREATED;

@@ -1,63 +1,111 @@
-使用方式：开发自测试用
+SHMEM
+===
 
-1.将稳定版本解压到3rdparty目录下
+## 介绍
+本系统主要面向昇腾平台上的模型和算子开发者，提供便携易用的多机多卡内存访问方式，方便用户开发在卡间同步数据，加速通信或通算融合类算子开发。  
 
-2.bash scripts/build.sh
+## 软件架构
+共享内存库接口主要分为host和device接口部分：
+- host侧接口提供初始化、内存管理、通信域管理以及同步功能。
+- device侧接口提供内存访问、同步以及通信域管理功能。
 
-3.bash scripts/run.sh
+## 目录结构说明
+详细介绍见[code_organization](docs/code_organization.md)
+``` 
+├── 3rdparty // 依赖的第三方库
+├── docs     // 文档
+├── examples // 使用样例
+├── include  // 头文件
+├── scripts  // 相关脚本
+├── src      // 源代码
+└── tests    // 测试用例
+```
 
-跑默认8卡用例
+## 软件硬件配套说明
+- 硬件型号支持 
+  - Atlas 800I A2/A3/A5 系列产品
+  - Atlas 800T A2/A3/A5 系列产品
+- 平台：aarch64/x86
+- 配套软件：CANN 8.2.0.0及之后版本（参考《[CANN软件安装指南](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/81RC1alpha002/softwareinst/instg/instg_0000.html?Mode=PmIns&OS=Ubuntu&Software=cannToolKit)》安装CANN开发套件包以及配套固件和驱动）  
+cmake >= 3.19
 
-4.bash scripts/run.sh -ranks 8 -ipport tcp://127.0.0.1:8666 -gnpus 8
+## 快速上手
+详细请参考[quickstart](docs/quickstart.md)  
+ - 设置环境变量<br>
+    ```sh
+    # root用户安装（默认路径）
+    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    ```
+ - 共享内存库编译<br>
+    编译共享内存库，设置共享内存库环境变量：
+    ```sh
+    cd shmem
+    bash scripts/build.sh
+    source install/set_env.sh
+    ```
+ - run包使用<br>
+    软件包名为：SHMEM_{version}_linux-{arch}.run <br>
+    其中，{version}表示软件版本号，{arch}表示CPU架构。<br>
+    安装run包（需要依赖cann环境）<br>
 
-run.sh目前支持-ranks -ipport -gnpus三个入参分别设置总rank数，ip和端口，单机卡数。
+    ```sh
+    chmod +x 软件包名.run # 增加对软件包的可执行权限
+    ./软件包名.run --check # 校验软件包安装文件的一致性和完整性
+    ./软件包名.run --install # 安装软件，可使用--help查询相关安装选项
+    ```
+    出现提示`xxx install success!`则安装成功
 
-不输入参数时各参数默认值分别为8，tcp://127.0.0.1:8666，8。
+执行一个样例matmul_allreduce算子。  
+1.在3rdparty目录下, clone AscendC Templates代码仓：
 
+```sh
+git clone https://gitee.com/ascend/ascendc-templates.git
+```
 
-用户使用指南：
-1. 下载代码 （直接使用SHMEM交付件开发算子的场景，可以跳过这个步骤1和2）
-   下载代码请复制以下命令到终端执行
-   git clone https://gitee.com/ascend/shmem.git
+2.在example/matmul_allreduce目录下进行demo编译: 
 
-2. 编译SHMEM
-   a. 确保编译机上正确安装了CANN。对于内部用户， 可以执行下面的命令快速安装：
-       cd /opt/package/
-       bash install_and_enavle_cann.sh
-       source /usr/local/Ascend/ascend-toolkit/set_env.sh
-   b. 获取依赖包 memfibric_bybrid.zip, 并解压到 SHMEMd的3rdparty目录下
-       正式获取地址：待补充
-       解压方式： unzip memfibric_bybrid.zip
-   c. 编译SHMEM
-       SHMEM提供了完整的编译脚本， 直接在编译机的终端运行下面的脚本即可
-       sh scripts/build.sh
+```sh
+bash build.sh
+```
 
-3. 拷贝SHMEM的输出到算子编译环境
-   a. 当前SHMEM的输出在 output目录下， 包含静态编译文件lib/*, 对外头文件include/*。 需要统一拷贝。
-   
-        (base) [root@AscendLab-247 install]# ls
-        include  lib  lib64
-        (base) [root@AscendLab-247 install]# ls include/
-        constants.h  data_utils.h  mem_device.h  mem.h  shmem_api.h  shmem_device_api.h  shmem_heap.h  team_device.h  team.h  test_scalar_npu  types.h
-        (base) [root@AscendLab-247 install]# ls lib
-        libshmem.so  libtest_scalar_npu.so
-        (base) [root@AscendLab-247 install]# ls lib64
-        libtest_scalar_npu.so
+3.在example/matmul_allreduce目录下生成golden数据：
 
-   b. 用户从网页上获取所有SHMEM的压缩包 shmem.zip
-      获取地址：待补充
+```sh
+python3 utils/gen_data.py 1 2 1024 1024 16 0 0
+```
+
+4.在example/matmul_allreduce目录执行demo：
+
+```sh
+bash run.sh
+```
+5.在example/matmul_allreduce目录验证算子精度：
     
-   
-4. 编码算子文件。 具体示例可以参考本仓 test/test_barrier/ 中的源码
+```sh
+python3 utils/verify_result.py ./out/output.bin ./out/golden.bin 1 1024 1024 16
+```
+## 功能自测用例
 
-5. 编译算子工程
-   编译算子代码时， 需要使用到之前SHMEM的编译结果。 建议从按照3.b 指示的路径获取标准包。并将其解压
-   a. 获取SHMEM的标准包 shmem.zip
-   b. 将上述获取到的shmem.zip 解压到待编译算子工程的某个目录， 下面以 3rdparty为例
-       cd 3rdparty
-       unzip shmem.zip 
-   c. 编写CMakeList.txt, 使 include路径包含SHMEM的头文件。
-       参考 test/test_barrier/CMakeList.txt
-   注意： 这里可以选择静态链接方式将shmem.a编译到算子so文件中， 也可以选在动态链接，在后续加载时链接到shmem.so
-6. 加载
-   如果动态方式， 则还需要将shmem加载到执行机上。
+ - 共享内存库接口单元测试
+在工程目录下执行
+```sh
+bash scripts/build.sh
+bash scripts/run.sh
+```
+run.sh脚本提供-ranks -ipport -test_filter等参数自定义执行用例的卡数、ip端口、gtest_filter等  
+
+例
+
+```sh
+# 8卡，ip:port 127.0.0.1:8666，运行所有*Init*用例
+bash scripts/run.sh -ranks 8 -ipport tcp://127.0.0.1:8666 -test_filter Init
+```
+
+## 合作贡献者
+待补充
+
+## 版权声明
+待补充
+
+## 许可证
+待补充

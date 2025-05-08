@@ -12,7 +12,7 @@ extern "C" {
  * @param 
  * @return 返回初始化的状态，SHMEM_STATUS_IS_INITALIZED为初始化完成
  */
-SHMEM_HOST_API int shmem_init_attributes();
+SHMEM_HOST_API int shmem_init_status();
 
 /**
  * @brief 设置初始化接口使用的默认ATTR

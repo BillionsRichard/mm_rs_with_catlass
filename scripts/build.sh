@@ -32,6 +32,11 @@ function fn_make_run_package()
         echo "it is not system of x86_64 or aarch64"
         exit 1
     fi
+    if [ -d "$OUTPUT_DIR/$ARCH" ]; then
+        echo "$OUTPUT_DIR/$ARCH already exists."
+        rm -rf "$OUTPUT_DIR/$ARCH"
+        echo "$OUTPUT_DIR/$ARCH is deleted."
+    fi
     branch=$(git symbolic-ref -q --short HEAD || git describe --tags --exact-match 2> /dev/null || echo $branch)
     commit_id=$(git rev-parse HEAD)
     touch $OUTPUT_DIR/version.info
