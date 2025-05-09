@@ -19,7 +19,7 @@ enum {
  - myRank 当前rank
  - nRanks 总rank数
  - localMemSize 当前rank占用的内存大小
- - ipPort sever的ip和端口号，tcp:://ip:port 例如 tcp://127.0.0.1:8666 
+ - ipPort sever的ip和端口号，tcp://ip:port 例如 tcp://127.0.0.1:8666 
  - attributes 出参，获取到全局attributes的指针
  - retuen 如果成功返回SHMEM_SUCCESS
 ```c++
