@@ -27,7 +27,8 @@ SHMEM
   - Atlas 800T A2/A3/A5 系列产品
 - 平台：aarch64/x86
 - 配套软件：CANN 8.2.0.0及之后版本（参考《[CANN软件安装指南](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/81RC1alpha002/softwareinst/instg/instg_0000.html?Mode=PmIns&OS=Ubuntu&Software=cannToolKit)》安装CANN开发套件包以及配套固件和驱动）  
-cmake >= 3.19
+cmake >= 3.19  
+GLIBC >= 2.28
 
 ## 快速上手
 详细用例介绍请参考[quickstart](docs/quickstart.md)  
