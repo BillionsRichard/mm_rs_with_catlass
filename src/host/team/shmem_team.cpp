@@ -150,9 +150,14 @@ int32_t ShmemiTeamFinalize()
 int32_t shmem_team_split_strided(
         shmem_team_t parentTeam,
         int32_t peStart, int32_t peStride, int32_t peSize,
-        shmem_team_t &newTeam)
+        shmem_team_t *newTeam)
 {
-    newTeam = SHMEM_TEAM_INVALID;
+    if (newTeam == nullptr) {
+        SHM_LOG_ERROR("output team is null.");
+        return SHMEM_INVALID_PARAM;
+    }
+
+    *newTeam = SHMEM_TEAM_INVALID;
     if (!shm::IsValidTeam(parentTeam)) {
         SHM_LOG_ERROR("input parent team is invalid!, team: " << parentTeam);
         return SHMEM_INVALID_PARAM;
@@ -207,7 +212,7 @@ int32_t shmem_team_split_strided(
         SHM_LOG_ERROR("create team failed, update state failed!");
         return SHMEM_INNER_ERROR;
     }
-    newTeam = myTeam.teamIdx;
+    *newTeam = myTeam.teamIdx;
     return 0;
 }
 
