@@ -102,67 +102,47 @@ bash build.sh
 SHMEM的通信域管理接口
 
 ### `SHMEM_HOST_API int shmem_team_split_strided(shmem_team_t parentTeam, int peStart, int peStride, int peSize, shmem_team_t &newTeam)`
-team的划分和创建接口。
+team的划分和创建接口。从现有的父通信域中创建一个新的通信域。新的通信域由`(start,stride,size)`三元组定义
  - parentTeam 父通信域
- - peStart 新通信域初始pe
- - peStride pe间隔
- - peSize pe数量
+ - peStart 父通信域组成新通信域PE子集中的最低PE编号
+ - peStride 组成新通信域时父通信域间PE的跨度
+ - peSize 组成新通信域中来自父通信域的PE数量
  - newTeam 新通信域
  - retuen 如果成功返回SHMEM_SUCCESS
 
 ### `SHMEM_HOST_API int shmem_team_translate_pe(shmem_team_t srcTeam, int srcPe, shmem_team_t destTeam)`
-获取srcPe在目标team的编号。
- - srcTeam 
- - srcPe 
- - destTeam 
- - retuen 
-
-### `SHMEM_HOST_API void shmem_team_destroy(shmem_team_t team)`
-team销毁。
- - team 销毁的team
+### `SHMEM_DEVICE int shmem_team_translate_pe(shmem_team_t srcTeam, int srcPe, shmem_team_t destTeam)`
+将srcTeam中的PE编号转换成destTeam中相应的PE编号。
+ - srcTeam 源team
+ - srcPe 源PE
+ - destTeam 目标team
+ - retuen destTeam的PE编号
 
 ### `SHMEM_HOST_API int shmem_my_pe()`
-获取当前pe。
- - retuen 当前pe
-
-### `SHMEM_HOST_API int shmem_n_pes()`
-获取pe总数。
- - retuen pe总数
-
-### `SHMEM_HOST_API int shmem_team_my_pe(shmem_team_t team)`
-获取当前pe在目标team内的编号。
- - team 目标team
- - retuen pe编号
-
-### `SHMEM_HOST_API int shmem_team_n_pes(shmem_team_t team)`
-获取目标team内的pe总数。
- - team 目标team
- - retuen pe总数
-
 ### `SHMEM_DEVICE int shmem_my_pe(void)`
 获取当前pe。
  - retuen 当前pe
 
+### `SHMEM_HOST_API int shmem_n_pes()`
 ### `SHMEM_DEVICE int shmem_n_pes(void)`
 获取pe总数。
  - retuen pe总数
 
+### `SHMEM_HOST_API int shmem_team_my_pe(shmem_team_t team)`
 ### `SHMEM_DEVICE int shmem_team_my_pe(shmem_team_t team)`
 获取当前pe在目标team内的编号。
  - team 目标team
  - retuen pe编号
 
+### `SHMEM_HOST_API int shmem_team_n_pes(shmem_team_t team)`
 ### `SHMEM_DEVICE int shmem_team_n_pes(shmem_team_t team)`
 获取目标team内的pe总数。
  - team 目标team
  - retuen pe总数
 
-### `SHMEM_DEVICE int shmem_team_translate_pe(shmem_team_t srcTeam, int srcPe, shmem_team_t destTeam)`
-获取srcPe在目标team的编号。
- - srcTeam 
- - srcPe 
- - destTeam 
- - retuen 
+### `SHMEM_HOST_API void shmem_team_destroy(shmem_team_t team)`
+team销毁。
+ - team 销毁的team
 
 ## Mem API
 SHMEM的内存管理接口
@@ -191,52 +171,75 @@ SHMEM的内存管理接口
 ## Rma API
 SHMEM的远端内存访问接口
 
-### `SHMEM_HOST_API void* shmem_ptr(void *ptr, int pe)`
-计算ptr地址在目标pe上的对称地址。
- - ptr
- - pe
-
 ### `SHMEM_HOST_API int shmem_mte_set_ub_params(uint64_t offset, uint32_t ubSize, uint32_t eventID)`
 mte ub参数设置。
- - offset 
- - ubSize 
- - eventID 
+ - offset 偏移量
+ - ubSize UB大小
+ - eventID event id 
 
+### `SHMEM_HOST_API void* shmem_ptr(void *ptr, int pe)`
 ### `SHMEM_DEVICE __gm__ void* shmem_ptr(__gm__ void* ptr, int pe)`
 计算ptr地址在目标pe上的对称地址。
- - ptr
- - pe
+ - ptr 要引用的可远程访问数据对象的对称地址
+ - pe 要访问ptr的PE编号
+ - return 返回指向该对象的本地指针，不能远程访问时返回空指针
 
-### 待补充
+### `SHMEM_DEVICE void shmem_##NAME##_p(__gm__ TYPE* dst, const TYPE value, int pe)`
+TYPE是标准RMA类型之一，有由表指定指定的对应的NAME。
+为基本类型的单个元素提供了低延迟的put功能。
+ - dst 目的数据对象的对称地址
+ - value 要传递给dst的值
+ - pe 远端PE编号
+
+### `SHMEM_DEVICE TYPE shmem_##NAME##_g(__gm__ TYPE* src, int32_t pe)`
+TYPE是标准RMA类型之一，有由表指定指定的对应的NAME。
+为基本类型的单个元素提供了低延迟的get功能。
+ - src 源数据对象的对称地址
+ - pe 源所在对端PE编号
+ - return 返回指定类型的单个元素
+
+### `SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elemSize, int32_t pe)`
+### `SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, uint32_t elemSize, int pe)`
+TYPE是标准RMA类型之一，有由表指定指定的对应的NAME。
+将src上的数据拷贝到dst的数组中。启动操作后返回。后续调用`shmem_quiet()`后认为操作完成。
+ - dst 目的数据对象的对称地址
+ - src 源数据对象的对称地址
+ - elemSize dst和src数组中的元素个数
+ - pe 远端PE编号
+
+### `SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elemSize, int32_t pe)`
+### `SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, uint32_t elemSize, int pe)`
+TYPE是标准RMA类型之一，有由表指定指定的对应的NAME。
+将相邻对称数据从不同PE复制到本地PE上。启动操作后返回。后续调用`shmem_quiet()`后认为操作完成。
+ - dst 目的数据对象的对称地址
+ - src 源数据对象的对称地址
+ - elemSize dst和src数组中的元素个数
+ - pe 远端PE编号
+
 
 ## Sync API
 SHMEM的同步管理接口
 
 ### `SHMEM_HOST_API void shmem_barrier_on_stream(shmem_team_t tid, aclrtStream stream)`
-stream team 同步。
- - tid
- - stream
+stream 上同步team 上所有的PE。
+ - tid 需要同步的team对应的id
+ - stream 对应的stream
 
 ### `SHMEM_HOST_API void shmem_barrier_all_on_stream(aclrtStream stream)`
-stream同步。
- - stream
+stream上同步所有PE。
+ - stream 对应的stream。
 
 ### `SHMEM_HOST_API void shmem_barrier(shmem_team_t tid)`
-team同步
- - tid
+### `SHMEM_DEVICE void shmem_barrier(shmem_team_t tid)`
+team的所有PE同步。当team的所有PE都调用shmem_barrier后返回。
+ - tid 需要同步的team对应的id
 
 ### `SHMEM_HOST_API void shmem_barrier_all()`
-全局同步。
-
-### `SHMEM_DEVICE void shmem_barrier(shmem_team_t tid)`
-team同步
- - tid
-
 ### `SHMEM_DEVICE void shmem_barrier_all()`
-全局同步。
+同步所有PE。阻塞调用的PE直到所有PE都调用shmem_barrier_all。
 
 ### `SHMEM_DEVICE void shmem_quiet()`
-等待内存访问完成
+确保PE上的操作执行完成
 
 ### `SHMEM_DEVICE void shmem_fence()`
-等待内存访问完成
+确保PE上操作的传递顺序
