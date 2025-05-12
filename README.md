@@ -30,7 +30,8 @@ SHMEM
 cmake >= 3.19
 
 ## 快速上手
-详细请参考[quickstart](docs/quickstart.md)  
+详细用例介绍请参考[quickstart](docs/quickstart.md)  
+详细API介绍请参考[API](docs/api.md)  
  - 设置环境变量<br>
     ```sh
     # root用户安装（默认路径）

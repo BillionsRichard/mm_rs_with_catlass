@@ -168,7 +168,7 @@ SHMEM的内存管理接口
 释放分配的内存。
  - ptr 内存块的指针
 
-## Rma API
+## RMA API
 SHMEM的远端内存访问接口
 
 ### `SHMEM_HOST_API int shmem_mte_set_ub_params(uint64_t offset, uint32_t ubSize, uint32_t eventID)`
