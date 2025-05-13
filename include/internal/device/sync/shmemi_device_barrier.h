@@ -1,9 +1,8 @@
 /*  
 This file provides device-side collective synchronization implementations, ensuring that:
-1. all ranks of a team reach a sychonization point before doing subsequent operations.
-2. all REMOTE operations of all ranks of the team before the synchronization point are visible to all ranks of the team after the synchronization point.
+1. ALL VEC CORES of all ranks of a team reach a sychonization point before doing subsequent operations.
+2. All operations of ALL VEC CORES of all ranks of the team before the synchronization point are visible to ALL VEC CORES of all ranks of the team after the synchronization point.
 
-Be careful that synchronization between blocks is not guaranteed.
 */
 
 #ifndef SHEMEI_BARRIER_H
@@ -15,7 +14,7 @@ Be careful that synchronization between blocks is not guaranteed.
 
 #include "kernel_operator.h"
 
-/* Level 1: barrier between cores (within a device) */
+/* Level 1: barrier between vec cores (within a device) */
 SHMEM_DEVICE void ShmemiBarrierCore() {
     AscendC::SyncAll<true>();
 }
