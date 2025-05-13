@@ -31,9 +31,15 @@ bash run.sh
 提供多种参数支持自定义用例执行
 ```sh
 -ranks          # 总rank数
+-frank          # 该服务器第一个rank
 -ipport         # ip端口
--gnpus          # 单机卡数
+-fnpu           # 每个服务器起的第一个npu
+-gnpus          # 单机使用的卡数
 -test_filter    # gtest_filter
+
+# 例如
+bash run.sh -ranks 4 -fnpu 2 -gnpus 4 -test_filter ScalarP # 会在2-6卡
+
 ```
 
 ## set_env.sh

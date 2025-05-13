@@ -91,7 +91,7 @@ python3 utils/verify_result.py ./out/output.bin ./out/golden.bin 1 1024 1024 16
  - 共享内存库接口单元测试
 在工程目录下执行
 ```sh
-bash scripts/build.sh
+bash scripts/build.sh -uttests
 bash scripts/run.sh
 ```
 run.sh脚本提供-ranks -ipport -test_filter等参数自定义执行用例的卡数、ip端口、gtest_filter等  

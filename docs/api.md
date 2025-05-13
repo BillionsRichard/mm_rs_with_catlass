@@ -44,9 +44,13 @@ typedef struct {
 #include "shmem_api.h"
 aclInit(nullptr);
 status = aclrtSetDevice(deviceId);
+
 shmem_init_attr_t* attributes;
 shmem_set_attr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
-status = shmem_init();
+// shmem_init_attr_t* attributes = new shmem_init_attr_t{0, rankId, nRanks, testGlobalIpport, localMemSize, {SHMEM_DATA_OP_MTE, 120, 120, 120}}; // 自定义attr
+shmem_init_attr(attributes);
+// delete attributes; // 销毁自定义attr
+
 status = shmem_init_status();
 if (status == SHMEM_STATUS_IS_INITALIZED) {
     std::cout << "Init success!" << std::endl;
@@ -57,6 +61,7 @@ if (status == SHMEM_STATUS_IS_INITALIZED) {
 status = shmem_finalize();
 aclrtResetDevice(deviceId);
 aclFinalize();
+
 ```
 样例见[helloworld](../examples/helloworld)
 
@@ -64,30 +69,6 @@ aclFinalize();
 
 ```sh
 bash build.sh
-```
-### 自定义attributes初始化样例
-```c++
-#include <iostream>
-#include <unistd.h>
-#include <acl/acl.h>
-#include "shmem_api.h"
-aclInit(nullptr);
-status = aclrtSetDevice(deviceId);
-
-shmem_init_attr_t* attributes = new shmem_init_attr_t{0, rankId, nRanks, testGlobalIpport, localMemSize, {SHMEM_DATA_OP_MTE, 120, 120, 120}};
-status = shmem_init_attr(attributes);
-
-status = shmem_init_status();
-if (status == SHMEM_STATUS_IS_INITALIZED) {
-    std::cout << "Init success!" << std::endl;
-}
-//################你的任务#################
-
-//#########################################
-status = shmem_finalize();
-aclrtResetDevice(deviceId);
-aclFinalize();
-delete attributes;
 ```
 
 ## Team API
