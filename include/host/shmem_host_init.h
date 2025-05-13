@@ -28,29 +28,32 @@ SHMEM_HOST_API int shmem_set_attr(int myRank, int nRanks, uint64_t localMemSize,
 
 /**
  * @brief Modify the data operation engine type in the attributes that will be used for initialization.
- *        Default data operation engine type: SHMEM_DATA_OP_MTE
+ *        If this method is not used, the default dataOpEngineType value is SHMEM_DATA_OP_MTE
+ *        if method <b>shmem_set_attr</b> is used after this method, the dataOpEngineType param will be overwritten by the default value.
  *
- * @param attributes Pointer to the attributes to modify the data operation engine type
- * @param value Value of data operation engine type
+ * @param attributes        [in] Pointer to the attributes to modify the data operation engine type
+ * @param value             [in] Value of data operation engine type
  * @return Returns 0 on success or an error code on failure
  */
 SHMEM_HOST_API int shmem_set_data_op_engine_type(shmem_init_attr_t *attributes, data_op_engine_type_t value);
 
 /**
  * @brief Modify the timeout in the attributes that will be used for initialization.
- *        Default timeout: 120
+ *        If this method is not used, the default timeout value is 120
+ *        if method <b>shmem_set_attr</b> is used after this method, the timeout param will be overwritten by the default value.
  *
- * @param attributes Pointer to the attributes to modify the data operation engine type
- * @param value Value of timeout
+ * @param attributes        [in] Pointer to the attributes to modify the data operation engine type
+ * @param value             [in] Value of timeout
  * @return Returns 0 on success or an error code on failure
  */
 SHMEM_HOST_API int shmem_set_timeout(shmem_init_attr_t *attributes, uint32_t value);
 
 /**
- * @brief Initialization based on user-defined attributes.
- *        The default attributes is automatically used when the value is a null pointer.
+ * @brief Initialization based on attributes and build the shmem library.
+ *        Attributes can be created by users or obtained by calling <b>shmem_set_attr</b>.
+ *        The default attributes is automatically used when the attributes value is a null pointer.
  *
- * @param attributes Pointer to the user-defined attributes.
+ * @param attributes        [in] Pointer to the user-defined attributes.
  * @return Returns 0 on success or an error code on failure
  */
 SHMEM_HOST_API int shmem_init(shmem_init_attr_t *attributes = nullptr);
