@@ -7,7 +7,7 @@
     2. Unlike semantic of legacy barrier:
             All operations of all ranks of a team before the barrier are visiable to all ranks of the team after the barrier.
         Our implementation ensures that:
-            All operations of ALL VEC CORES of all ranks of a team before the barrier are visiable to ALL VEC CORES of all ranks of the team after the barrier.
+            All operations of ALL VEC CORES of all ranks of a team ON EXCUTING STREAM before the barrier are visiable to ALL VEC CORES of all ranks of the team after the barrier.
         
         This subtle difference is beneficial to compute-communiction overlapping (usually UNI_DIRECTIONAL dependency), and could achieve better performance.
         
@@ -40,7 +40,7 @@
             }
         Moreover, double buffer can be used to increase parallism.
 
-    3. In case that legacy barrier is needed, it can be implemented easily as below:
+    3. In case that legacy barrier is needed, it can be implemented as below:
             SHMEM_DEVICE void legacy_barrier() {
                 if ASCEND_IS_AIC {
                     PipeBarrier<PIPE_ALL>();
@@ -54,7 +54,9 @@
                     CrossCoreSetFlag<0x02, PIPE_MTE3>(SYNC_AIC_AIV_FLAG);
                 }
             }
-        But even though, scalar unit of cube core is not affected by barrier. Make sure don't use that.
+        Even though, scalar unit of cube core is not affected by barrier. Make sure don't use that.
+
+    4. Barrier APIs conflict with SyncAll. Avoid mixing them together.
 */
 
 #ifndef SHMEM_DEVICE_SYNC_H
