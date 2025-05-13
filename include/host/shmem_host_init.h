@@ -8,56 +8,66 @@ extern "C" {
 #endif
 
 /**
- * @brief 查询当前初始化状态
+ * @brief Query the current initialization status.
+ *
  * @param 
- * @return 返回初始化的状态，SHMEM_STATUS_IS_INITALIZED为初始化完成
+ * @return Returns initialization status. Returning SHMEM_STATUS_IS_INITALIZED indicates that initialization is complete.
  */
 SHMEM_HOST_API int shmem_init_status();
 
 /**
- * @brief 设置初始化接口使用的默认ATTR
- * @param myRank 当前rank
- * @param nRanks 总rank数
- * @param localMemSize 当前rank占用的内存大小
- * @param ipPort sever的ip和端口号，例如 tcp://ip:port
- * @param attributes 出参，获取到全局attributes的指针
- * @return 如果成功返回SHMEM_SUCCESS
+ * @brief Set the default attributes to be used in <b>shmem_init</b>.
+ * @param myRank            [in] Current rank
+ * @param nRanks            [in] Total number of ranks
+ * @param localMemSize      [in] The size of shared memory currently occupied by current rank
+ * @param ipPort            [in] The ip and port number of the sever, e.g. tcp://ip:port
+ * @param attributes        [out] Pointer to the default attributes used for initialization
+ * @return Returns 0 on success or an error code on failure
  */
 SHMEM_HOST_API int shmem_set_attr(int myRank, int nRanks, uint64_t localMemSize, const char* ipPort, shmem_init_attr_t **attributes);
 
 /**
- * @brief 修改attr的data operation engine type
- * @param attributes 要修改可选参数的attr
- * @param value 要修改的值
- * @return 如果成功返回SHMEM_SUCCESS
+ * @brief Modify the data operation engine type in the attributes that will be used for initialization.
+ *        Default data operation engine type: SHMEM_DATA_OP_MTE
+ *
+ * @param attributes Pointer to the attributes to modify the data operation engine type
+ * @param value Value of data operation engine type
+ * @return Returns 0 on success or an error code on failure
  */
 SHMEM_HOST_API int shmem_set_data_op_engine_type(shmem_init_attr_t *attributes, data_op_engine_type_t value);
 
 /**
- * @brief 修改attr的timeout
- * @param attributes 要修改可选参数的attr
- * @param value 要修改的值
- * @return 如果成功返回SHMEM_SUCCESS
+ * @brief Modify the timeout in the attributes that will be used for initialization.
+ *        Default timeout: 120
+ *
+ * @param attributes Pointer to the attributes to modify the data operation engine type
+ * @param value Value of timeout
+ * @return Returns 0 on success or an error code on failure
  */
 SHMEM_HOST_API int shmem_set_timeout(shmem_init_attr_t *attributes, uint32_t value);
 
 /**
- * @brief 根据默认attr的初始化接口
+ * @brief Initialization based on default attributes.
+ *
  * @param 
- * @return 如果成功返回SHMEM_SUCCESS
+ * @return Returns 0 on success or an error code on failure
  */
 SHMEM_HOST_API int shmem_init();
 
 /**
- * @brief 根据指定的attr初始化
- * @param attributes 指定的attr
- * @return 如果成功返回SHMEM_SUCCESS
+ * @brief Initialization based on user-defined attributes.
+ *
+ * @param attributes Pointer to the user-defined attributes.
+ * @return Returns 0 on success or an error code on failure
  */
 SHMEM_HOST_API int shmem_init_attr(shmem_init_attr_t *attributes);
+
 /**
- * @brief 去初始化接口
+ * @brief Ends the program previously initialized by <b>shmem_init</b> or <b>shmem_init_attr</b>.
+ *        Release all resources used by the SHMEM library.
+ *
  * @param 
- * @return 如果成功返回SHMEM_SUCCESS
+ * @return Returns 0 on success or an error code on failure
  */
 SHMEM_HOST_API int shmem_finalize();
 
