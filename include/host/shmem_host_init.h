@@ -31,7 +31,7 @@ SHMEM_HOST_API int shmem_set_attr(int myRank, int nRanks, uint64_t localMemSize,
  *        If this method is not used, the default dataOpEngineType value is SHMEM_DATA_OP_MTE
  *        if method <b>shmem_set_attr</b> is used after this method, the dataOpEngineType param will be overwritten by the default value.
  *
- * @param attributes        [in] Pointer to the attributes to modify the data operation engine type
+ * @param attributes        [in/out] Pointer to the attributes to modify the data operation engine type
  * @param value             [in] Value of data operation engine type
  * @return Returns 0 on success or an error code on failure
  */
@@ -42,7 +42,7 @@ SHMEM_HOST_API int shmem_set_data_op_engine_type(shmem_init_attr_t *attributes, 
  *        If this method is not used, the default timeout value is 120
  *        if method <b>shmem_set_attr</b> is used after this method, the timeout param will be overwritten by the default value.
  *
- * @param attributes        [in] Pointer to the attributes to modify the data operation engine type
+ * @param attributes        [in/out] Pointer to the attributes to modify the data operation engine type
  * @param value             [in] Value of timeout
  * @return Returns 0 on success or an error code on failure
  */
