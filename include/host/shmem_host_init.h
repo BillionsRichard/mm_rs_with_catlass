@@ -47,23 +47,16 @@ SHMEM_HOST_API int shmem_set_data_op_engine_type(shmem_init_attr_t *attributes, 
 SHMEM_HOST_API int shmem_set_timeout(shmem_init_attr_t *attributes, uint32_t value);
 
 /**
- * @brief Initialization based on default attributes.
- *
- * @param 
- * @return Returns 0 on success or an error code on failure
- */
-SHMEM_HOST_API int shmem_init();
-
-/**
  * @brief Initialization based on user-defined attributes.
+ *        The default attributes is automatically used when the value is a null pointer.
  *
  * @param attributes Pointer to the user-defined attributes.
  * @return Returns 0 on success or an error code on failure
  */
-SHMEM_HOST_API int shmem_init_attr(shmem_init_attr_t *attributes);
+SHMEM_HOST_API int shmem_init(shmem_init_attr_t *attributes = nullptr);
 
 /**
- * @brief Ends the program previously initialized by <b>shmem_init</b> or <b>shmem_init_attr</b>.
+ * @brief Ends the program previously initialized by <b>shmem_init</b>.
  *        Release all resources used by the SHMEM library.
  *
  * @param 

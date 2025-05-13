@@ -48,7 +48,7 @@ status = aclrtSetDevice(deviceId);
 shmem_init_attr_t* attributes;
 shmem_set_attr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
 // shmem_init_attr_t* attributes = new shmem_init_attr_t{0, rankId, nRanks, testGlobalIpport, localMemSize, {SHMEM_DATA_OP_MTE, 120, 120, 120}}; // 自定义attr
-shmem_init_attr(attributes);
+shmem_init(attributes);
 // delete attributes; // 销毁自定义attr
 
 status = shmem_init_status();

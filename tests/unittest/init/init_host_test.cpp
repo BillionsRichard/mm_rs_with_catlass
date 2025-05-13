@@ -46,7 +46,7 @@ void TestShmemInitAttrT(int rankId, int nRanks, uint64_t localMemSize) {
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
 
     shmem_init_attr_t* attributes = new shmem_init_attr_t{0, rankId, nRanks, testGlobalIpport, localMemSize, {SHMEM_DATA_OP_MTE, 120, 120, 120}};
-    status = shmem_init_attr(attributes);
+    status = shmem_init(attributes);
 
     EXPECT_EQ(status, SHMEM_SUCCESS);
     EXPECT_EQ(shm::gState.mype, rankId);
