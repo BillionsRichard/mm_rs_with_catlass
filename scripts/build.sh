@@ -91,6 +91,7 @@ function fn_build_googletest()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -uttests)
+            fn_build_googletest
             COMPILE_OPTIONS="${COMPILE_OPTIONS} -DUSE_UNIT_TEST=ON"
             shift
             ;;
@@ -102,7 +103,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 set -e
-fn_build_googletest
+
 rm -rf build
 mkdir -p build
 
