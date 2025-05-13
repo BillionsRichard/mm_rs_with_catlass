@@ -186,7 +186,7 @@ int32_t shmem_set_attr(int32_t myRank, int32_t nRanks, uint64_t localMemSize, co
     shm::gAttr.ipPort = ipPort;
     shm::gAttr.localMemSize = localMemSize;
     shm::gAttr.optionAttr = {SHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
-    gAttrInit = true;
+    shm::gAttrInit = true;
     return SHMEM_SUCCESS;
 }
 
@@ -201,7 +201,7 @@ int32_t shmem_init_status()
 int32_t shmem_init(shmem_init_attr_t *attributes)
 {
     int32_t ret;
-    if (attributes == nullptr && gAttrInit) {
+    if (attributes == nullptr && shm::gAttrInit) {
         attributes = &shm::gAttr;
     }
     SHM_ASSERT_RETURN(attributes != nullptr, SHMEM_INVALID_PARAM);
