@@ -6,6 +6,7 @@
 int testGlobalRanks;
 int testGNpuNum;
 const char* testGlobalIpport;
+int testFirstRank;
 int testFirstNpu;
 
 void TestInit(int rankId, int nRanks, uint64_t localMemSize, aclrtStream *st)
@@ -18,7 +19,7 @@ void TestInit(int rankId, int nRanks, uint64_t localMemSize, aclrtStream *st)
     }
     EXPECT_EQ(status, 0);
     EXPECT_EQ(aclInit(nullptr), 0);
-    int32_t deviceId = rankId % testGNpuNum;
+    int32_t deviceId = rankId % testGNpuNum + testFirstNpu;
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
     aclrtStream stream = nullptr;
     EXPECT_EQ(status = aclrtCreateStream(&stream), 0);
@@ -47,7 +48,7 @@ void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localM
         if (pids[i] < 0) {
             std::cout << "fork failed ! " << pids[i] << std::endl;
         } else if (pids[i] == 0) {
-            func(i + testFirstNpu, processCount, localMemSize);
+            func(i + testFirstRank, processCount, localMemSize);
             exit(0);
         }
     }
@@ -63,7 +64,8 @@ int main(int argc, char** argv) {
     testGlobalRanks = std::atoi(argv[1]);
     testGlobalIpport = argv[2];
     testGNpuNum = std::atoi(argv[3]);
-    testFirstNpu = std::atoi(argv[4]);
+    testFirstRank = std::atoi(argv[4]);
+    testFirstNpu = std::atoi(argv[5]);
 
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

@@ -7,6 +7,7 @@
 extern int testGlobalRanks;
 extern int testGNpuNum;
 extern const char* testGlobalIpport;
+extern int testFirstNpu;
 extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localMemSize, int processCount);
 
 namespace shm {
@@ -14,7 +15,7 @@ extern shmem_init_attr_t gAttr;
 }
 
 void TestShmemInit(int rankId, int nRanks, uint64_t localMemSize) {
-    uint32_t deviceId = rankId % testGNpuNum;
+    uint32_t deviceId = rankId % testGNpuNum + testFirstNpu;
     int status = SHMEM_SUCCESS;
     EXPECT_EQ(aclInit(nullptr), 0);
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
@@ -40,7 +41,7 @@ void TestShmemInit(int rankId, int nRanks, uint64_t localMemSize) {
 }
 
 void TestShmemInitAttrT(int rankId, int nRanks, uint64_t localMemSize) {
-    uint32_t deviceId = rankId % testGNpuNum;
+    uint32_t deviceId = rankId % testGNpuNum + testFirstNpu;
     int status = SHMEM_SUCCESS;
     EXPECT_EQ(aclInit(nullptr), 0);
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
@@ -69,7 +70,7 @@ void TestShmemInitAttrT(int rankId, int nRanks, uint64_t localMemSize) {
 
 void TestShmemInitInvalidRankId(int rankId, int nRanks, uint64_t localMemSize) {
     int erankId = -1;
-    uint32_t deviceId = rankId % testGNpuNum;
+    uint32_t deviceId = rankId % testGNpuNum + testFirstNpu;
     int status = SHMEM_SUCCESS;
     EXPECT_EQ(aclInit(nullptr), 0);
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
@@ -87,7 +88,7 @@ void TestShmemInitInvalidRankId(int rankId, int nRanks, uint64_t localMemSize) {
 }
 
 void TestShmemInitRankIdOverSize(int rankId, int nRanks, uint64_t localMemSize) {
-    uint32_t deviceId = rankId % testGNpuNum;
+    uint32_t deviceId = rankId % testGNpuNum + testFirstNpu;
     int status = SHMEM_SUCCESS;
     EXPECT_EQ(aclInit(nullptr), 0);
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
@@ -106,7 +107,7 @@ void TestShmemInitRankIdOverSize(int rankId, int nRanks, uint64_t localMemSize) 
 
 void TestShmemInitZeroMem(int rankId, int nRanks, uint64_t localMemSize) {
     //localMemSize = 0
-    uint32_t deviceId = rankId % testGNpuNum;
+    uint32_t deviceId = rankId % testGNpuNum + testFirstNpu;
     int status = SHMEM_SUCCESS;
     EXPECT_EQ(aclInit(nullptr), 0);
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
@@ -125,7 +126,7 @@ void TestShmemInitZeroMem(int rankId, int nRanks, uint64_t localMemSize) {
 
 void TestShmemInitInvalidMem(int rankId, int nRanks, uint64_t localMemSize) {
     //localMemSize = invalid
-    uint32_t deviceId = rankId % testGNpuNum;
+    uint32_t deviceId = rankId % testGNpuNum + testFirstNpu;
     int status = SHMEM_SUCCESS;
     EXPECT_EQ(aclInit(nullptr), 0);
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
@@ -143,7 +144,7 @@ void TestShmemInitInvalidMem(int rankId, int nRanks, uint64_t localMemSize) {
 }
 
 void TestShmemSetConfig(int rankId, int nRanks, uint64_t localMemSize) {
-    uint32_t deviceId = rankId % testGNpuNum;
+    uint32_t deviceId = rankId % testGNpuNum + testFirstNpu;
     int status = SHMEM_SUCCESS;
     EXPECT_EQ(aclInit(nullptr), 0);
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);

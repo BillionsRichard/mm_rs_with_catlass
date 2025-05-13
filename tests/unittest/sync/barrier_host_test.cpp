@@ -10,6 +10,7 @@ using namespace std;
 extern int32_t testGlobalRanks;
 extern int32_t testGNpuNum;
 extern const char* testGlobalIpport;
+extern int testFirstNpu;
 extern void TestMutilTask(std::function<void(int32_t, int32_t, uint64_t)> func, uint64_t localMemSize, int32_t processCount);
 extern void TestInit(int32_t rankId, int32_t nRanks, uint64_t localMemSize, aclrtStream *st);
 extern void TestFinalize(aclrtStream stream, int32_t deviceId);
@@ -42,7 +43,7 @@ static void fetchFlags(uint32_t rankId, int32_t t, void *syncArray, void *syncCo
 static void TestBarrierWhiteBox(int32_t rankId, int32_t nRanks, uint64_t localMemSize)
 {
     ASSERT_EQ(testGNpuNum, 8); // fetchFlags函数仅支持8卡验证
-    int32_t deviceId = rankId % testGNpuNum;
+    int32_t deviceId = rankId % testGNpuNum + testFirstNpu;
     aclrtStream stream;
     TestInit(rankId, nRanks, localMemSize, &stream);
     ASSERT_NE(stream, nullptr);
@@ -86,7 +87,7 @@ static void TestBarrierWhiteBox(int32_t rankId, int32_t nRanks, uint64_t localMe
 }
 
 static void TestBarrierBlackBox(int32_t rankId, int32_t nRanks, uint64_t localMemSize) {
-    int32_t deviceId = rankId % testGNpuNum;
+    int32_t deviceId = rankId % testGNpuNum + testFirstNpu;
     aclrtStream stream;
     TestInit(rankId, nRanks, localMemSize, &stream);
     ASSERT_NE(stream, nullptr);
