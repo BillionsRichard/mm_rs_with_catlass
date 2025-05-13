@@ -50,7 +50,6 @@ add_subdirectory(src/host)
 add_subdirectory(src/device)
 
 if(USE_UNIT_TEST)
-    set(CMAKE_CXX_OUTPUT_EXTENSION_REPLACE 1)
     add_subdirectory(tests)
 endif()
 
