@@ -4,7 +4,6 @@
 #include "shmem_api.h"
 #include "shmemi_host_common.h"
 #include <gtest/gtest.h>
-extern int testGlobalRanks;
 extern int testGNpuNum;
 extern const char* testGlobalIpport;
 extern int testFirstNpu;

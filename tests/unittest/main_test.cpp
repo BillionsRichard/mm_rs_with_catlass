@@ -48,7 +48,7 @@ void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localM
         if (pids[i] < 0) {
             std::cout << "fork failed ! " << pids[i] << std::endl;
         } else if (pids[i] == 0) {
-            func(i + testFirstRank, processCount, localMemSize);
+            func(i + testFirstRank, testGlobalRanks, localMemSize);
             exit(0);
         }
     }

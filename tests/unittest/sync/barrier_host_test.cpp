@@ -7,7 +7,6 @@
 #include "internal/host_device/shmemi_types.h"
 
 using namespace std;
-extern int32_t testGlobalRanks;
 extern int32_t testGNpuNum;
 extern const char* testGlobalIpport;
 extern int testFirstNpu;

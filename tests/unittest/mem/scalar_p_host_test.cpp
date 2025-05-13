@@ -6,7 +6,6 @@ using namespace std;
 #include "shmem_api.h"
 
 #include <gtest/gtest.h>
-extern int testGlobalRanks;
 extern int testGNpuNum;
 extern int testFirstNpu;
 extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localMemSize, int processCount);
