@@ -16,6 +16,8 @@ OUTPUT_DIR=$PROJECT_ROOT/install
 THIRD_PARTY_DIR=$PROJECT_ROOT/3rdparty
 RELEASE_DIR=$PROJECT_ROOT/ci/release
 
+COMPILE_OPTIONS=""
+
 cann_default_path="/usr/local/Ascend/ascend-toolkit"
 
 cd ${PROJECT_ROOT}
@@ -85,13 +87,27 @@ function fn_build_googletest()
     echo "Googletest is successfully installed to $THIRD_PARTY_DIR/googletest"
     cd ${PROJECT_ROOT}
 }
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -uttests)
+            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DUSE_UNIT_TEST=ON"
+            shift
+            ;;
+        *)
+            echo "Error: Unknown option $1."
+            exit 1
+            ;;
+    esac
+done
+
 set -e
 fn_build_googletest
 rm -rf build
 mkdir -p build
 
 cd build
-cmake -DCMAKE_INSTALL_PREFIX=../install ..
+cmake $COMPILE_OPTIONS -DCMAKE_INSTALL_PREFIX=../install ..
 make install -j8
 cd -
 

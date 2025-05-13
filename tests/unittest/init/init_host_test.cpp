@@ -180,49 +180,49 @@ void TestShmemSetConfig(int rankId, int nRanks, uint64_t localMemSize) {
 
 TEST(TestInitAPI, TestShmemInit)
 {   
-    const int processCount = testGlobalRanks;
+    const int processCount = testGNpuNum;
     uint64_t localMemSize = 1024UL * 1024UL * 1024;
     TestMutilTask(TestShmemInit, localMemSize, processCount);
 }
 
 TEST(TestInitAPI, TestShmemInitAttrT)
 {   
-    const int processCount = testGlobalRanks;
+    const int processCount = testGNpuNum;
     uint64_t localMemSize = 1024UL * 1024UL * 1024;
     TestMutilTask(TestShmemInitAttrT, localMemSize, processCount);
 }
 
 TEST(TestInitAPI, TestShmemInitErrorInvalidRankId)
 {   
-    const int processCount = testGlobalRanks;
+    const int processCount = testGNpuNum;
     uint64_t localMemSize = 1024UL * 1024UL * 1024;
     TestMutilTask(TestShmemInitInvalidRankId, localMemSize, processCount);
 }
 
 TEST(TestInitAPI, TestShmemInitErrorRankIdOversize)
 {   
-    const int processCount = testGlobalRanks;
+    const int processCount = testGNpuNum;
     uint64_t localMemSize = 1024UL * 1024UL * 1024;
     TestMutilTask(TestShmemInitRankIdOverSize, localMemSize, processCount);
 }
 
 TEST(TestInitAPI, TestShmemInitErrorZeroMem)
 {   
-    const int processCount = testGlobalRanks;
+    const int processCount = testGNpuNum;
     uint64_t localMemSize = 0;
     TestMutilTask(TestShmemInitZeroMem, localMemSize, processCount);
 }
 
 TEST(TestInitAPI, TestShmemInitErrorInvalidMem)
 {   
-    const int processCount = testGlobalRanks;
+    const int processCount = testGNpuNum;
     uint64_t localMemSize = 1024UL * 1024UL;
     TestMutilTask(TestShmemInitInvalidMem, localMemSize, processCount);
 }
 
 TEST(TestInitAPI, TestSetConfig)
 {   
-    const int processCount = testGlobalRanks;
+    const int processCount = testGNpuNum;
     uint64_t localMemSize = 1024UL * 1024UL * 1024;
     TestMutilTask(TestShmemSetConfig, localMemSize, processCount);
 }

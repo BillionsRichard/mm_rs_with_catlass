@@ -83,7 +83,7 @@ void TestShmemMem(int rankId, int nRanks, uint64_t localMemSize) {
 
 TEST(TestMemApi, TestShmemMem)
 {   
-    const int processCount = testGlobalRanks;
+    const int processCount = testGNpuNum;
     uint64_t localMemSize = 1024UL * 1024UL * 1024;
     TestMutilTask(TestShmemMem, localMemSize, processCount);
 }

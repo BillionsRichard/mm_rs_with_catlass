@@ -117,14 +117,14 @@ static void TestBarrierBlackBox(int32_t rankId, int32_t nRanks, uint64_t localMe
 
 TEST(TestBarrierApi, TestBarrierWhiteBox)
 {
-    const int32_t processCount = testGlobalRanks;
+    const int32_t processCount = testGNpuNum;
     uint64_t localMemSize = 1024UL * 1024UL * 1024;
     TestMutilTask(TestBarrierWhiteBox, localMemSize, processCount);
 }
 
 TEST(TestBarrierApi, TestBarrierBlackBox)
 {
-    const int32_t processCount = testGlobalRanks;
+    const int32_t processCount = testGNpuNum;
     uint64_t localMemSize = 1024UL * 1024UL * 1024;
     TestMutilTask(TestBarrierBlackBox, localMemSize, processCount);
 }
