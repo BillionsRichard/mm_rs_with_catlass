@@ -20,7 +20,7 @@ void TestShmemInit(int rankId, int nRanks, uint64_t localMemSize) {
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
     shmem_init_attr_t* attributes;
     shmem_set_attr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
-    status = shmem_init();
+    status = shmem_init_attr(attributes);
     EXPECT_EQ(status, SHMEM_SUCCESS);
     EXPECT_EQ(shm::gState.mype, rankId);
     EXPECT_EQ(shm::gState.npes, nRanks);
@@ -46,7 +46,7 @@ void TestShmemInitAttrT(int rankId, int nRanks, uint64_t localMemSize) {
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
 
     shmem_init_attr_t* attributes = new shmem_init_attr_t{0, rankId, nRanks, testGlobalIpport, localMemSize, {SHMEM_DATA_OP_MTE, 120, 120, 120}};
-    status = shmem_init(attributes);
+    status = shmem_init_attr(attributes);
 
     EXPECT_EQ(status, SHMEM_SUCCESS);
     EXPECT_EQ(shm::gState.mype, rankId);
@@ -75,7 +75,7 @@ void TestShmemInitInvalidRankId(int rankId, int nRanks, uint64_t localMemSize) {
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
     shmem_init_attr_t* attributes;
     shmem_set_attr(erankId, nRanks, localMemSize, testGlobalIpport, &attributes);
-    status = shmem_init();
+    status = shmem_init_attr(attributes);
     EXPECT_EQ(status, SHMEM_INVALID_VALUE);
     status = shmem_init_status();
     EXPECT_EQ(status, SHMEM_STATUS_NOT_INITALIZED);
@@ -93,7 +93,7 @@ void TestShmemInitRankIdOverSize(int rankId, int nRanks, uint64_t localMemSize) 
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
     shmem_init_attr_t* attributes;
     shmem_set_attr(rankId + nRanks, nRanks, localMemSize, testGlobalIpport, &attributes);
-    status = shmem_init();
+    status = shmem_init_attr(attributes);
     EXPECT_EQ(status, SHMEM_INVALID_PARAM);
     status = shmem_init_status();
     EXPECT_EQ(status, SHMEM_STATUS_NOT_INITALIZED);
@@ -112,7 +112,7 @@ void TestShmemInitZeroMem(int rankId, int nRanks, uint64_t localMemSize) {
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
     shmem_init_attr_t* attributes;
     shmem_set_attr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
-    status = shmem_init();
+    status = shmem_init_attr(attributes);
     EXPECT_EQ(status, SHMEM_INVALID_VALUE);
     status = shmem_init_status();
     EXPECT_EQ(status, SHMEM_STATUS_NOT_INITALIZED);
@@ -131,7 +131,7 @@ void TestShmemInitInvalidMem(int rankId, int nRanks, uint64_t localMemSize) {
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
     shmem_init_attr_t* attributes;
     shmem_set_attr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
-    status = shmem_init();
+    status = shmem_init_attr(attributes);
     EXPECT_EQ(status, SHMEM_SMEM_ERROR);
     status = shmem_init_status();
     EXPECT_EQ(status, SHMEM_STATUS_NOT_INITALIZED);
@@ -155,7 +155,7 @@ void TestShmemSetConfig(int rankId, int nRanks, uint64_t localMemSize) {
     EXPECT_EQ(shm::gAttr.optionAttr.controlOperationTimeout, 50);
     EXPECT_EQ(shm::gAttr.optionAttr.dataOpEngineType, SHMEM_DATA_OP_MTE);
     
-    status = shmem_init();
+    status = shmem_init(attributes);
     EXPECT_EQ(status, SHMEM_SUCCESS);
     EXPECT_EQ(shm::gState.mype, rankId);
     EXPECT_EQ(shm::gState.npes, nRanks);

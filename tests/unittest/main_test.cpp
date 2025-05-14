@@ -26,7 +26,7 @@ void TestInit(int rankId, int nRanks, uint64_t localMemSize, aclrtStream *st)
 
     shmem_init_attr_t* attributes;
     shmem_set_attr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
-    status = shmem_init();
+    status = shmem_init_attr(attributes);
     EXPECT_EQ(status, 0);
     *st = stream;
 }

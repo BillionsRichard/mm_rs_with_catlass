@@ -16,7 +16,7 @@ extern "C" {
 SHMEM_HOST_API int shmem_init_status();
 
 /**
- * @brief Set the default attributes to be used in <b>shmem_init</b>.
+ * @brief Set the default attributes to be used in <b>shmem_init_attr</b>.
  * @param myRank            [in] Current rank
  * @param nRanks            [in] Total number of ranks
  * @param localMemSize      [in] The size of shared memory currently occupied by current rank
@@ -51,15 +51,16 @@ SHMEM_HOST_API int shmem_set_timeout(shmem_init_attr_t *attributes, uint32_t val
 /**
  * @brief Initialization based on attributes and build the shmem library.
  *        Attributes can be created by users or obtained by calling <b>shmem_set_attr</b>.
- *        The default attributes is automatically used when the attributes value is a null pointer.
+ *        if the self-created attr structure is incorrect, the initialization will fail.
+ *        It is recommended to build the attributes by <b>shmem_set_attr</b>. 
  *
  * @param attributes        [in] Pointer to the user-defined attributes.
  * @return Returns 0 on success or an error code on failure
  */
-SHMEM_HOST_API int shmem_init(shmem_init_attr_t *attributes = nullptr);
+SHMEM_HOST_API int shmem_init_attr(shmem_init_attr_t *attributes);
 
 /**
- * @brief Ends the program previously initialized by <b>shmem_init</b>.
+ * @brief Ends the program previously initialized by <b>shmem_init_attr</b>.
  *        Release all resources used by the SHMEM library.
  *
  * @param 

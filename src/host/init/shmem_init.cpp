@@ -198,12 +198,10 @@ int32_t shmem_init_status()
     else return SHMEM_STATUS_INVALID;
 }
 
-int32_t shmem_init(shmem_init_attr_t *attributes)
+int32_t shmem_init_attr(shmem_init_attr_t *attributes)
 {
     int32_t ret;
-    if (attributes == nullptr && shm::gAttrInit) {
-        attributes = &shm::gAttr;
-    }
+    
     SHM_ASSERT_RETURN(attributes != nullptr, SHMEM_INVALID_PARAM);
     SHMEM_CHECK_RET(shm::CheckAttr(attributes));
     SHMEM_CHECK_RET(shm::VersionCompatible());
