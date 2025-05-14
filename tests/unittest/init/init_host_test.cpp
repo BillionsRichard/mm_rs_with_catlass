@@ -147,11 +147,11 @@ void TestShmemSetConfig(int rankId, int nRanks, uint64_t localMemSize) {
     int status = SHMEM_SUCCESS;
     EXPECT_EQ(aclInit(nullptr), 0);
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
-    shmem_init_attr_t* attr;
-    shmem_set_attr(rankId, nRanks, localMemSize, testGlobalIpport, &attr);
+    shmem_init_attr_t* attributes;
+    shmem_set_attr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
 
-    shmem_set_data_op_engine_type(attr, SHMEM_DATA_OP_MTE);
-    shmem_set_timeout(attr, 50);
+    shmem_set_data_op_engine_type(attributes, SHMEM_DATA_OP_MTE);
+    shmem_set_timeout(attributes, 50);
     EXPECT_EQ(shm::gAttr.optionAttr.controlOperationTimeout, 50);
     EXPECT_EQ(shm::gAttr.optionAttr.dataOpEngineType, SHMEM_DATA_OP_MTE);
     
