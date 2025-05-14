@@ -10,7 +10,6 @@ extern "C" {
 /**
  * @brief Query the current initialization status.
  *
- * @param 
  * @return Returns initialization status. Returning SHMEM_STATUS_IS_INITALIZED indicates that initialization is complete.
  */
 SHMEM_HOST_API int shmem_init_status();
@@ -63,7 +62,6 @@ SHMEM_HOST_API int shmem_init_attr(shmem_init_attr_t *attributes);
  * @brief Ends the program previously initialized by <b>shmem_init_attr</b>.
  *        Release all resources used by the SHMEM library.
  *
- * @param 
  * @return Returns 0 on success or an error code on failure
  */
 SHMEM_HOST_API int shmem_finalize();

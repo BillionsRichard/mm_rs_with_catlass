@@ -141,7 +141,7 @@ function fn_gen_doc()
     sed -i "s#PROJECT_NUMBER         =.*#PROJECT_NUMBER         = $branch#g" $doxyfile
     sed -i "s#OUTPUT_DIRECTORY       =.*#OUTPUT_DIRECTORY       = $doxygen_output_dir#g" $doxyfile
     sed -i "s#OUTPUT_LANGUAGE        =.*#OUTPUT_LANGUAGE        = English#g" $doxyfile
-    sed -i "s#INPUT                  =.*#INPUT                  = $PROJECT_ROOT/include/host $PROJECT_ROOT/include/device $PROJECT_ROOT/include/host_device#g" $doxyfile
+    sed -i "s#INPUT                  =.*#INPUT                  = $PROJECT_ROOT/include/host#g" $doxyfile
     sed -i "s#RECURSIVE              =.*#RECURSIVE              = YES#g" $doxyfile
     sed -i "s#USE_MDFILE_AS_MAINPAGE =.*#USE_MDFILE_AS_MAINPAGE = $PROJECT_ROOT/README.md#g" $doxyfile
     sed -i "s#HTML_EXTRA_STYLESHEET  =.*#HTML_EXTRA_STYLESHEET  = $PROJECT_ROOT/docs/doxygen/custom.css#g" $doxyfile
@@ -184,7 +184,7 @@ done
 fn_build
 
 fn_make_run_package
-if [ -z ${GEN_DOC} ] then;
+if [ -z ${GEN_DOC} ]; then
     fn_gen_doc
 fi
 
