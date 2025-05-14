@@ -1,6 +1,8 @@
 #ifndef SHMEM_HOST_HEAP_H
 #define SHMEM_HOST_HEAP_H
 
+#include "shmem_host_def.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

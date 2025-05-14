@@ -1,4 +1,14 @@
-file(GLOB_RECURSE SHMEM_HOST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+file(GLOB_RECURSE SHMEM_HOST_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/common/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/init/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/mem/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/team/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/under_api/*.cpp"
+)
+
+if (BUILD_PYTHON STREQUAL "ON")
+    add_subdirectory(python_wrapper)
+endif ()
 
 add_library(shmem_host SHARED)
 

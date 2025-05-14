@@ -10,7 +10,7 @@ extern "C" {
 /**
  * @brief 
 */
-SHMEM_HOST_API int shmem_team_split_strided(shmem_team_t parentTeam, int peStart, int peStride, int peSize, shmem_team_t &newTeam);
+SHMEM_HOST_API int shmem_team_split_strided(shmem_team_t parentTeam, int peStart, int peStride, int peSize, shmem_team_t *newTeam);
 
 /**
  * @brief 
