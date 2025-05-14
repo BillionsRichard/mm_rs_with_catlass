@@ -4,10 +4,11 @@
     1. Barriers can be used only in MIX kernels. The compiler will optimize the kernel to VEC or CUBE if it lacks effective cube instructions (eg. Mmad) or vector instructions (eg: DataCopy). 
     Need compiler updates to remove this feature, or insert Mmad/DataCopy calls manully.
     
-    2. Unlike semantic of legacy barrier:
-            All operations of all ranks of a team before the barrier are visiable to all ranks of the team after the barrier.
-        Our implementation ensures that:
-            All operations of ALL VEC CORES of all ranks of a team ON EXCUTING STREAM before the barrier are visiable to ALL VEC CORES of all ranks of the team after the barrier.
+    2. We provide 2 kinds of barrier:
+        a. shmem_barrier_xxx
+            All operations of all ranks of a team on excuting stream before the barrier are visiable to all ranks of the team after the barrier.
+        b. shmemx_barrier_xxx_vec
+            All operations of ALL VEC CORES of all ranks of a team on excuting stream before the barrier are visiable to ALL VEC CORES of all ranks of the team after the barrier.
         
         This subtle difference is beneficial to compute-communiction overlapping (usually UNI_DIRECTIONAL dependency), and could achieve better performance.
         
@@ -26,9 +27,9 @@
                     if ASCEND_IS_AIV {
                         CrossCoreWaitFlag(SYNC_AIC_AIV_FLAG);
 
-                        shmem_barrier_xxx();
+                        shmemx_barrier_xxx_vec();
                         reduce_scatter();
-                        shmem_barrier_xxx();
+                        shmemx_barrier_xxx_vec();
                         all_gather();
 
                         CrossCoreSetFlag<0x02, PIPE_MTE3>(SYNC_AIC_AIV_FLAG);
@@ -40,23 +41,7 @@
             }
         Moreover, double buffer can be used to increase parallism.
 
-    3. In case that legacy barrier is needed, it can be implemented as below:
-            SHMEM_DEVICE void legacy_barrier() {
-                if ASCEND_IS_AIC {
-                    PipeBarrier<PIPE_ALL>();
-                    CrossCoreSetFlag<0x02, PIPE_MTE3>(SYNC_AIC_AIV_FLAG);
-                    CrossCoreWaitFlag(SYNC_AIC_AIV_FLAG);
-                }
-
-                if ASCEND_IS_AIV {
-                    CrossCoreWaitFlag(SYNC_AIC_AIV_FLAG);
-                    shmem_barrier_xxx();
-                    CrossCoreSetFlag<0x02, PIPE_MTE3>(SYNC_AIC_AIV_FLAG);
-                }
-            }
-        Even though, scalar unit of cube core is not affected by barrier. Make sure don't use that.
-
-    4. Barrier APIs conflict with SyncAll. Avoid mixing them together.
+    3. Barrier APIs conflict with SyncAll. Avoid mixing them together.
 */
 
 #ifndef SHMEM_DEVICE_SYNC_H
@@ -74,7 +59,7 @@
  * @return void
  */
 SHMEM_DEVICE void shmem_barrier(shmem_team_t tid) {
-    ShmemiBarrier(tid);
+    ShmemiBarrier<false>(tid);
 }
 
 /**
@@ -84,6 +69,26 @@ SHMEM_DEVICE void shmem_barrier(shmem_team_t tid) {
  */
 SHMEM_DEVICE void shmem_barrier_all() {
     shmem_barrier(SHMEM_TEAM_WORLD);
+}
+
+/**
+ * @brief barrier of a specific team. Different from shmem_barrier that only vector cores participate. Useful in communication-over-compute operators. Cube core may call the api but takes no effect.
+ *
+ * @param tid              [in] team to do barrier
+ * @return void
+ */
+SHMEM_DEVICE void shmemx_barrier_vec(shmem_team_t tid) {
+    ShmemiBarrier<true>(tid);
+}
+
+/**
+ * @brief barrier of all ranks. Different from shmem_barrier_all that only vector cores participate. Useful in communication-over-compute operators. Cube core may call the api but takes no effect.
+ *
+ * @param tid              [in] team to do barrier
+ * @return void
+ */
+SHMEM_DEVICE void shmemx_barrier_all_vec() {
+    shmemx_barrier_vec(SHMEM_TEAM_WORLD);
 }
 
 /**

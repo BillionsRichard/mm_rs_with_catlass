@@ -1,12 +1,10 @@
 /*
     WARNING： 
     
-    Unlike semantic of legacy barrier:
-        All operations of all ranks of a team before the barrier are visiable to all ranks of the team after the barrier.
-    Our implementation ensures that:
-        All operations of ALL VEC CORES of all ranks of a team ON EXECUTING/INTERNAL STREAMs before the barrier are visiable to ALL VEC CORES of all ranks of the team after the barrier.
+    Our barrier implementation ensures that:
+        All operations of all ranks of a team ON EXECUTING/INTERNAL STREAMs before the barrier are visiable to all ranks of the team after the barrier.
         
-    Refer to shmem_device_sync.h for other constraints.
+    Refer to shmem_device_sync.h for calling constraints.
 */
 
 #ifndef SHMEM_HOST_SYNC_H

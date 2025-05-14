@@ -169,7 +169,7 @@ public:
         peerMem.SetGlobalBuffer(params.symmetricPtr);
 
         // 卡内matmul结果准备就绪软同步
-        shmem_barrier_all();
+        shmemx_barrier_all_vec();
 
         AscendC::SetAtomicAdd<ElementC>();
         AscendC::PipeBarrier<PIPE_ALL>();
