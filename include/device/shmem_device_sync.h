@@ -42,6 +42,8 @@
         Moreover, double buffer can be used to increase parallism.
 
     3. Barrier APIs conflict with SyncAll. Avoid mixing them together.
+
+    4. The scalar unit of cube core is not affected by shmem_barrier_xxx. Make sure don't use that.
 */
 
 #ifndef SHMEM_DEVICE_SYNC_H
