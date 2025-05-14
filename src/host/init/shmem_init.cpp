@@ -37,6 +37,7 @@ namespace shm {
 ShmemiDeviceHostState gState = SHMEM_DEVICE_HOST_STATE_INITALIZER;
 shmem_init_attr_t gAttr;
 static smem_shm_t gSmemHandle = nullptr;
+static bool gAttrInit = false;
 
 int32_t VersionCompatible()
 {
@@ -185,10 +186,11 @@ int32_t shmem_set_attr(int32_t myRank, int32_t nRanks, uint64_t localMemSize, co
     shm::gAttr.ipPort = ipPort;
     shm::gAttr.localMemSize = localMemSize;
     shm::gAttr.optionAttr = {SHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
+    shm::gAttrInit = true;
     return SHMEM_SUCCESS;
 }
 
-int32_t shmem_init_attributes()
+int32_t shmem_init_status()
 {
     if (!shm::gState.isShmemCreated) return SHMEM_STATUS_NOT_INITALIZED;
     else if (!shm::gState.isShmemInitialized) return SHMEM_STATUS_SHM_CREATED;
@@ -199,6 +201,7 @@ int32_t shmem_init_attributes()
 int32_t shmem_init_attr(shmem_init_attr_t *attributes)
 {
     int32_t ret;
+    
     SHM_ASSERT_RETURN(attributes != nullptr, SHMEM_INVALID_PARAM);
     SHMEM_CHECK_RET(shm::CheckAttr(attributes));
     SHMEM_CHECK_RET(shm::VersionCompatible());
@@ -214,12 +217,6 @@ int32_t shmem_init_attr(shmem_init_attr_t *attributes)
     SHMEM_CHECK_RET(shm::UpdateDeviceState());
     shm::gState.isShmemInitialized = true;
     SHMEM_CHECK_RET(shm::ShmemiControlBarrierAll());
-    return SHMEM_SUCCESS;
-}
-
-int32_t shmem_init()
-{
-    SHMEM_CHECK_RET(shmem_init_attr(&shm::gAttr));
     return SHMEM_SUCCESS;
 }
 

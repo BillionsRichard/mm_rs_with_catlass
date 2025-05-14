@@ -6,8 +6,8 @@ using namespace std;
 #include "shmem_api.h"
 
 #include <gtest/gtest.h>
-extern int testGlobalRanks;
 extern int testGNpuNum;
+extern int testFirstNpu;
 extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localMemSize, int processCount);
 extern void TestInit(int rankId, int nRanks, uint64_t localMemSize, aclrtStream *st);
 extern void TestFinalize(aclrtStream stream, int deviceId);
@@ -43,7 +43,7 @@ static int32_t TestScalarPutGet(aclrtStream stream, uint32_t rankId, uint32_t ra
 
 void TestShmemScalarP(int rankId, int nRanks, uint64_t localMemSize)
 {
-    int32_t deviceId = rankId % testGNpuNum;
+    int32_t deviceId = rankId % testGNpuNum + testFirstNpu;
     aclrtStream stream;
     TestInit(rankId, nRanks, localMemSize, &stream);
     ASSERT_NE(stream, nullptr);
@@ -60,7 +60,7 @@ void TestShmemScalarP(int rankId, int nRanks, uint64_t localMemSize)
 
 TEST(TestScalarPApi, TestShmemScalarP)
 {
-    const int processCount = testGlobalRanks;
+    const int processCount = testGNpuNum;
     uint64_t localMemSize = 1024UL * 1024UL * 1024;
     TestMutilTask(TestShmemScalarP, localMemSize, processCount);
 }

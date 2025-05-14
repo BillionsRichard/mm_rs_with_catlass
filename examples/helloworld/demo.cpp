@@ -29,12 +29,12 @@ int main(int argc, char* argv[])
         std::cout << "[ERROR] demo run failed!" << std::endl;
         std::exit(status);
     }
-    status = shmem_init();
+    status = shmem_init_attr(attributes);
     if ( status != SHMEM_SUCCESS) {
         std::cout << "[ERROR] demo run failed!" << std::endl;
         std::exit(status);
     }
-    status = shmem_init_attributes();
+    status = shmem_init_status();
     if (status == SHMEM_STATUS_IS_INITALIZED) {
         std::cout << "[SUCCESS] Shmem init success!" << std::endl;
     } else {

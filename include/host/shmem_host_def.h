@@ -9,6 +9,9 @@ extern "C" {
 
 #define SHMEM_HOST_API   __attribute__((visibility("default")))
 
+/**
+ * @brief 
+*/
 enum shmem_error_code_t : int {
     SHMEM_SUCCESS = 0,
     SHMEM_INVALID_PARAM = -1,
@@ -18,6 +21,9 @@ enum shmem_error_code_t : int {
     SHMEM_NOT_INITED = -5,
 };
 
+/**
+ * @brief 
+*/
 enum {
     SHMEM_STATUS_NOT_INITALIZED = 0,
     SHMEM_STATUS_SHM_CREATED,
@@ -25,14 +31,24 @@ enum {
     SHMEM_STATUS_INVALID = INT_MAX,
 };
 
-// attr
+
+/**
+ * @brief 
+*/
 typedef struct {
+    /** dataOpEngineType */
     data_op_engine_type_t dataOpEngineType;
+    /** shmInitTimeout */
     uint32_t shmInitTimeout;
+    /** shmCreateTimeout */
     uint32_t shmCreateTimeout;
+    /** controlOperationTimeout */
     uint32_t controlOperationTimeout;
 } shmem_init_optional_attr_t;
 
+/**
+ * @brief 
+*/
 typedef struct {
     int version;
     int myRank;

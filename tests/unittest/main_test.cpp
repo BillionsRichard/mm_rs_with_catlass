@@ -6,6 +6,8 @@
 int testGlobalRanks;
 int testGNpuNum;
 const char* testGlobalIpport;
+int testFirstRank;
+int testFirstNpu;
 
 void TestInit(int rankId, int nRanks, uint64_t localMemSize, aclrtStream *st)
 {
@@ -17,14 +19,14 @@ void TestInit(int rankId, int nRanks, uint64_t localMemSize, aclrtStream *st)
     }
     EXPECT_EQ(status, 0);
     EXPECT_EQ(aclInit(nullptr), 0);
-    int32_t deviceId = rankId % testGNpuNum;
+    int32_t deviceId = rankId % testGNpuNum + testFirstNpu;
     EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
     aclrtStream stream = nullptr;
     EXPECT_EQ(status = aclrtCreateStream(&stream), 0);
 
     shmem_init_attr_t* attributes;
     shmem_set_attr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
-    status = shmem_init();
+    status = shmem_init_attr(attributes);
     EXPECT_EQ(status, 0);
     *st = stream;
 }
@@ -46,7 +48,7 @@ void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localM
         if (pids[i] < 0) {
             std::cout << "fork failed ! " << pids[i] << std::endl;
         } else if (pids[i] == 0) {
-            func(i, processCount, localMemSize);
+            func(i + testFirstRank, testGlobalRanks, localMemSize);
             exit(0);
         }
     }
@@ -62,6 +64,8 @@ int main(int argc, char** argv) {
     testGlobalRanks = std::atoi(argv[1]);
     testGlobalIpport = argv[2];
     testGNpuNum = std::atoi(argv[3]);
+    testFirstRank = std::atoi(argv[4]);
+    testFirstNpu = std::atoi(argv[5]);
 
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

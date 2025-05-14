@@ -261,8 +261,8 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtCreateStream(&stream));
     shmem_init_attr_t *attributes;
     status = shmem_set_attr(rankId, rankSize, gNpuMallocSpace, ipport.c_str(), &attributes);
-    status = shmem_init();
-    status = shmem_init_attributes();
+    status = shmem_init_attr(attributes);
+    status = shmem_init_status();
 
     // Prepare FFTS address
     uint64_t fftsAddr{0};

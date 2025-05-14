@@ -8,6 +8,8 @@ set -e
 RANK_SIZE="8"
 IPPORT="tcp://127.0.0.1:8666"
 GNPU_NUM="8"
+FIRST_NPU="0"
+FIRST_RANK="0"
 if [ -z "${GTEST_FILTER}" ]; then
     TEST_FILTER="*.*"
 else
@@ -22,6 +24,15 @@ while [[ $# -gt 0 ]]; do
                 shift 2
             else
                 echo "Error: -ranks requires a value."
+                exit 1
+            fi
+            ;;
+        -frank)
+            if [ -n "$2" ]; then
+                FIRST_RANK="$2"
+                shift 2
+            else
+                echo "Error: -frank requires a value."
                 exit 1
             fi
             ;;
@@ -43,6 +54,15 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        -fnpu)
+            if [ -n "$2" ]; then
+                FIRST_NPU="$2"
+                shift 2
+            else
+                echo "Error: -fnpu requires a value."
+                exit 1
+            fi
+            ;;
         -test_filter)
             if [ -n "$2" ]; then
                 TEST_FILTER="*$2*"
@@ -60,6 +80,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 export LD_LIBRARY_PATH=$(pwd)/install/shmem/lib:${ASCEND_HOME_PATH}/lib64:$(pwd)/install/memfabric_hybrid/lib:$LD_LIBRARY_PATH
-./build/bin/shmem_unittest "$RANK_SIZE" "$IPPORT" "$GNPU_NUM" --gtest_output=xml:test_detail.xml --gtest_filter=${TEST_FILTER}
+./build/bin/shmem_unittest "$RANK_SIZE" "$IPPORT" "$GNPU_NUM" "$FIRST_RANK" "$FIRST_NPU"  --gtest_output=xml:test_detail.xml --gtest_filter=${TEST_FILTER}
 
 cd ${CURRENT_DIR}

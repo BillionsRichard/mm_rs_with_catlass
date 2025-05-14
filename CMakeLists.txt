@@ -25,6 +25,10 @@ ELSEIF (CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "x86_64")
     SET(ARCH x86_64)
 ENDIF ()
 
+option(USE_UNIT_TEST "USE_UNIT_TEST" OFF)
+
+message(STATUS "USE_UNIT_TEST:${USE_UNIT_TEST}")
+
 set(ASCEND_DRIVER_PATH /usr/local/Ascend/driver)
 
 # shmem库编译-device能力
@@ -45,7 +49,10 @@ set(SHMEM_SOURCE_ROOT ${PROJECT_SOURCE_DIR})
 # 添加子目录
 add_subdirectory(src/host)
 add_subdirectory(src/device)
-add_subdirectory(tests)
+
+if(USE_UNIT_TEST)
+    add_subdirectory(tests)
+endif()
 
 message("== ASCEND_HOME_PATH : ${ASCEND_HOME_PATH}")
 message("== ASCEND_DRIVER_PATH : ${ASCEND_DRIVER_PATH}")
