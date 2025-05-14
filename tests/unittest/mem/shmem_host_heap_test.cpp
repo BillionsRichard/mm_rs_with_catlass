@@ -39,7 +39,7 @@ protected:
         EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
         shmem_init_attr_t *attributes;
         shmem_set_attr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
-        status = shmem_init();
+        status = shmem_init_attr(attributes);
         EXPECT_EQ(status, SHMEM_SUCCESS);
         EXPECT_EQ(shm::gState.mype, rankId);
         EXPECT_EQ(shm::gState.npes, nRanks);
