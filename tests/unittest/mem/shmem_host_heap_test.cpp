@@ -47,7 +47,7 @@ protected:
         EXPECT_NE(shm::gState.p2pHeapBase[rankId], nullptr);
         EXPECT_EQ(shm::gState.heapSize, localMemSize + SHMEM_EXTRA_SIZE);
         EXPECT_NE(shm::gState.teamPools[0], nullptr);
-        status = shmem_init_attributes();
+        status = shmem_init_status();
         EXPECT_EQ(status, SHMEM_STATUS_IS_INITALIZED);
         testingRank = true;
     }
