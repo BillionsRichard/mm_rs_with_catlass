@@ -1,6 +1,7 @@
 #ifndef SHMEM_HOST_INIT_H
 #define SHMEM_HOST_INIT_H
 
+#include "shmem_host_def.h"
 #include "host_device/shmem_types.h"
 
 #ifdef __cplusplus
