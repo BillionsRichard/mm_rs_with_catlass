@@ -1,47 +1,18 @@
 /*
-    WARNING： 
+    WARNING：Restrictions of Barrier APIs.
     
-    1. Barriers can be used only in MIX kernels. The compiler will optimize the kernel to VEC or CUBE if it lacks effective cube instructions (eg. Mmad) or vector instructions (eg: DataCopy). 
+    1. Barrier APIs can be used only in MIX kernels. The compiler will optimize the kernel to VEC or CUBE if it lacks effective cube instructions (eg. Mmad) or vector instructions (eg: DataCopy). 
     Need compiler updates to remove this feature, or insert Mmad/DataCopy calls manully.
+
+    2. Barrier APIs conflict with SyncAll. Avoid mixing them together.
     
-    2. We provide 2 kinds of barrier:
+    3. We provide 2 kinds of barrier:
         a. shmem_barrier_xxx
             All operations of all ranks of a team on excuting stream before the barrier are visiable to all ranks of the team after the barrier.
         b. shmemx_barrier_xxx_vec
             All operations of ALL VEC CORES of all ranks of a team on excuting stream before the barrier are visiable to ALL VEC CORES of all ranks of the team after the barrier.
         
-        This subtle difference is beneficial to compute-communiction overlapping (usually UNI_DIRECTIONAL dependency), and could achieve better performance.
-        
-        Example of Matmul_AllReduce kernel:
-            SHMEM_DEVICE void matmul_allreduce() {
-                if ASCEND_IS_AIV 
-                    CrossCoreSetFlag<0x02, PIPE_MTE3>(SYNC_AIC_AIV_FLAG);
-
-                for (xxx) {
-                    if ASCEND_IS_AIC {
-                        CrossCoreWaitFlag(SYNC_AIC_AIV_FLAG);
-                        matmul();
-                        CrossCoreSetFlag<0x02, PIPE_MTE3>(SYNC_AIC_AIV_FLAG);
-                    }
-
-                    if ASCEND_IS_AIV {
-                        CrossCoreWaitFlag(SYNC_AIC_AIV_FLAG);
-
-                        shmemx_barrier_xxx_vec();
-                        reduce_scatter();
-                        shmemx_barrier_xxx_vec();
-                        all_gather();
-
-                        CrossCoreSetFlag<0x02, PIPE_MTE3>(SYNC_AIC_AIV_FLAG);
-                    }
-                }
-                
-                if ASCEND_IS_AIC
-                    CrossCoreWaitFlag(SYNC_AIC_AIV_FLAG);
-            }
-        Moreover, double buffer can be used to increase parallism.
-
-    3. Barrier APIs conflict with SyncAll. Avoid mixing them together.
+        This subtle difference is beneficial to compute-communiction overlapping (usually UNI_DIRECTIONAL dependency), and could achieve better performance. Refer to examples/matmul_allreduce for details.
 
     4. The scalar unit of cube core is not affected by shmem_barrier_xxx. Make sure don't use that.
 */

@@ -4,7 +4,7 @@
     Our barrier implementation ensures that:
         All operations of all ranks of a team ON EXECUTING/INTERNAL STREAMs before the barrier are visiable to all ranks of the team after the barrier.
         
-    Refer to shmem_device_sync.h for calling constraints.
+    Refer to shmem_device_sync.h for using restrictions.
 */
 
 #ifndef SHMEM_HOST_SYNC_H
