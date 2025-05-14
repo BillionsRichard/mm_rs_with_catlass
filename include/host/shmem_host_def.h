@@ -36,9 +36,13 @@ enum {
  * @brief 
 */
 typedef struct {
+    /** dataOpEngineType */
     data_op_engine_type_t dataOpEngineType;
+    /** shmInitTimeout */
     uint32_t shmInitTimeout;
+    /** shmCreateTimeout */
     uint32_t shmCreateTimeout;
+    /** controlOperationTimeout */
     uint32_t controlOperationTimeout;
 } shmem_init_optional_attr_t;
 
