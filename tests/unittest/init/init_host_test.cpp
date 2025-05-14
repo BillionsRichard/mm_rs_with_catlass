@@ -155,7 +155,7 @@ void TestShmemSetConfig(int rankId, int nRanks, uint64_t localMemSize) {
     EXPECT_EQ(shm::gAttr.optionAttr.controlOperationTimeout, 50);
     EXPECT_EQ(shm::gAttr.optionAttr.dataOpEngineType, SHMEM_DATA_OP_MTE);
     
-    status = shmem_init(attributes);
+    status = shmem_init_attr(attributes);
     EXPECT_EQ(status, SHMEM_SUCCESS);
     EXPECT_EQ(shm::gState.mype, rankId);
     EXPECT_EQ(shm::gState.npes, nRanks);
