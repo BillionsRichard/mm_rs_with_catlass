@@ -19,7 +19,7 @@ RELEASE_DIR=$PROJECT_ROOT/ci/release
 COMPILE_OPTIONS=""
 
 COVERAGE_TYPE=""
-GEN_DOC=""
+GEN_DOC=OFF
 
 cann_default_path="/usr/local/Ascend/ascend-toolkit"
 
@@ -171,6 +171,7 @@ while [[ $# -gt 0 ]]; do
         -gendoc)
             fn_build_doxygen
             fn_build_sphinx
+            GEN_DOC=ON
             shift
             ;;
         *)
@@ -183,7 +184,7 @@ done
 fn_build
 
 fn_make_run_package
-if [ -z ${GEN_DOC} ]; then
+if [ ${GEN_DOC} == "ON" ]; then
     fn_gen_doc
 fi
 
