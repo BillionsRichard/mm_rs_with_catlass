@@ -27,47 +27,21 @@ SHMEM_DEVICE void CubeGuard() {
 #endif
 }
 
-class TeamAllGatherTest {
-public:
-    __aicore__ inline TeamAllGatherTest() {}
-    __aicore__ inline void Init(GM_ADDR gva, shmem_team_t teamId)
-    {
-        gvaGm = (__gm__ int32_t *)gva;
-        teamIdx= teamId;
-
-        rank = smem_shm_get_global_rank();
-        rankSize = smem_shm_get_global_rank_size();
-        teamRank = shmem_team_my_pe(teamIdx);
-        teamSize = shmem_team_n_pes(teamIdx);
-    }
-    __aicore__ inline void Process()
-    {
-        AscendC::PipeBarrier<PIPE_ALL>();
-        CubeGuard();
-        // All Gather
-        for (int i = 0; i < teamSize - 1; i++) {
-            int64_t dstRank = shmem_team_translate_pe(teamIdx, (teamRank + 1 + i) % teamSize, SHMEM_TEAM_WORLD);
-            shmem_put_int32_mem_nbi(gvaGm + 16 * teamRank, gvaGm + 16 * teamRank, 16, dstRank);
-            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
-            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
-        }
-        ShmemiBarrier(teamIdx);
-    }
-private:
-    __gm__ int32_t *gvaGm;
-    shmem_team_t teamIdx;
-
-    int64_t rank;
-    int64_t rankSize;
-    int64_t teamRank;
-    int64_t teamSize;
-};
-
 extern "C" __global__ __aicore__ void DeviceTeamAllGatherTest(GM_ADDR gva, int teamId)
 {
-    TeamAllGatherTest op;
-    op.Init(gva, (shmem_team_t)teamId);
-    op.Process();
+    int64_t teamRank = shmem_team_my_pe(teamId);
+    int64_t teamSize = shmem_team_n_pes(teamId);
+    __gm__ int32_t* gvaGm = (__gm__ int32_t *)gva;
+    AscendC::PipeBarrier<PIPE_ALL>();
+    CubeGuard();
+    // All Gather
+    for (int i = 0; i < teamSize - 1; i++) {
+        int64_t dstRank = shmem_team_translate_pe(teamId, (teamRank + 1 + i) % teamSize, SHMEM_TEAM_WORLD);
+        shmem_put_int32_mem_nbi(gvaGm + 16 * teamRank, gvaGm + 16 * teamRank, 16, dstRank);
+        AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+    }
+    ShmemiBarrier(teamId);
 }
 
 void TeamAllGather(uint32_t blockDim, void* stream, uint8_t* gva, shmem_team_t teamId)

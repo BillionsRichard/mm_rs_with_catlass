@@ -8,8 +8,8 @@ using namespace std;
 #include "shmemi_host_common.h"
 
 #include <gtest/gtest.h>
-extern int testGlobalRanks;
 extern int testGNpuNum;
+extern int testFirstNpu;
 extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localMemSize, int processCount);
 extern void TestInit(int rankId, int nRanks, uint64_t localMemSize, aclrtStream *st);
 extern void TestFinalize(aclrtStream stream, int deviceId);
@@ -17,7 +17,7 @@ extern void TestFinalize(aclrtStream stream, int deviceId);
 extern void TeamAllGather(uint32_t blockDim, void* stream, uint8_t* gva, shmem_team_t teamId);
 
 void TestShmemTeamAllGather(int rankId, int nRanks, uint64_t localMemSize) {
-    int32_t deviceId = rankId % testGNpuNum;
+    int32_t deviceId = rankId % testGNpuNum + testFirstNpu;
     aclrtStream stream;
     TestInit(rankId, nRanks, localMemSize, &stream);
     ASSERT_NE(stream, nullptr);
@@ -70,7 +70,7 @@ void TestShmemTeamAllGather(int rankId, int nRanks, uint64_t localMemSize) {
 
 TEST(TestTeamFunc, TestShmemTeam)
 {   
-    const int processCount = testGlobalRanks;
+    const int processCount = testGNpuNum;
     uint64_t localMemSize = 1024UL * 1024UL * 1024;
     TestMutilTask(TestShmemTeamAllGather, localMemSize, processCount);
 }
