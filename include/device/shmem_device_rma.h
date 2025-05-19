@@ -56,6 +56,7 @@ SHMEM_DEVICE __gm__ void* shmem_ptr(__gm__ void* ptr, int pe)
  * @brief Provide a low latency put capability for single elements of most basic types.
  *
  * @param dst               [in] Symmetric address of the destination data on local pe.
+ * @param value             [in] The element to be put.
  * @param pe                [in] The number of the remote PE.
  * @return void
  */
@@ -76,7 +77,7 @@ SHMEM_TYPE_FUNC(SHMEM_TYPENAME_P_AICORE);
 /**
  * @brief Provide a low latency get capability for single elements of most basic types.
  *
- * @param dst               [in] Symmetric address of the destination data on local pe.
+ * @param src               [in] Symmetric address of the destination data on local pe.
  * @param pe                [in] The number of the remote PE.
  * @return A single element of type specified in the input pointer.
  */
