@@ -55,7 +55,7 @@ SHMEM_DEVICE __gm__ void* shmem_ptr(__gm__ void* ptr, int pe)
 /**
  * @brief Provide a low latency put capability for single elements of most basic types.
  *
- * @param dst               [in] Symmetric address of the destination data object on local pe.
+ * @param dst               [in] Symmetric address of the destination data on local pe.
  * @param pe                [in] The number of the remote PE.
  * @return void
  */
@@ -76,7 +76,7 @@ SHMEM_TYPE_FUNC(SHMEM_TYPENAME_P_AICORE);
 /**
  * @brief Provide a low latency get capability for single elements of most basic types.
  *
- * @param dst               [in] Symmetric address of the destination data object on local pe.
+ * @param dst               [in] Symmetric address of the destination data on local pe.
  * @param pe                [in] The number of the remote PE.
  * @return A single element of type specified in the input pointer.
  */
@@ -92,7 +92,17 @@ SHMEM_TYPE_FUNC(SHMEM_TYPENAME_P_AICORE);
 
 SHMEM_TYPE_FUNC(SHMEM_TYPENAME_G_AICORE);
 
-
+/**
+ * @brief Asynchronous interface. Copy contiguous symmetric data from a different PE to a contiguous data on the local device.
+ *
+ * @param dst               [in] Pointer on local device of the destination data.
+ * @param src               [in] Pointer on Symmetric memory of the source data on remote PE.
+ * @param buf               [in] Pointer on local UB chip.
+ * @param elemSize          [in] Number of elements in the destination and source arrays.
+ * @param pe                [in] PE number of the remote PE.
+ * @param EVENT_ID          [in] PipeLine ID used to Sync Event.
+ * @return void
+ */
 template <typename T>
 SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
@@ -112,7 +122,7 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         smem_shm_copy_ub2gm(dst + i * repeat_elem, buf, blockSize);
-        if (i != loop_times - 1) {      // Last PIPE Sync Should be done in Kernel
+        if (i != loop_times - 1) {      // Last PIPE Sync Should be done outside
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
         }
@@ -125,7 +135,17 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
     }
 }
 
-
+/**
+ * @brief Asynchronous interface. Copy contiguous symmetric data from a different PE to a contiguous data on the local PE.
+ *
+ * @param dst               [in] GlobalTensor on local device of the destination data.
+ * @param src               [in] GlobalTensor on Symmetric memory of the source data on remote PE.
+ * @param buf               [in] LocalTensor on local UB chip.
+ * @param elemSize          [in] Number of elements in the destination and source arrays.
+ * @param pe                [in] PE number of the remote PE.
+ * @param EVENT_ID          [in] PipeLine ID used to Sync Event.
+ * @return void
+ */
 template <typename T>
 SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
@@ -147,7 +167,7 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         smem_shm_copy_ub2gm(dst[i * repeat_elem], buf, blockSize);
-        if (i != loop_times - 1) {      // Last PIPE Sync Should be done in Kernel
+        if (i != loop_times - 1) {      // Last PIPE Sync Should be done outside
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
         }
@@ -160,7 +180,16 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
     }
 }
 
-
+/**
+ * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric data on a different PE.
+ *
+ * @param dst               [in] Pointer on Symmetric memory of the destination data on remote PE.
+ * @param src               [in] Pointer on local device of the source data.
+ * @param buf               [in] Pointer on local UB chip.
+ * @param elemSize          [in] Number of elements in the destination and source arrays.
+ * @param pe                [in] PE number of the remote PE.
+ * @return void
+ */
 template <typename T>
 SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
@@ -180,7 +209,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         smem_shm_copy_ub2gm(remotePtr + i * repeat_elem, buf, blockSize);
-        if (i != loop_times - 1) {      // Last PIPE Sync Should be done in Kernel
+        if (i != loop_times - 1) {      // Last PIPE Sync Should be done outside
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
         }
@@ -193,6 +222,17 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
     }
 }
 
+/**
+ * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric data on a different PE.
+ *
+ * @param dst               [in] GlobalTensor on Symmetric memory of the destination data on remote PE.
+ * @param src               [in] GlobalTensor on local device of the source data.
+ * @param buf               [in] Pointer on local UB chip.
+ * @param elemSize          [in] Number of elements in the destination and source arrays.
+ * @param pe                [in] PE number of the remote PE.
+ * @param EVENT_ID          [in] PipeLine ID used to Sync Event.
+ * @return void
+ */
 template <typename T>
 SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
@@ -214,7 +254,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         smem_shm_copy_ub2gm(remoteBuff[i * repeat_elem], buf, blockSize);
-        if (i != loop_times - 1) {      // Last PIPE Sync Should be done in Kernel
+        if (i != loop_times - 1) {      // Last PIPE Sync Should be done outside
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
         }
@@ -229,12 +269,13 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
 
 
 /**
- * @brief Asynchronous interface. Copy contiguous symmetric data from a different PE to a contiguous data object on the local PE.
+ * @brief Asynchronous interface. Copy contiguous symmetric data from a different PE to a contiguous data on the local PE.
  *
- * @param dst               [in] Pointer on Symmetric memory of the destination data object.
- * @param src               [in] Pointer on Symmetric memory of the source data object on remote PE.
+ * @param dst               [in] Pointer on local device of the destination data.
+ * @param src               [in] Pointer on Symmetric memory of the source data on remote PE.
  * @param elemSize          [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
+ * @param EVENT_ID          [in] PipeLine ID used to Sync Event.
  * @return void
  */
 #define SHMEM_GET_TYPENAME_MEM(NAME, TYPE)                                                                              \
@@ -256,10 +297,10 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
 
 
 /**
- * @brief Asynchronous interface. Copy contiguous symmetric data from a different PE to a contiguous data object on the local PE.
+ * @brief Asynchronous interface. Copy contiguous symmetric data from a different PE to a contiguous data on the local PE.
  *
- * @param dst               [in] GlobalTensor on Symmetric memory of the destination data object.
- * @param src               [in] GlobalTensor on Symmetric memory of the source data object on remote PE.
+ * @param dst               [in] GlobalTensor on local device of the destination data.
+ * @param src               [in] GlobalTensor on Symmetric memory of the source data on remote PE.
  * @param elemSize          [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
  * @return void
@@ -287,11 +328,11 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR);
 
 
 /**
- * @brief Asynchronous interface. Copy a contiguous data object on local PE to symmetric data on a different PE.
+ * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric data on a different PE.
  *
- * @param dst               [in] Pointer on Symmetric memory of the destination data object on remote PE.
- * @param src               [in] Pointer on Symmetric memory of the source data object.
- * @param elemSize          [in] Number of elements in the dest and source arrays.
+ * @param dst               [in] Pointer on Symmetric memory of the destination data on remote PE.
+ * @param src               [in] Pointer on local device of the source data.
+ * @param elemSize          [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
  * @return void
  */
@@ -314,11 +355,11 @@ SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
 
 
 /**
- * @brief Asynchronous interface. Copy a contiguous data object on local PE to symmetric data on a different PE.
+ * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric data on a different PE.
  *
- * @param dst               [in] GlobalTensor on Symmetric memory of the destination data object on remote PE.
- * @param src               [in] GlobalTensor on Symmetric memory of the source data object.
- * @param elemSize          [in] Number of elements in the dest and source arrays.
+ * @param dst               [in] GlobalTensor on Symmetric memory of the destination data on remote PE.
+ * @param src               [in] GlobalTensor on local device of the source data.
+ * @param elemSize          [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
  * @return void
  */
