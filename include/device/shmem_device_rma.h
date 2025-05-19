@@ -20,7 +20,16 @@
     FUNC(char, char);                \
     FUNC(bfloat16, bfloat16_t)
 
-
+/**
+ * @brief Translate an local symmetric address to remote symmetric address on the specified PE.
+ *        Firstly, check the input address is legal on local pe. Then translate it into remote address 
+ *        on specified PE. Otherwise, returns a null pointer.
+ *
+ * @param ptr               [in] Symmetric address on local pe.
+ * @param pe                [in] The number of the remote PE.
+ * @return A local address to the remotely accessible dest address that can be accessed using memory 
+ *         loads and stores. Otherwise, a null pointer is returned.
+ */
 SHMEM_DEVICE __gm__ void* shmem_ptr(__gm__ void* ptr, int pe)
 {
     // Get Global State
@@ -43,6 +52,13 @@ SHMEM_DEVICE __gm__ void* shmem_ptr(__gm__ void* ptr, int pe)
 }
 
 
+/**
+ * @brief Provide a low latency put capability for single elements of most basic types.
+ *
+ * @param dst               [in] Symmetric address of the destination data object on local pe.
+ * @param pe                [in] The number of the remote PE.
+ * @return void
+ */
 #define SHMEM_TYPENAME_P_AICORE(NAME, TYPE)                                                 \
     SHMEM_DEVICE void shmem_##NAME##_p(__gm__ TYPE* dst, const TYPE value, int pe)          \
     {                                                                                       \
@@ -56,6 +72,14 @@ SHMEM_DEVICE __gm__ void* shmem_ptr(__gm__ void* ptr, int pe)
 
 SHMEM_TYPE_FUNC(SHMEM_TYPENAME_P_AICORE);
 
+
+/**
+ * @brief Provide a low latency get capability for single elements of most basic types.
+ *
+ * @param dst               [in] Symmetric address of the destination data object on local pe.
+ * @param pe                [in] The number of the remote PE.
+ * @return A single element of type specified in the input pointer.
+ */
 #define SHMEM_TYPENAME_G_AICORE(NAME, TYPE)                                                 \
     SHMEM_DEVICE TYPE shmem_##NAME##_g(__gm__ TYPE* src, int32_t pe)                        \
     {                                                                                       \
@@ -80,7 +104,6 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
     uint32_t blockSize = ubSize / sizeof(T) * sizeof(T);
     uint32_t remain = (elemSize * sizeof(T)) % blockSize;
 
-    // TODO: USE DoubleBuffer.
     int repeat_times = (elemSize * sizeof(T)) / blockSize;
     int repeat_elem = blockSize / sizeof(T);
     int loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
@@ -116,7 +139,6 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
     uint32_t blockSize = buf.GetSize() / sizeof(T) * sizeof(T);
     uint32_t remain = (elemSize * sizeof(T)) % blockSize;
 
-    // TODO: USE DoubleBuffer.
     int repeat_times = (elemSize * sizeof(T)) / blockSize;
     int repeat_elem = blockSize / sizeof(T);
     int loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
@@ -150,7 +172,6 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
     uint32_t blockSize = ubSize / sizeof(T) * sizeof(T);
     uint32_t remain = (elemSize * sizeof(T)) % blockSize;
 
-    // TODO: USE DoubleBuffer.
     int repeat_times = (elemSize * sizeof(T)) / blockSize;
     int repeat_elem = blockSize / sizeof(T);
     int loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
@@ -185,7 +206,6 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
     uint32_t blockSize = buf.GetSize() / sizeof(T) * sizeof(T);
     uint32_t remain = (elemSize * sizeof(T)) % blockSize;
 
-    // TODO: USE DoubleBuffer.
     int repeat_times = (elemSize * sizeof(T)) / blockSize;
     int repeat_elem = blockSize / sizeof(T);
     int loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
@@ -207,8 +227,18 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
     }
 }
 
+
+/**
+ * @brief Asynchronous interface. Copy contiguous symmetric data from a different PE to a contiguous data object on the local PE.
+ *
+ * @param dst               [in] Pointer on Symmetric memory of the destination data object.
+ * @param src               [in] Pointer on Symmetric memory of the source data object on remote PE.
+ * @param elemSize          [in] Number of elements in the dest and source arrays.
+ * @param pe                [in] PE number of the remote PE.
+ * @return void
+ */
 #define SHMEM_GET_TYPENAME_MEM(NAME, TYPE)                                                                              \
-    SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elemSize, int32_t pe)         \
+    SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elemSize, int32_t pe)     \
     {                                                                                                                   \
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
@@ -219,11 +249,21 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
         uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                               \
         uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                            \
         AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                              \
-        shmem_mte_get_mem_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE*>(copyUB), copyUBSize, elemSize, pe, copyEventID);      \
+        shmem_mte_get_mem_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE*>(copyUB), copyUBSize, elemSize, pe, copyEventID);   \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
 
+
+/**
+ * @brief Asynchronous interface. Copy contiguous symmetric data from a different PE to a contiguous data object on the local PE.
+ *
+ * @param dst               [in] GlobalTensor on Symmetric memory of the destination data object.
+ * @param src               [in] GlobalTensor on Symmetric memory of the source data object on remote PE.
+ * @param elemSize          [in] Number of elements in the dest and source arrays.
+ * @param pe                [in] PE number of the remote PE.
+ * @return void
+ */
 #define SHMEM_GET_TYPENAME_MEM_TENSOR(NAME, TYPE)                                                                           \
     SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, uint32_t elemSize, int pe)   \
     {                                                                                                                   \
@@ -245,6 +285,16 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
 
 SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR);
 
+
+/**
+ * @brief Asynchronous interface. Copy a contiguous data object on local PE to symmetric data on a different PE.
+ *
+ * @param dst               [in] Pointer on Symmetric memory of the destination data object on remote PE.
+ * @param src               [in] Pointer on Symmetric memory of the source data object.
+ * @param elemSize          [in] Number of elements in the dest and source arrays.
+ * @param pe                [in] PE number of the remote PE.
+ * @return void
+ */
 #define SHMEM_PUT_TYPENAME_MEM(NAME, TYPE)                                                                              \
     SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elemSize, int32_t pe)         \
     {                                                                                                                   \
@@ -262,6 +312,16 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR);
 
 SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
 
+
+/**
+ * @brief Asynchronous interface. Copy a contiguous data object on local PE to symmetric data on a different PE.
+ *
+ * @param dst               [in] GlobalTensor on Symmetric memory of the destination data object on remote PE.
+ * @param src               [in] GlobalTensor on Symmetric memory of the source data object.
+ * @param elemSize          [in] Number of elements in the dest and source arrays.
+ * @param pe                [in] PE number of the remote PE.
+ * @return void
+ */
 #define SHMEM_PUT_TYPENAME_MEM_TENSOR(NAME, TYPE)                                                                           \
     SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, uint32_t elemSize, int pe)   \
     {                                                                                                                   \
