@@ -63,7 +63,9 @@ SHMEM_DEVICE int shmem_team_n_pes(shmem_team_t team)
 /**
  * @brief Translate a given PE number in one team into the corresponding PE number in another team.
  * 
- * @param team              [in] A team handle.
+ * @param srcTeam           [in] A team handle.
+ * @param srcPe             [in] The PE number in srcTeam.
+ * @param destTeam          [in] A team handle.
  *
  * @return The number of PEs in the specified team. 
  *         If the team handle is NVSHMEM_TEAM_INVALID, returns -1.

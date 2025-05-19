@@ -22,7 +22,7 @@
 
 /**
  * @brief Translate an local symmetric address to remote symmetric address on the specified PE.
- *        Firstly, check the input address is legal on local pe. Then translate it into remote address 
+ *        Firstly, check whether the input address is legal on local pe. Then translate it into remote address 
  *        on specified PE. Otherwise, returns a null pointer.
  *
  * @param ptr               [in] Symmetric address on local pe.
