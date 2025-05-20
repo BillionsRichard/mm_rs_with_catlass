@@ -7,13 +7,13 @@ extern "C" {
 
 /**
  * @brief Translate an local symmetric address to remote symmetric address on the specified PE.
- *        Firstly, check whether the input address is legal on local pe. Then translate it into remote address 
+ *        Firstly, check whether the input address is legal on local PE. Then translate it into remote address 
  *        on specified PE. Otherwise, returns a null pointer.
  *
- * @param ptr               [in] Symmetric address on local pe.
+ * @param ptr               [in] Symmetric address on local PE.
  * @param pe                [in] The number of the remote PE.
- * @return A local address to the remotely accessible dest address that can be accessed using memory 
- *         loads and stores. Otherwise, a null pointer is returned.
+ * @return If the input address is legal, returns a remote symmetric address on the specified PE that can be 
+ *         accessed using memory loads and stores. Otherwise, a null pointer is returned.
  */
 SHMEM_HOST_API void* shmem_ptr(void *ptr, int pe);
 
