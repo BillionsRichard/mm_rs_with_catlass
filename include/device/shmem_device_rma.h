@@ -53,7 +53,7 @@ SHMEM_DEVICE __gm__ void* shmem_ptr(__gm__ void* ptr, int pe)
 
 
 /**
- * @brief Provide a low latency put capability for single elements of most basic types.
+ * @brief Provide a low latency put capability for single element of most basic types.
  *
  * @param dst               [in] Symmetric address of the destination data on local PE.
  * @param value             [in] The element to be put.
@@ -75,7 +75,7 @@ SHMEM_TYPE_FUNC(SHMEM_TYPENAME_P_AICORE);
 
 
 /**
- * @brief Provide a low latency get capability for single elements of most basic types.
+ * @brief Provide a low latency get capability for single element of most basic types.
  *
  * @param src               [in] Symmetric address of the destination data on local PE.
  * @param pe                [in] The number of the remote PE.
@@ -94,7 +94,7 @@ SHMEM_TYPE_FUNC(SHMEM_TYPENAME_P_AICORE);
 SHMEM_TYPE_FUNC(SHMEM_TYPENAME_G_AICORE);
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on symmetric memory from a different PE to address on the local device.
+ * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local device.
  *
  * @param dst               [in] Pointer on local device of the destination data.
  * @param src               [in] Pointer on Symmetric memory of the source data on remote PE.
@@ -137,7 +137,7 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
 }
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on symmetric memory from a different PE to address on the local PE.
+ * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
  *
  * @param dst               [in] GlobalTensor on local device of the destination data.
  * @param src               [in] GlobalTensor on Symmetric memory of the source data on remote PE.
@@ -182,7 +182,7 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
 }
 
 /**
- * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on a different PE.
+ * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
  *
  * @param dst               [in] Pointer on Symmetric memory of the destination data on remote PE.
  * @param src               [in] Pointer on local device of the source data.
@@ -224,7 +224,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
 }
 
 /**
- * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on a different PE.
+ * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
  *
  * @param dst               [in] GlobalTensor on Symmetric memory of the destination data on remote PE.
  * @param src               [in] GlobalTensor on local device of the source data.
@@ -270,7 +270,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
 
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on symmetric memory from a different PE to address on the local PE.
+ * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
  *
  * @param dst               [in] Pointer on local device of the destination data.
  * @param src               [in] Pointer on Symmetric memory of the source data on remote PE.
@@ -298,7 +298,7 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
 
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on symmetric memory from a different PE to address on the local PE.
+ * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
  *
  * @param dst               [in] GlobalTensor on local device of the destination data.
  * @param src               [in] GlobalTensor on Symmetric memory of the source data on remote PE.
@@ -329,7 +329,7 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR);
 
 
 /**
- * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on a different PE.
+ * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
  *
  * @param dst               [in] Pointer on Symmetric memory of the destination data on remote PE.
  * @param src               [in] Pointer on local device of the source data.
@@ -356,7 +356,7 @@ SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
 
 
 /**
- * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on a different PE.
+ * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
  *
  * @param dst               [in] GlobalTensor on Symmetric memory of the destination data on remote PE.
  * @param src               [in] GlobalTensor on local device of the source data.
