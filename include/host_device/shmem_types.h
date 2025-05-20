@@ -4,6 +4,14 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+/**
+ * @private 
+*/
+#define SHMEM_GLOBAL __global__ __aicore__
+
+/// \def SHMEM_DEVICE
+/// \brief A macro that identifies a function on the device side.
+#define SHMEM_DEVICE __attribute__((always_inline)) __aicore__ __inline__
 
 /**
  * @addtogroup group_enums
@@ -23,6 +31,26 @@ enum shmem_team_index_t{
 */
 enum data_op_engine_type_t {
     SHMEM_DATA_OP_MTE = 0x01,
+};
+
+/**
+ * @brief signal ops, used by signaler in p2p synchronization
+ */
+enum {
+    SHMEM_SIGNAL_SET,
+    SHMEM_SIGNAL_ADD
+};
+
+/**
+ * @brief signal compare ops, used by signalee in p2p synchronization
+ */
+enum {
+    SHMEM_CMP_EQ,
+    SHMEM_CMP_NE,
+    SHMEM_CMP_GT,
+    SHMEM_CMP_GE,
+    SHMEM_CMP_LT,
+    SHMEM_CMP_LE
 };
 
 /**@} */ // end of group_enums

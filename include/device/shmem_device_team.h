@@ -4,6 +4,10 @@
 #include "host_device/shmem_types.h"
 #include "internal/host_device/shmemi_types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Returns the PE number of the local PE
  *
@@ -91,5 +95,9 @@ SHMEM_DEVICE int shmem_team_translate_pe(shmem_team_t src_team, int src_pe, shme
     
     return n;
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

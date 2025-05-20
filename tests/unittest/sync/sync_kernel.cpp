@@ -1,5 +1,4 @@
 #include "kernel_operator.h"
-#include "device/shmem_device_def.h"
 #include "shmem_api.h"
 
 SHMEM_DEVICE void cube_guard() {
@@ -84,6 +83,39 @@ extern "C" SHMEM_GLOBAL void increase(GM_ADDR addr, int rank_id, int rank_size) 
 #endif
 }
 
+extern "C" SHMEM_GLOBAL void p2p_chain(GM_ADDR addr, int rank_id, int rank_size) {
+    auto sig_addr = (__gm__ int32_t *)addr;
+    int32_t val = *sig_addr;
+    int next = (rank_id + 1) % rank_size;
+
+    CVGuard();
+    shmem_barrier_all();
+
+#ifdef __DAV_C220_VEC__
+    if (rank_id == 0) {
+        shmemx_signal_op(sig_addr, 1, SHMEM_SIGNAL_SET, next);
+        shmem_signal_wait_until(sig_addr, SHMEM_CMP_EQ, 1);
+    } else {
+        shmem_signal_wait_until(sig_addr, SHMEM_CMP_EQ, 1);
+        shmemx_signal_op(sig_addr, 1, SHMEM_SIGNAL_SET, next);
+    }
+#endif
+
+    shmem_barrier_all();
+
+#ifdef __DAV_C220_VEC__
+    if (rank_id == 0) {
+        shmemx_signal_op(sig_addr, 1, SHMEM_SIGNAL_ADD, next);
+        shmem_signal_wait_until(sig_addr, SHMEM_CMP_EQ, 3);
+    } else {
+        shmem_signal_wait_until(sig_addr, SHMEM_CMP_EQ, 3);
+        shmemx_signal_op(sig_addr, 1, SHMEM_SIGNAL_ADD, next);
+    }
+#endif
+
+    shmem_barrier_all();
+}
+
 void fetch_addr_do(void* stream, uint8_t* sync_array, uint8_t* sync_counter) {
     fetch_addr<<<1, nullptr, stream>>>(sync_array, sync_counter);
 }
@@ -94,4 +126,8 @@ void barrier_do(void* stream, uint8_t *stub) {
 
 void increase_do(void* stream, uint8_t *addr, int rank_id, int rank_size) {
     increase<<<16, nullptr, stream>>>(addr, rank_id, rank_size);
+}
+
+void p2p_chain_do(void *stream, uint8_t *addr, int rank_id, int rank_size) {
+    p2p_chain<<<1, nullptr, stream>>>(addr, rank_id, rank_size);
 }

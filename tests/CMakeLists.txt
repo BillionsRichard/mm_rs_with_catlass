@@ -1,6 +1,6 @@
 include_directories(
     ${PROJECT_SOURCE_DIR}/install/shmem/include/
-    ${PROJECT_SOURCE_DIR}/src/include/
+    ${PROJECT_SOURCE_DIR}/src/host/common
     ${PROJECT_SOURCE_DIR}/install/memfabric_hybrid/include/host/
 )
 
