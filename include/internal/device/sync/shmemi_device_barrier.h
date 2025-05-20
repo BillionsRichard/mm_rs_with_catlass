@@ -108,7 +108,7 @@ The temporal and spatial complexity of this implementation are O(logN) and O(N),
 */
 
 SHMEM_DEVICE void ShmemiBarrierNpu(ShmemiTeam *team) {
-    int myPe = team->mype;
+    int myPe = ShmemiGetState()->teamPools[SHMEM_TEAM_WORLD]->mype;
     int start = team->start;
     int stride = team->stride;
     int size = team->size;
@@ -145,7 +145,7 @@ template<bool isAIVOnly = true>
 SHMEM_DEVICE void ShmemiBarrier(shmem_team_t tid) {
     ShmemiTeam *team = ShmemiGetState()->teamPools[tid];
 
-    int mype = team->mype;
+    int mype = ShmemiGetState()->teamPools[SHMEM_TEAM_WORLD]->mype;
     int start = team->start;
     int stride = team->stride;
     int size = team->size;
