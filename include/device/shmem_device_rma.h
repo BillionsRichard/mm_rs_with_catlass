@@ -97,11 +97,11 @@ SHMEM_TYPE_FUNC(SHMEM_TYPENAME_G_AICORE);
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local device.
  *
  * @param dst               [in] Pointer on local device of the destination data.
- * @param src               [in] Pointer on Symmetric memory of the source data on remote PE.
- * @param buf               [in] Pointer on local UB chip.
+ * @param src               [in] Pointer on Symmetric memory of the source data.
+ * @param buf               [in] Pointer on local UB.
  * @param elemSize          [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] PipeLine ID used to Sync Event.
+ * @param EVENT_ID          [in] ID used to Sync MTE2\MTE3 Event.
  * @return void
  */
 template <typename T>
@@ -140,11 +140,11 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
  *
  * @param dst               [in] GlobalTensor on local device of the destination data.
- * @param src               [in] GlobalTensor on Symmetric memory of the source data on remote PE.
- * @param buf               [in] LocalTensor on local UB chip.
+ * @param src               [in] GlobalTensor on Symmetric memory of the source data.
+ * @param buf               [in] LocalTensor on local UB.
  * @param elemSize          [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] PipeLine ID used to Sync Event.
+ * @param EVENT_ID          [in] ID used to Sync MTE2\MTE3 Event.
  * @return void
  */
 template <typename T>
@@ -184,9 +184,9 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
 /**
  * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
  *
- * @param dst               [in] Pointer on Symmetric memory of the destination data on remote PE.
+ * @param dst               [in] Pointer on Symmetric memory of the destination data.
  * @param src               [in] Pointer on local device of the source data.
- * @param buf               [in] Pointer on local UB chip.
+ * @param buf               [in] Pointer on local UB.
  * @param elemSize          [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
  * @return void
@@ -226,12 +226,12 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
 /**
  * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
  *
- * @param dst               [in] GlobalTensor on Symmetric memory of the destination data on remote PE.
+ * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.
  * @param src               [in] GlobalTensor on local device of the source data.
- * @param buf               [in] Pointer on local UB chip.
+ * @param buf               [in] Pointer on local UB.
  * @param elemSize          [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] PipeLine ID used to Sync Event.
+ * @param EVENT_ID          [in] ID used to Sync MTE2\MTE3 Event.
  * @return void
  */
 template <typename T>
@@ -273,10 +273,10 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
  *
  * @param dst               [in] Pointer on local device of the destination data.
- * @param src               [in] Pointer on Symmetric memory of the source data on remote PE.
+ * @param src               [in] Pointer on Symmetric memory of the source data.
  * @param elemSize          [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] PipeLine ID used to Sync Event.
+ * @param EVENT_ID          [in] ID used to Sync MTE2\MTE3 Event.
  * @return void
  */
 #define SHMEM_GET_TYPENAME_MEM(NAME, TYPE)                                                                              \
@@ -301,7 +301,7 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
  * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE.
  *
  * @param dst               [in] GlobalTensor on local device of the destination data.
- * @param src               [in] GlobalTensor on Symmetric memory of the source data on remote PE.
+ * @param src               [in] GlobalTensor on Symmetric memory of the source data.
  * @param elemSize          [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
  * @return void
@@ -331,7 +331,7 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR);
 /**
  * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
  *
- * @param dst               [in] Pointer on Symmetric memory of the destination data on remote PE.
+ * @param dst               [in] Pointer on Symmetric memory of the destination data.
  * @param src               [in] Pointer on local device of the source data.
  * @param elemSize          [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
@@ -358,7 +358,7 @@ SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
 /**
  * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
  *
- * @param dst               [in] GlobalTensor on Symmetric memory of the destination data on remote PE.
+ * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.
  * @param src               [in] GlobalTensor on local device of the source data.
  * @param elemSize          [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
