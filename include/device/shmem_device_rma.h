@@ -121,26 +121,25 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
     uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
     uint32_t ubStride = (copyParams.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
     AscendC::DataCopyExtParams dataCopyParamsGM2UB(
-        copyParams.repeat,                                              // blockCount
-        copyParams.length * sizeof(T),                                  // blockLen
-        (copyParams.srcStride - copyParams.length) * sizeof(T),         // GMStride(In Byte)
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,              // UBStride(In Block)
+        copyParams.repeat,
+        copyParams.length * sizeof(T),
+        (copyParams.srcStride - copyParams.length) * sizeof(T),
+        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
         0
     );
-    AscendC::DataCopyPadExtParams<T> padParams(false, 0, 0, 0);
-    AscendC::DataCopyPad(ubTensor, srcTensor, dataCopyParamsGM2UB, padParams);
+    smem_shm_copy_gm2ub(ubTensor, srcTensor, dataCopyParamsGM2UB);
 
     AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
     AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
 
     AscendC::DataCopyExtParams dataCopyParamsUB2GM(
-        copyParams.repeat,                                              // blockCount
-        copyParams.length * sizeof(T),                                  // blockLen
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,              // UBStride(In Block)
-        (copyParams.dstStride - copyParams.length) * sizeof(T),         // GMStride(In Byte)
+        copyParams.repeat,
+        copyParams.length * sizeof(T),
+        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
+        (copyParams.dstStride - copyParams.length) * sizeof(T),
         0
     );
-    AscendC::DataCopyPad(dstTensor, ubTensor, dataCopyParamsUB2GM);
+    smem_shm_copy_ub2gm(dstTensor, ubTensor, dataCopyParamsUB2GM);
 }
 
 
@@ -192,26 +191,25 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
     uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
     uint32_t ubStride = (copyParams.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
     AscendC::DataCopyExtParams dataCopyParamsGM2UB(
-        copyParams.repeat,                                              // blockCount
-        copyParams.length * sizeof(T),                                  // blockLen
-        (copyParams.srcStride - copyParams.length) * sizeof(T),         // GMStride(In Byte)
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,              // UBStride(In Block)
+        copyParams.repeat,
+        copyParams.length * sizeof(T),
+        (copyParams.srcStride - copyParams.length) * sizeof(T),
+        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
         0
     );
-    AscendC::DataCopyPadExtParams<T> padParams(false, 0, 0, 0);
-    AscendC::DataCopyPad(buf, remoteBuff, dataCopyParamsGM2UB, padParams);
+    smem_shm_copy_gm2ub(buf, remoteBuff, dataCopyParamsGM2UB);
 
     AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
     AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
 
     AscendC::DataCopyExtParams dataCopyParamsUB2GM(
-        copyParams.repeat,                                              // blockCount
-        copyParams.length * sizeof(T),                                  // blockLen
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,              // UBStride(In Block)
-        (copyParams.dstStride - copyParams.length) * sizeof(T),         // GMStride(In Byte)
+        copyParams.repeat,
+        copyParams.length * sizeof(T),
+        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
+        (copyParams.dstStride - copyParams.length) * sizeof(T),
         0
     );
-    AscendC::DataCopyPad(dst, buf, dataCopyParamsUB2GM);
+    smem_shm_copy_ub2gm(dst, buf, dataCopyParamsUB2GM);
 }
 
 
@@ -267,26 +265,25 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
     uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
     uint32_t ubStride = (copyParams.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
     AscendC::DataCopyExtParams dataCopyParamsGM2UB(
-        copyParams.repeat,                                              // blockCount
-        copyParams.length * sizeof(T),                                  // blockLen
-        (copyParams.srcStride - copyParams.length) * sizeof(T),         // GMStride(In Byte)
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,              // UBStride(In Block)
+        copyParams.repeat,
+        copyParams.length * sizeof(T),
+        (copyParams.srcStride - copyParams.length) * sizeof(T),
+        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
         0
     );
-    AscendC::DataCopyPadExtParams<T> padParams(false, 0, 0, 0);
-    AscendC::DataCopyPad(ubTensor, srcTensor, dataCopyParamsGM2UB, padParams);
+    smem_shm_copy_gm2ub(ubTensor, srcTensor, dataCopyParamsGM2UB);
 
     AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
     AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
 
     AscendC::DataCopyExtParams dataCopyParamsUB2GM(
-        copyParams.repeat,                                              // blockCount
-        copyParams.length * sizeof(T),                                  // blockLen
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,              // UBStride(In Block)
-        (copyParams.dstStride - copyParams.length) * sizeof(T),         // GMStride(In Byte)
+        copyParams.repeat,
+        copyParams.length * sizeof(T),
+        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
+        (copyParams.dstStride - copyParams.length) * sizeof(T),
         0
     );
-    AscendC::DataCopyPad(dstTensor, ubTensor, dataCopyParamsUB2GM);
+    smem_shm_copy_ub2gm(dstTensor, ubTensor, dataCopyParamsUB2GM);
 }
 
 
@@ -338,26 +335,25 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
     uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
     uint32_t ubStride = (copyParams.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
     AscendC::DataCopyExtParams dataCopyParamsGM2UB(
-        copyParams.repeat,                                              // blockCount
-        copyParams.length * sizeof(T),                                  // blockLen
-        (copyParams.srcStride - copyParams.length) * sizeof(T),         // GMStride(In Byte)
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,              // UBStride(In Block)
+        copyParams.repeat,
+        copyParams.length * sizeof(T),
+        (copyParams.srcStride - copyParams.length) * sizeof(T),
+        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
         0
     );
-    AscendC::DataCopyPadExtParams<T> padParams(false, 0, 0, 0);
-    AscendC::DataCopyPad(buf, src, dataCopyParamsGM2UB, padParams);
+    smem_shm_copy_gm2ub(buf, src, dataCopyParamsGM2UB);
 
     AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
     AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
 
     AscendC::DataCopyExtParams dataCopyParamsUB2GM(
-        copyParams.repeat,                                              // blockCount
-        copyParams.length * sizeof(T),                                  // blockLen
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,              // UBStride(In Block)
-        (copyParams.dstStride - copyParams.length) * sizeof(T),         // GMStride(In Byte)
+        copyParams.repeat,
+        copyParams.length * sizeof(T),
+        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
+        (copyParams.dstStride - copyParams.length) * sizeof(T),
         0
     );
-    AscendC::DataCopyPad(remoteBuff, buf, dataCopyParamsUB2GM);
+    smem_shm_copy_ub2gm(remoteBuff, buf, dataCopyParamsUB2GM);
 }
 
 
