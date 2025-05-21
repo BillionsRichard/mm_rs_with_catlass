@@ -189,6 +189,7 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
  * @param buf               [in] Pointer on local UB.
  * @param elemSize          [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
+ * @param EVENT_ID          [in] ID used to Sync MTE2\MTE3 Event.
  * @return void
  */
 template <typename T>
@@ -276,7 +277,6 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
  * @param src               [in] Pointer on Symmetric memory of the source data.
  * @param elemSize          [in] Number of elements in the dest and source arrays.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] ID used to Sync MTE2\MTE3 Event.
  * @return void
  */
 #define SHMEM_GET_TYPENAME_MEM(NAME, TYPE)                                                                              \
