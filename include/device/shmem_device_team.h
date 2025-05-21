@@ -4,16 +4,34 @@
 #include "host_device/shmem_types.h"
 #include "internal/host_device/shmemi_types.h"
 
+/**
+ * @brief Returns the PE number of the local PE
+ *
+ * @return Integer between 0 and npes - 1
+ */
 SHMEM_DEVICE int shmem_my_pe(void)
 {
     return ShmemiGetState()->teamPools[SHMEM_TEAM_WORLD]->mype;
 }
 
+/**
+ * @brief Returns the number of PEs running in the program.
+ *
+ * @return Number of PEs in the program.
+ */
 SHMEM_DEVICE int shmem_n_pes(void)
 {
     return ShmemiGetState()->teamPools[SHMEM_TEAM_WORLD]->size;
 }
 
+/**
+ * @brief Returns the number of the calling PE in the specified team.
+ * 
+ * @param team              [in] A team handle.
+ *
+ * @return The number of the calling PE within the specified team. 
+ *         If the team handle is NVSHMEM_TEAM_INVALID, returns -1.
+ */
 SHMEM_DEVICE int shmem_team_my_pe(shmem_team_t team)
 {
     if (team == SHMEM_TEAM_INVALID)
@@ -24,6 +42,14 @@ SHMEM_DEVICE int shmem_team_my_pe(shmem_team_t team)
     }
 }
 
+/**
+ * @brief Returns the number of PEs in the team.
+ * 
+ * @param team              [in] A team handle.
+ *
+ * @return The number of PEs in the specified team. 
+ *         If the team handle is NVSHMEM_TEAM_INVALID, returns -1.
+ */
 SHMEM_DEVICE int shmem_team_n_pes(shmem_team_t team)
 {
     if (team == SHMEM_TEAM_INVALID)
@@ -34,6 +60,16 @@ SHMEM_DEVICE int shmem_team_n_pes(shmem_team_t team)
     }
 }
 
+/**
+ * @brief Translate a given PE number in one team into the corresponding PE number in another team.
+ * 
+ * @param srcTeam           [in] A team handle.
+ * @param srcPe             [in] The PE number in srcTeam.
+ * @param destTeam          [in] A team handle.
+ *
+ * @return The number of PEs in the specified team. 
+ *         If the team handle is NVSHMEM_TEAM_INVALID, returns -1.
+ */
 SHMEM_DEVICE int shmem_team_translate_pe(shmem_team_t srcTeam, int srcPe, shmem_team_t destTeam)
 {
     if (srcTeam == SHMEM_TEAM_INVALID || destTeam == SHMEM_TEAM_INVALID) return -1;
