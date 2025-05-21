@@ -34,6 +34,15 @@ extern "C" {
 // synchronization
 typedef int32_t ShmemiSyncBit[SHMEMI_SYNCBIT_SIZE / sizeof(int32_t)];
 
+// Datacopy Details
+struct DatacopyDetailParams
+{
+    uint32_t repeat;
+    uint32_t length;
+    uint32_t srcStride;
+    uint32_t dstStride;
+};
+
 // Team
 typedef struct {
     int mype;           // team view, [0, size]
