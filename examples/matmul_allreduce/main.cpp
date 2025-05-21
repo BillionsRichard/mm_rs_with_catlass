@@ -37,9 +37,9 @@
 #include "act/layout/layout.hpp"
 
 // from shmem-templates
-#include "shmem-templates/epilogue/block/epilogue_allreduce.hpp"
-#include "shmem-templates/epilogue/block/block_swizzle_dynamic.hpp"
-#include "shmem-templates/gemm/kernel/matmul_epilogue_comm.hpp"
+#include "epilogue/block/epilogue_allreduce.hpp"
+#include "epilogue/block/block_swizzle_dynamic.hpp"
+#include "kernel/matmul_epilogue_comm.hpp"
 
 // shmem_host
 #include "host/shmem_host_def.h"
@@ -260,8 +260,8 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtCreateStream(&stream));
     shmem_init_attr_t *attributes;
     status = shmem_set_attr(rankId, rankSize, gNpuMallocSpace, ipport.c_str(), &attributes);
-    status = shmem_init();
-    status = shmem_init_attributes();
+    status = shmem_init_attr(attributes);
+    status = shmem_init_status();
 
     // Prepare FFTS address
     uint64_t fftsAddr{0};

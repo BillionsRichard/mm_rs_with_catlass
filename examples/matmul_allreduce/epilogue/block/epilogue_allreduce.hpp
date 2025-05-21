@@ -8,8 +8,8 @@
 #include "act/matrix_coord.hpp"
 #include "act/layout/layout.hpp"
 
-// from shmem-templates
-#include "shmem-templates/epilogue/block/block_swizzle_dynamic.hpp"
+// from kernel
+#include "epilogue/block/block_swizzle_dynamic.hpp"
 
 // from shmem-device
 #include "shmem_api.h"

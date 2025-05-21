@@ -8,9 +8,9 @@
 #include "act/gemm_coord.hpp"
 #include "act/matrix_coord.hpp"
 
-// from shmem-templates
-#include "shmem-templates/epilogue/block/epilogue_allreduce.hpp"
-#include "shmem-templates/epilogue/block/block_swizzle_dynamic.hpp"
+// from kernel
+#include "epilogue/block/epilogue_allreduce.hpp"
+#include "epilogue/block/block_swizzle_dynamic.hpp"
 
 namespace Act::Gemm::Kernel {
 template <
