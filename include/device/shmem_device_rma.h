@@ -419,6 +419,16 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
 SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
 
 
+/**
+ * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data 
+ *        on symmetric memory from the specified PE to address on the local device.
+ *
+ * @param dst               [in] Pointer on local device of the destination data.
+ * @param src               [in] Pointer on Symmetric memory of the source data.
+ * @param copyParams        [in] Params to describe how non-contiguous data is managed in src and dst.
+ * @param pe                [in] PE number of the remote PE.
+ * @return void
+ */
 #define SHMEM_GET_TYPENAME_MEM_DETAILED(NAME, TYPE)                                                                         \
     SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, const DatacopyDetailParams& copyParams, int32_t pe)         \
     {                                                                                                                       \
@@ -459,6 +469,16 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_DETAILED);
 SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR);
 
 
+/**
+ * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data 
+ *        on symmetric memory from the specified PE to address on the local device.
+ *
+ * @param dst               [in] GlobalTensor on local device of the destination data.
+ * @param src               [in] GlobalTensor on Symmetric memory of the source data.
+ * @param copyParams        [in] Params to describe how non-contiguous data is managed in src and dst.
+ * @param pe                [in] PE number of the remote PE.
+ * @return void
+ */
 #define SHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED(NAME, TYPE)                                                              \
     SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, const DatacopyDetailParams& copyParams, int pe)  \
     {                                                                                                                   \
@@ -499,6 +519,16 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED);
 SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
 
 
+/**
+ * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data 
+ *        on local PE to symmetric address on the specified PE.
+ *
+ * @param dst               [in] Pointer on Symmetric memory of the destination data.
+ * @param src               [in] Pointer on local device of the source data.
+ * @param copyParams        [in] Params to describe how non-contiguous data is managed in src and dst.
+ * @param pe                [in] PE number of the remote PE.
+ * @return void
+ */
 #define SHMEM_PUT_TYPENAME_MEM_DETAILED(NAME, TYPE)                                                                         \
     SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, const DatacopyDetailParams& copyParams, int32_t pe)        \
     {                                                                                                                       \
@@ -539,6 +569,16 @@ SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM_DETAILED);
 SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM_TENSOR);
 
 
+/**
+ * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data 
+ *        on local PE to symmetric address on the specified PE.
+ *
+ * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.
+ * @param src               [in] GlobalTensor on local device of the source data.
+ * @param copyParams        [in] Params to describe how non-contiguous data is managed in src and dst.
+ * @param pe                [in] PE number of the remote PE.
+ * @return void
+ */
 #define SHMEM_PUT_TYPENAME_MEM_TENSOR_DETAILED(NAME, TYPE)                                                              \
     SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, const DatacopyDetailParams& copyParams, int pe)  \
     {                                                                                                                   \
