@@ -1,12 +1,12 @@
 #ifndef _EPILOGUE_ALLREDUCE_HPP
 #define _EPILOGUE_ALLREDUCE_HPP
 // from ascendc-templates
-#include "act/act.hpp"
-#include "act/arch/resource.hpp"
-#include "act/epilogue/dispatch_policy.hpp"
-#include "act/gemm_coord.hpp"
-#include "act/matrix_coord.hpp"
-#include "act/layout/layout.hpp"
+#include "catlass/catlass.hpp"
+#include "catlass/arch/resource.hpp"
+#include "catlass/epilogue/dispatch_policy.hpp"
+#include "catlass/gemm_coord.hpp"
+#include "catlass/matrix_coord.hpp"
+#include "catlass/layout/layout.hpp"
 
 // from kernel
 #include "epilogue/block/block_swizzle_dynamic.hpp"
@@ -14,9 +14,9 @@
 // from shmem-device
 #include "shmem_api.h"
 
-using namespace Act;
+using namespace Catlass;
 
-ACT_DEVICE
+CATLASS_DEVICE
 MatrixCoord GetActualShape(
     const MatrixCoord &blockCount,
     const MatrixCoord &blockCoord,
@@ -42,7 +42,7 @@ MatrixCoord GetActualShape(
     return c;
 }
 
-namespace Act::Epilogue::Block {
+namespace Catlass::Epilogue::Block {
 template <
     class... Args
 >
@@ -91,10 +91,10 @@ public:
         MatrixCoord blockShape;
         MatrixCoord processShape;
 
-        ACT_DEVICE
+        CATLASS_DEVICE
         Params() = default;
 
-        ACT_DEVICE
+        CATLASS_DEVICE
         Params(
             AscendC::GlobalTensor<ElementDestination> destination,
             const LayoutDestination &layoutDestination,
@@ -116,7 +116,7 @@ public:
         {}
     };
 
-    ACT_DEVICE
+    CATLASS_DEVICE
     EpilogueAllReduce(
         Arch::Resource<ArchTag> &resource,
         Params const &params,
@@ -125,10 +125,10 @@ public:
         params(params),
         gemmBlockShape(blockGemmShape.m(), blockGemmShape.n()) {}
 
-    ACT_DEVICE
+    CATLASS_DEVICE
     ~EpilogueAllReduce() {}
 
-    ACT_DEVICE
+    CATLASS_DEVICE
     void operator() (
         MatrixCoord const &blockShape,
         MatrixCoord const &commBlockCount,
@@ -355,6 +355,6 @@ private:
     Params params;
 };
 
-}  // namespace Act::Epilogue::Block
+}  // namespace Catlass::Epilogue::Block
 
 #endif  // _EPILOGUE_ALLREDUCE_HPP

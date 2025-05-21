@@ -1,10 +1,10 @@
 #pragma once
-#include "act/act.hpp"
-#include "act/detail/alignment.hpp"
-#include "act/gemm_coord.hpp"
-#include "act/matrix_coord.hpp"
+#include "catlass/catlass.hpp"
+#include "catlass/detail/alignment.hpp"
+#include "catlass/gemm_coord.hpp"
+#include "catlass/matrix_coord.hpp"
 
-namespace Act::Gemm::Block {
+namespace Catlass::Gemm::Block {
 
 struct ReduceScatterSchedule {};
 struct AllGatherSchedule {};
@@ -30,10 +30,10 @@ struct CommBlockSwizzleDynamic {
     /// Methods
     ///
 
-    ACT_DEVICE
+    CATLASS_DEVICE
     CommBlockSwizzleDynamic() {}
 
-    ACT_DEVICE
+    CATLASS_DEVICE
     CommBlockSwizzleDynamic(MatrixCoord blockShape_, uint32_t rankIdx_, uint32_t rankSize_, uint32_t swizzleDirection_ = 0,
         uint32_t commDataSplit_ = 1, uint32_t commNpuSplit_ = 1)
         : blockShape(blockShape_), rankIdx(rankIdx_), rankSize(rankSize_), swizzleDirection(swizzleDirection_),
@@ -49,13 +49,13 @@ struct CommBlockSwizzleDynamic {
         nStride = rankSize / commNpuSplit;
     }
 
-    ACT_DEVICE
+    CATLASS_DEVICE
     uint32_t GetCoreLoop() const
     {
         return mLoops * nLoops;
     }
 
-    template <typename CommOp, bool Align=false> ACT_DEVICE
+    template <typename CommOp, bool Align=false> CATLASS_DEVICE
     void SetProblemSize(MatrixCoord problemSize_)
     {
         problemSize = problemSize_;
@@ -73,13 +73,13 @@ struct CommBlockSwizzleDynamic {
         mLoops = CeilDiv(problemSizePerRank.row(), blockShape.row());
     }
 
-    ACT_DEVICE
+    CATLASS_DEVICE
     uint32_t GetRealCore() const
     {
         return commDataSplit * commNpuSplit;
     }
 
-    ACT_DEVICE
+    CATLASS_DEVICE
     MatrixCoord GetBlockIdx(uint32_t taskIdx) const {
         uint32_t innerIdx = taskIdx % (mLoops * nLoops);
         if (swizzleDirection == 0) { // Zn
@@ -116,7 +116,7 @@ struct CommBlockSwizzleDynamic {
         return MatrixCoord{};
     }
 
-    ACT_DEVICE
+    CATLASS_DEVICE
     MatrixCoord GetBlockOffset(MatrixCoord blockIdx) const {
         MatrixCoord commBlockCoord{blockIdx.row(), 0};
         auto subBlockOffset = commBlockCoord * blockShape;
@@ -124,7 +124,7 @@ struct CommBlockSwizzleDynamic {
         return subBlockOffset;
     }
 
-    template <typename CommOp>  ACT_DEVICE
+    template <typename CommOp>  CATLASS_DEVICE
     MatrixCoord GetRankOffset(MatrixCoord blockIdx) const {
         MatrixCoord commRankCoord;
         if constexpr (std::is_same<CommOp, ReduceScatterSchedule>::value) {
@@ -137,7 +137,7 @@ struct CommBlockSwizzleDynamic {
         return rankBlockOffset;
     }
 
-    template <typename CommOp> ACT_DEVICE
+    template <typename CommOp> CATLASS_DEVICE
     MatrixCoord GetBlockSize(MatrixCoord blockIdx) const {
         auto blockTileOffset = GetRankOffset<CommOp>(blockIdx) + GetBlockOffset(blockIdx);
 
@@ -155,6 +155,6 @@ struct CommBlockSwizzleDynamic {
     }
 };
 
-}  // namespace Act::Gemm::Block
+}  // namespace Catlass::Gemm::Block
 
    

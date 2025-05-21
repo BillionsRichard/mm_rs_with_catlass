@@ -2,17 +2,17 @@
 #define ACT_GEMM_KERNEL_MATMUL_EPILOGUE_COMM_HPP
 
 // from ascendc-templates
-#include "act/act.hpp"
-#include "act/arch/resource.hpp"
-#include "act/arch/cross_core_sync.hpp"
-#include "act/gemm_coord.hpp"
-#include "act/matrix_coord.hpp"
+#include "catlass/catlass.hpp"
+#include "catlass/arch/resource.hpp"
+#include "catlass/arch/cross_core_sync.hpp"
+#include "catlass/gemm_coord.hpp"
+#include "catlass/matrix_coord.hpp"
 
 // from kernel
 #include "epilogue/block/epilogue_allreduce.hpp"
 #include "epilogue/block/block_swizzle_dynamic.hpp"
 
-namespace Act::Gemm::Kernel {
+namespace Catlass::Gemm::Kernel {
 template <
     class BlockMmad_,
     class BlockEpilogue_,
@@ -54,10 +54,10 @@ public:
         EpilogueParams epilogueParams;
 
         // Methods
-        ACT_DEVICE
+        CATLASS_DEVICE
         Params() {}
 
-        ACT_DEVICE
+        CATLASS_DEVICE
         Params(
             GemmCoord const &problemShape_,
             GemmCoord const &blockShape_,
@@ -73,7 +73,7 @@ public:
     };
 
     // Methods
-    ACT_DEVICE
+    CATLASS_DEVICE
     MatmulEpilogueComm()
     {
         for (uint32_t i = 0; i < BufferNum; ++i) {
@@ -83,11 +83,11 @@ public:
     }
 
     template <int32_t CORE_TYPE = g_coreType>
-    ACT_DEVICE
+    CATLASS_DEVICE
     void operator()(Params &params);
 
     template <>
-    ACT_DEVICE
+    CATLASS_DEVICE
     void operator()<AscendC::AIC>(Params &params)
     {
         BlockScheduler matmulBlockScheduler(params.problemShape, MakeCoord(L1TileShape::M, L1TileShape::N));
@@ -155,7 +155,7 @@ public:
     }
 
     template <>
-    ACT_DEVICE
+    CATLASS_DEVICE
     void operator()<AscendC::AIV>(Params &params)
     {
         BlockEpilogue blockAllReduceEpilogue(resource, params.epilogueParams, params.blockShape);
@@ -200,6 +200,6 @@ private:
     Arch::Resource<ArchTag> resource;
 };
 
-} // namespace Act::Gemm::Kernel
+} // namespace Catlass::Gemm::Kernel
 
 #endif // ACT_GEMM_KERNEL_MATMUL_EPILOGUE_COMM_HPP

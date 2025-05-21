@@ -23,18 +23,18 @@
 
 
 // from ascendc-templates
-#include "act/act.hpp"
-#include "act/arch/arch.hpp"
-#include "act/epilogue/dispatch_policy.hpp"
-#include "act/epilogue/block/block_epilogue.hpp"
-#include "act/epilogue/tile/tile_copy.hpp"
-#include "act/epilogue/tile/tile_elemwise_add.hpp"
-#include "act/gemm/block/block_mmad.hpp"
-#include "act/gemm/block/block_swizzle.hpp"
-#include "act/gemm/dispatch_policy.hpp"
-#include "act/gemm/kernel/matmul_epilogue.hpp"
-#include "act/gemm/gemm_type.hpp"
-#include "act/layout/layout.hpp"
+#include "catlass/catlass.hpp"
+#include "catlass/arch/arch.hpp"
+#include "catlass/epilogue/dispatch_policy.hpp"
+#include "catlass/epilogue/block/block_epilogue.hpp"
+#include "catlass/epilogue/tile/tile_copy.hpp"
+#include "catlass/epilogue/tile/tile_elemwise_add.hpp"
+#include "catlass/gemm/block/block_mmad.hpp"
+#include "catlass/gemm/block/block_swizzle.hpp"
+#include "catlass/gemm/dispatch_policy.hpp"
+#include "catlass/gemm/kernel/matmul_epilogue.hpp"
+#include "catlass/gemm/gemm_type.hpp"
+#include "catlass/layout/layout.hpp"
 
 // from shmem-templates
 #include "epilogue/block/epilogue_allreduce.hpp"
@@ -61,7 +61,7 @@ static uint32_t gNpuNum = 8;
 static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 1024;
 
 using namespace AscendC;
-using namespace Act;
+using namespace Catlass;
 using fp16_t = op::fp16_t;
 
 
@@ -88,7 +88,7 @@ using LayoutA = layout::RowMajor;
 using LayoutB = layout::RowMajor;
 using LayoutC = layout::RowMajor;
 
-ACT_GLOBAL
+CATLASS_GLOBAL
 void ShmemMatmulAllReduce(
     uint64_t fftsAddr, GemmCoord problemShape, GM_ADDR a, GM_ADDR b, GM_ADDR c, GM_ADDR symmetricPtr, CoCTiling cocTiling)
 {
