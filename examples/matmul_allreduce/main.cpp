@@ -135,10 +135,9 @@ void ShmemMatmulAllReduce(
     using CType = Gemm::GemmType<half, LayoutC>;
     using BlockMmad = Gemm::Block::BlockMmad<MmadDispatchPolicy, L1TileShape, L0TileShape, AType, BType, CType>;
 
-    // TODO Block level, define BlockEpilogue
     using ElementStore = half;
 
-    using BlockScheduler = typename Gemm::Block::GemmIdentityBlockSwizzle<7, 1>;        // TODO Need Set Manually
+    using BlockScheduler = typename Gemm::Block::GemmIdentityBlockSwizzle<7, 1>;
     using CommBlockSwizzle = Gemm::Block::CommBlockSwizzleDynamic;
 
     // Block level, define BlockAllReduceEpilogue(ReduceScatter + AllGather)
@@ -261,8 +260,8 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtCreateStream(&stream));
     shmem_init_attr_t *attributes;
     status = shmem_set_attr(rankId, rankSize, gNpuMallocSpace, ipport.c_str(), &attributes);
-    status = shmem_init_attr(attributes);
-    status = shmem_init_status();
+    status = shmem_init();
+    status = shmem_init_attributes();
 
     // Prepare FFTS address
     uint64_t fftsAddr{0};
@@ -270,9 +269,9 @@ int main(int argc, char **argv)
     RT_CHECK(rtGetC2cCtrlAddr(&fftsAddr, &fftsLen));
 
     Options options;
-    uint32_t m = 1024;
-    uint32_t k = 16;
-    uint32_t n = 1024;
+    uint32_t m = atoi(argv[4]);
+    uint32_t k = atoi(argv[5]);
+    uint32_t n = atoi(argv[6]);
     uint32_t m0 = 128;
     uint32_t k0 = 256;
     uint32_t n0 = 256;
@@ -313,7 +312,7 @@ int main(int argc, char **argv)
     ReadFile("./out/c_gm.bin", cHost, cSize);
     ACL_CHECK(aclrtMemcpy(cDevice, cSize, cHost, cSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
-    void *symmPtr = shmem_malloc((1024 * 1024) * sizeof(__fp16));
+    void *symmPtr = shmem_malloc((204 * 1024 * 1024) * sizeof(__fp16));
     uint8_t *symmetricPtr = (uint8_t *)symmPtr;
 
     CoCTiling cocTiling;

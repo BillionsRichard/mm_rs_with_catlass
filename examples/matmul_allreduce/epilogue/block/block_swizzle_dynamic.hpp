@@ -10,9 +10,6 @@ struct ReduceScatterSchedule {};
 struct AllGatherSchedule {};
 struct AllReduceSchedule {};
 
-/////////////////////////////////////////////////////////////////////////////////////////////////
-/// Threadblock swizzling function for Communication
-/// OneShot for full-mesh
 struct CommBlockSwizzleDynamic {
 
     ///
@@ -73,7 +70,6 @@ struct CommBlockSwizzleDynamic {
                     {RoundUp<uint32_t>(problemSizePerRank.row(), blockShape.row()), problemSizePerRank.column()};
             }
         }
-        // TODO:
         mLoops = CeilDiv(problemSizePerRank.row(), blockShape.row());
     }
 
