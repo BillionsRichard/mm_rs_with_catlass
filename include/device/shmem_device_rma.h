@@ -102,7 +102,18 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
     }
 }
 
-
+/**
+ * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data 
+ *        on symmetric memory from the specified PE to address on the local device.
+ *
+ * @param dst               [in] Pointer on local device of the destination data.
+ * @param src               [in] Pointer on Symmetric memory of the source data.
+ * @param buf               [in] Pointer on local UB.
+ * @param copyParams        [in] Params to describe how non-contiguous data is managed in src and dst.
+ * @param pe                [in] PE number of the remote PE.
+ * @param EVENT_ID          [in] ID used to Sync MTE2\MTE3 Event.
+ * @return void
+ */
 template <typename T>
 SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, const DatacopyDetailParams& copyParams, int pe, AscendC::TEventID EVENT_ID)
 {
@@ -178,7 +189,18 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
     }
 }
 
-
+/**
+ * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data 
+ *        on symmetric memory from the specified PE to address on the local device.
+ *
+ * @param dst               [in] GlobalTensor on local device of the destination data.
+ * @param src               [in] GlobalTensor on Symmetric memory of the source data.
+ * @param buf               [in] LocalTensor on local UB.
+ * @param copyParams        [in] Params to describe how non-contiguous data is organized in src and dst.
+ * @param pe                [in] PE number of the remote PE.
+ * @param EVENT_ID          [in] ID used to Sync MTE2\MTE3 Event.
+ * @return void
+ */
 template <typename T>
 SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, const DatacopyDetailParams& copyParams, int pe, AscendC::TEventID EVENT_ID)
 {
@@ -246,7 +268,18 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
     }
 }
 
-
+/**
+ * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data 
+ *        on local PE to symmetric address on the specified PE.
+ *
+ * @param dst               [in] Pointer on Symmetric memory of the destination data.
+ * @param src               [in] Pointer on local device of the source data.
+ * @param buf               [in] Pointer on local UB.
+ * @param copyParams        [in] Params to describe how non-contiguous data is organized in src and dst.
+ * @param pe                [in] PE number of the remote PE.
+ * @param EVENT_ID          [in] ID used to Sync MTE2\MTE3 Event.
+ * @return void
+ */
 template <typename T>
 SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, const DatacopyDetailParams& copyParams, int pe, AscendC::TEventID EVENT_ID)
 {
@@ -322,7 +355,18 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
     }
 }
 
-
+/**
+ * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data 
+ *        on local PE to symmetric address on the specified PE.
+ *
+ * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.
+ * @param src               [in] GlobalTensor on local device of the source data.
+ * @param buf               [in] LocalTensor on local UB.
+ * @param copyParams        [in] Params to describe how non-contiguous data is organized in src and dst.
+ * @param pe                [in] PE number of the remote PE.
+ * @param EVENT_ID          [in] ID used to Sync MTE2\MTE3 Event.
+ * @return void
+ */
 template <typename T>
 SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, const DatacopyDetailParams& copyParams, int pe, AscendC::TEventID EVENT_ID)
 {
