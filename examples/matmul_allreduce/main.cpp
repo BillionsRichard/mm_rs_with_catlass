@@ -22,7 +22,7 @@
 #include <errno.h>
 
 
-// from ascendc-templates
+// from catlass
 #include "catlass/catlass.hpp"
 #include "catlass/arch/arch.hpp"
 #include "catlass/epilogue/dispatch_policy.hpp"
@@ -174,7 +174,7 @@ void ShmemMatmulAllReduce(
         symmetricPtr,
         epilogueCommParams};
 
-    // call kernel
+    // Call kernel
     MatmulAllReduceKernel matmulCommKernel;
     matmulCommKernel(params);
 }

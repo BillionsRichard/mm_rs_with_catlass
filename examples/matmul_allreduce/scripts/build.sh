@@ -30,8 +30,8 @@ bisheng -O2 -std=c++17 -xcce --cce-aicore-arch=dav-c220             \
     -I${ASCEND_HOME_PATH}/include                                   \
     -I${ASCEND_HOME_PATH}/include/experiment/runtime                \
     -I${ASCEND_HOME_PATH}/include/experiment/msprof                 \
-    -I$PROJECT_ROOT/3rdparty/ascendc-templates/include/             \
-    -I$PROJECT_ROOT/3rdparty/ascendc-templates/examples/common/     \
+    -I$PROJECT_ROOT/3rdparty/catlass/include/                       \
+    -I$PROJECT_ROOT/3rdparty/catlass/examples/common/               \
     -I$PROJECT_ROOT/include/                                        \
     -I$MEMFABRIC_INCLUDE_PATH/host/                                 \
     -I$MEMFABRIC_INCLUDE_PATH/device/                               \

@@ -1,6 +1,6 @@
 使用方式: 
-1.在3rdparty目录下, clone AscendC Templates代码仓：
-    git clone https://gitee.com/ascend/ascendc-templates.git
+1.在3rdparty目录下, clone catlass代码仓：
+    git clone https://gitee.com/ascend/catlass.git
 
 2.在example/matmul_allreduce目录下进行demo编译:
     bash scripts/build.sh

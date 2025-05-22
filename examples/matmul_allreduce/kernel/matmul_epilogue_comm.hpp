@@ -1,7 +1,7 @@
 #ifndef ACT_GEMM_KERNEL_MATMUL_EPILOGUE_COMM_HPP
 #define ACT_GEMM_KERNEL_MATMUL_EPILOGUE_COMM_HPP
 
-// from ascendc-templates
+// from catlass
 #include "catlass/catlass.hpp"
 #include "catlass/arch/resource.hpp"
 #include "catlass/arch/cross_core_sync.hpp"

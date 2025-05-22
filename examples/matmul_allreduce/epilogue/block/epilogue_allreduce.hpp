@@ -1,6 +1,7 @@
 #ifndef _EPILOGUE_ALLREDUCE_HPP
 #define _EPILOGUE_ALLREDUCE_HPP
-// from ascendc-templates
+
+// from catlass
 #include "catlass/catlass.hpp"
 #include "catlass/arch/resource.hpp"
 #include "catlass/epilogue/dispatch_policy.hpp"
@@ -150,7 +151,7 @@ public:
             blockShape.column()
         );
 
-        //数据打平，重新按照通信进行切分block
+        // re-sliced Block by comm cores
         uint32_t flagIdx = calIdx % BufferNum;
         MatrixCoord actualCommBlockShape = blockShape * actualCommBlockCount;
         MatrixCoord outputBlockOffset = blockShape * MatrixCoord{calIdx * loopNumPerComm, 0};
@@ -167,13 +168,13 @@ public:
         AscendC::GlobalTensor<ElementC> peerMem;
         peerMem.SetGlobalBuffer(params.symmetricPtr);
 
-        // 卡内matmul结果准备就绪软同步
+        // Local matmul is completed, waiting until tasks on all devices are complete.
         shmemx_barrier_all_vec();
 
         AscendC::SetAtomicAdd<ElementC>();
         AscendC::PipeBarrier<PIPE_ALL>();
 
-        if (aivIndex == 0 && aicoreIndex < realAicoreNum) {                 // 只启用一个aiv核
+        if (aivIndex == 0 && aicoreIndex < realAicoreNum) {                 // only use one AIV core
             for (uint32_t idx = aicoreIndex; idx < commCoreLoops; idx += realAicoreNum) {
                 MatrixCoord idxTile = params.commSwizzle.GetBlockIdx(idx);
                 MatrixCoord actualCommSubBlockShape = params.commSwizzle.template GetBlockSize<ScheduleTypeOp1>(idxTile);
@@ -241,12 +242,12 @@ public:
             }
         }
 
-        AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0); // Scalar等MTE3
+        AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0); // To SetAtomic, Scalar wait MTE3
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0);
         AscendC::SetAtomicNone();
         AscendC::PipeBarrier<PIPE_ALL>();
 
-        // 第一部分通信完成软同步
+        // ReduceScatter is completed, waiting until tasks on all devices are complete.
         shmemx_barrier_all_vec();
 
         if (aivIndex == 0 && aicoreIndex < realAicoreNum) {
@@ -343,7 +344,7 @@ public:
             }
         }
 
-        // 第二部分通信完成软同步
+        // AllGather is completed, waiting until tasks on all devices are complete.
         shmemx_barrier_all_vec();
     }
 

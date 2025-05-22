@@ -58,10 +58,10 @@ API使用样例请参考[API](docs/api.md)
     出现提示`xxx install success!`则安装成功
 
 执行一个样例matmul_allreduce算子。  
-1.在3rdparty目录下, clone AscendC Templates代码仓：
+1.在3rdparty目录下, clone catlass代码仓：
 
 ```sh
-git clone https://gitee.com/ascend/ascendc-templates.git
+git clone https://gitee.com/ascend/catlass.git
 ```
 
 2.在example/matmul_allreduce目录下进行demo编译: 
