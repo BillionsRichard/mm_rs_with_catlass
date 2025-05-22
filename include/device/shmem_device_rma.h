@@ -149,7 +149,7 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
  * @return void
  */
 template <typename T>
-SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, const DatacopyDetailParams& copyParams, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, const non_contiguous_copy_param& copyParams, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr(src, pe);
     if (ptr == nullptr) return;
@@ -168,7 +168,7 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
     AscendC::DataCopyExtParams dataCopyParamsGM2UB(
         copyParams.repeat,
         copyParams.length * sizeof(T),
-        (copyParams.srcStride - copyParams.length) * sizeof(T),
+        (copyParams.srcLd - copyParams.length) * sizeof(T),
         (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
         0
     );
@@ -181,7 +181,7 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
         copyParams.repeat,
         copyParams.length * sizeof(T),
         (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
-        (copyParams.dstStride - copyParams.length) * sizeof(T),
+        (copyParams.dstLd - copyParams.length) * sizeof(T),
         0
     );
     smem_shm_copy_ub2gm(dstTensor, ubTensor, dataCopyParamsUB2GM);
@@ -246,7 +246,7 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
  * @return void
  */
 template <typename T>
-SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, const DatacopyDetailParams& copyParams, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, const non_contiguous_copy_param& copyParams, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
     if (ptr == nullptr) return;
@@ -259,7 +259,7 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
     AscendC::DataCopyExtParams dataCopyParamsGM2UB(
         copyParams.repeat,
         copyParams.length * sizeof(T),
-        (copyParams.srcStride - copyParams.length) * sizeof(T),
+        (copyParams.srcLd - copyParams.length) * sizeof(T),
         (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
         0
     );
@@ -272,7 +272,7 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
         copyParams.repeat,
         copyParams.length * sizeof(T),
         (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
-        (copyParams.dstStride - copyParams.length) * sizeof(T),
+        (copyParams.dstLd - copyParams.length) * sizeof(T),
         0
     );
     smem_shm_copy_ub2gm(dst, buf, dataCopyParamsUB2GM);
@@ -336,7 +336,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
  * @return void
  */
 template <typename T>
-SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, const DatacopyDetailParams& copyParams, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, const non_contiguous_copy_param& copyParams, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr(dst, pe);
     if (ptr == nullptr) return;
@@ -355,7 +355,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
     AscendC::DataCopyExtParams dataCopyParamsGM2UB(
         copyParams.repeat,
         copyParams.length * sizeof(T),
-        (copyParams.srcStride - copyParams.length) * sizeof(T),
+        (copyParams.srcLd - copyParams.length) * sizeof(T),
         (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
         0
     );
@@ -368,7 +368,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
         copyParams.repeat,
         copyParams.length * sizeof(T),
         (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
-        (copyParams.dstStride - copyParams.length) * sizeof(T),
+        (copyParams.dstLd - copyParams.length) * sizeof(T),
         0
     );
     smem_shm_copy_ub2gm(dstTensor, ubTensor, dataCopyParamsUB2GM);
@@ -434,7 +434,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
  * @return void
  */
 template <typename T>
-SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, const DatacopyDetailParams& copyParams, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, const non_contiguous_copy_param& copyParams, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
     if (ptr == nullptr) return;
@@ -447,7 +447,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
     AscendC::DataCopyExtParams dataCopyParamsGM2UB(
         copyParams.repeat,
         copyParams.length * sizeof(T),
-        (copyParams.srcStride - copyParams.length) * sizeof(T),
+        (copyParams.srcLd - copyParams.length) * sizeof(T),
         (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
         0
     );
@@ -460,7 +460,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
         copyParams.repeat,
         copyParams.length * sizeof(T),
         (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
-        (copyParams.dstStride - copyParams.length) * sizeof(T),
+        (copyParams.dstLd - copyParams.length) * sizeof(T),
         0
     );
     smem_shm_copy_ub2gm(remoteBuff, buf, dataCopyParamsUB2GM);
@@ -505,7 +505,7 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
  * @return void
  */
 #define SHMEM_GET_TYPENAME_MEM_DETAILED(NAME, TYPE)                                                                         \
-    SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, const DatacopyDetailParams& copyParams, int32_t pe)         \
+    SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, const non_contiguous_copy_param& copyParams, int32_t pe)         \
     {                                                                                                                       \
         /* ROCE */                                                                                                          \
         /* RDMA */                                                                                                          \
@@ -564,7 +564,7 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR);
  * @return void
  */
 #define SHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED(NAME, TYPE)                                                              \
-    SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, const DatacopyDetailParams& copyParams, int pe)  \
+    SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, const non_contiguous_copy_param& copyParams, int pe)  \
     {                                                                                                                   \
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
@@ -623,7 +623,7 @@ SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
  * @return void
  */
 #define SHMEM_PUT_TYPENAME_MEM_DETAILED(NAME, TYPE)                                                                         \
-    SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, const DatacopyDetailParams& copyParams, int32_t pe)        \
+    SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, const non_contiguous_copy_param& copyParams, int32_t pe)        \
     {                                                                                                                       \
         /* ROCE */                                                                                                          \
         /* RDMA */                                                                                                          \
@@ -682,7 +682,7 @@ SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM_TENSOR);
  * @return void
  */
 #define SHMEM_PUT_TYPENAME_MEM_TENSOR_DETAILED(NAME, TYPE)                                                              \
-    SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, const DatacopyDetailParams& copyParams, int pe)  \
+    SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, const non_contiguous_copy_param& copyParams, int pe)  \
     {                                                                                                                   \
         /* ROCE */                                                                                                      \
         /* RDMA */                                                                                                      \
