@@ -321,11 +321,11 @@ public:
                             // [AllGather] 2. Pre Interface Sync
                             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
 
-                            DatacopyDetailParams copyParams;
+                            non_contiguous_copy_param copyParams;
                             copyParams.repeat = actualMoveShape.row();
                             copyParams.length = actualMoveShape.column();
-                            copyParams.srcStride = layoutInput.stride(0);
-                            copyParams.dstStride = layoutOutput.stride(0);
+                            copyParams.srcLd = layoutInput.stride(0);
+                            copyParams.dstLd = layoutOutput.stride(0);
 
                             // [AllGather] 3. Start shmem_mte_get_mem_nbi non-contiguous version
                             shmem_mte_get_mem_nbi(params.destination[outputElemOffset], peerMem[inputElemOffset], buf, copyParams, mRankIdx % rankSize, EVENT_ID);
