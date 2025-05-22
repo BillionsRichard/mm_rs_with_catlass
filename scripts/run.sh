@@ -21,6 +21,10 @@ while [[ $# -gt 0 ]]; do
         -ranks)
             if [ -n "$2" ]; then
                 RANK_SIZE="$2"
+                if [ "$GNPU_NUM" -gt "$RANK_SIZE" ]; then
+                    GNPU_NUM="$RANK_SIZE"
+                    echo "Because GNPU_NUM is greater than RANK_SIZE, GNPU_NUM is assigned the value of RANK_SIZE=${RANK_SIZE}."
+                fi
                 shift 2
             else
                 echo "Error: -ranks requires a value."

@@ -38,6 +38,7 @@ ShmemiDeviceHostState gState = SHMEM_DEVICE_HOST_STATE_INITALIZER;
 shmem_init_attr_t gAttr;
 static smem_shm_t gSmemHandle = nullptr;
 static bool gAttrInit = false;
+static char* gIpPort = nullptr;
 
 int32_t VersionCompatible()
 {
@@ -113,6 +114,13 @@ int32_t SmemHeapInit(shmem_init_attr_t *attributes)
             gState.roceHeapBase[i] = NULL;
         }
     }
+    if (shm::gIpPort != nullptr) {
+        delete[] shm::gIpPort;
+        attributes->ipPort = nullptr;
+    } else {
+         SHM_LOG_WARN("myRank:" << attributes->myRank << " shm::gIpPort is released in advance!");
+         attributes->ipPort = nullptr;
+    }
     gState.isShmemCreated = true;
     return status;
 }
@@ -180,12 +188,19 @@ int32_t shmem_set_attr(int32_t myRank, int32_t nRanks, uint64_t localMemSize, co
                        shmem_init_attr_t **attributes)
 {
     *attributes = &shm::gAttr;
-    shm::gAttr.version = (1 << 16) + sizeof(shmem_init_attr_t);
+    size_t ipLen = strlen(ipPort);
+    shm::gIpPort = new char[ipLen + 1];
+    strcpy(shm::gIpPort, ipPort);
+    if (shm::gIpPort == nullptr) {
+        SHM_LOG_ERROR("myRank:" << myRank << " shm::gIpPort is nullptr!");
+        return SHMEM_INVALID_VALUE;
+    }
+    int attrVersion = (1 << 16) + sizeof(shmem_init_attr_t);
     shm::gAttr.myRank = myRank;
     shm::gAttr.nRanks = nRanks;
-    shm::gAttr.ipPort = ipPort;
+    shm::gAttr.ipPort = shm::gIpPort;
     shm::gAttr.localMemSize = localMemSize;
-    shm::gAttr.optionAttr = {SHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
+    shm::gAttr.optionAttr = {attrVersion, SHMEM_DATA_OP_MTE, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT, DEFAULT_TIMEOUT};
     shm::gAttrInit = true;
     return SHMEM_SUCCESS;
 }
@@ -213,7 +228,7 @@ int32_t shmem_init_attr(shmem_init_attr_t *attributes)
     SHMEM_CHECK_RET(shm::UpdateDeviceState());
 
     SHMEM_CHECK_RET(shm::MemoryManagerInitialize(shm::gState.heapBase, shm::gState.heapSize));
-    SHMEM_CHECK_RET(shm::ShmemiTeamInit(attributes->myRank, attributes->nRanks));
+    SHMEM_CHECK_RET(shm::ShmemiTeamInit(shm::gState.mype, shm::gState.npes));
     SHMEM_CHECK_RET(shm::UpdateDeviceState());
     shm::gState.isShmemInitialized = true;
     SHMEM_CHECK_RET(shm::ShmemiControlBarrierAll());

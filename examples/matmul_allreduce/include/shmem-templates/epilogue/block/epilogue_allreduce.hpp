@@ -237,7 +237,7 @@ public:
         AscendC::PipeBarrier<PIPE_ALL>();
 
         // 第一部分通信完成软同步
-        shmem_barrier_all();
+        shmemx_barrier_all_vec();
 
         if (aivIndex == 0 && aicoreIndex < realAicoreNum) {
             for (uint32_t idx = aicoreIndex; idx < commCoreLoops; idx += realAicoreNum) {
@@ -298,7 +298,7 @@ public:
         }
 
         // 第二部分通信完成软同步
-        shmem_barrier_all();
+        shmemx_barrier_all_vec();
     }
 
 private:

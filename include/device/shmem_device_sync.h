@@ -26,19 +26,18 @@
 #include "internal/device/sync/shmemi_device_barrier.h"
 
 /**
- * @brief barrier of a specific team
+ * @fn SHMEM_DEVICE void shmem_barrier(shmem_team_t tid)
+ * @brief On the device side, this method is a barrier of a specific team
  *
  * @param tid              [in] team to do barrier
- * @return void
  */
 SHMEM_DEVICE void shmem_barrier(shmem_team_t tid) {
     ShmemiBarrier<false>(tid);
 }
 
 /**
- * @brief barrier of all ranks
- *
- * @return void
+ * @fn SHMEM_DEVICE void shmem_barrier_all()
+ * @brief On the device side, this method is a barrier of all ranks
  */
 SHMEM_DEVICE void shmem_barrier_all() {
     shmem_barrier(SHMEM_TEAM_WORLD);
@@ -48,7 +47,6 @@ SHMEM_DEVICE void shmem_barrier_all() {
  * @brief barrier of a specific team. Different from shmem_barrier that only vector cores participate. Useful in communication-over-compute operators. Cube core may call the api but takes no effect.
  *
  * @param tid              [in] team to do barrier
- * @return void
  */
 SHMEM_DEVICE void shmemx_barrier_vec(shmem_team_t tid) {
     ShmemiBarrier<true>(tid);
@@ -58,7 +56,6 @@ SHMEM_DEVICE void shmemx_barrier_vec(shmem_team_t tid) {
  * @brief barrier of all ranks. Different from shmem_barrier_all that only vector cores participate. Useful in communication-over-compute operators. Cube core may call the api but takes no effect.
  *
  * @param tid              [in] team to do barrier
- * @return void
  */
 SHMEM_DEVICE void shmemx_barrier_all_vec() {
     shmemx_barrier_vec(SHMEM_TEAM_WORLD);
@@ -66,9 +63,7 @@ SHMEM_DEVICE void shmemx_barrier_all_vec() {
 
 /**
  * @brief Sync primitive that ensures completion:
-            All operations of the calling thread before the primitive are completed.
- *
- * @return void
+ *           All operations of the calling thread before the primitive are completed.
  */
 SHMEM_DEVICE void shmem_quiet() {
     ShmemiQuiet();
@@ -76,10 +71,8 @@ SHMEM_DEVICE void shmem_quiet() {
 
 /**
  * @brief Sync primitive that preservers order: 
-            All operations of the calling thread before the primitive are visible to the calling thread after the primitive.
-        Implemented same as shmem_quiet().
- *
- * @return void
+ *           All operations of the calling thread before the primitive are visible to the calling thread after the primitive.
+ *       Implemented same as shmem_quiet().
  */
 SHMEM_DEVICE void shmem_fence() {
     ShmemiQuiet();
