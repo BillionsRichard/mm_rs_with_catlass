@@ -12,8 +12,8 @@
 #include "shmemi_init.h"
 #include "shmemi_mm.h"
 
-extern int testGlobalRanks;
 extern int testGNpuNum;
+extern int testFirstNpu;
 extern const char *testGlobalIpport;
 extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localMemSize, int processCount);
 extern void TestInit(int rankId, int nRanks, uint64_t localMemSize, aclrtStream *st);
@@ -33,7 +33,7 @@ public:
 protected:
     void Initialize(int rankId, int nRanks, uint64_t localMemSize)
     {
-        uint32_t deviceId = rankId % testGNpuNum;
+        uint32_t deviceId = rankId % testGNpuNum + testFirstNpu;
         int status = SHMEM_SUCCESS;
         EXPECT_EQ(aclInit(nullptr), 0);
         EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
@@ -66,7 +66,7 @@ protected:
 
 TEST_F(ShareMemoryManagerTest, allocate_one_piece_success)
 {
-    const int processCount = testGlobalRanks;
+    const int processCount = testGNpuNum;
     uint64_t localMemSize = HeapMemorySize;
     TestMutilTask(
         [this](int rankId, int nRanks, uint64_t localMemSize) {
@@ -79,7 +79,7 @@ TEST_F(ShareMemoryManagerTest, allocate_one_piece_success)
 
 TEST_F(ShareMemoryManagerTest, allocate_full_space_success)
 {
-    const int processCount = testGlobalRanks;
+    const int processCount = testGNpuNum;
     uint64_t localMemSize = HeapMemorySize;
     TestMutilTask(
         [this](int rankId, int nRanks, uint64_t localMemSize) {
@@ -92,7 +92,7 @@ TEST_F(ShareMemoryManagerTest, allocate_full_space_success)
 
 TEST_F(ShareMemoryManagerTest, allocate_larage_memory_failed)
 {
-    const int processCount = testGlobalRanks;
+    const int processCount = testGNpuNum;
     uint64_t localMemSize = HeapMemorySize;
     TestMutilTask(
         [this](int rankId, int nRanks, uint64_t localMemSize) {
@@ -105,7 +105,7 @@ TEST_F(ShareMemoryManagerTest, allocate_larage_memory_failed)
 
 TEST_F(ShareMemoryManagerTest, free_merge)
 {
-    const int processCount = testGlobalRanks;
+    const int processCount = testGNpuNum;
     uint64_t localMemSize = HeapMemorySize;
     TestMutilTask(
         [this](int rankId, int nRanks, uint64_t localMemSize) {

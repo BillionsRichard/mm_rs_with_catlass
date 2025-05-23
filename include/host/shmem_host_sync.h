@@ -18,31 +18,32 @@
  *
  * @param tid              [in] team to do barrier
  * @param stream           [in] stream the barrier will be executed on
- * @return void
  */
-void shmem_barrier_on_stream(shmem_team_t tid, aclrtStream stream);
+SHMEM_HOST_API void shmem_barrier_on_stream(shmem_team_t tid, aclrtStream stream);
 
 /**
  * @brief barrier of all ranks on specific stream
  *
  * @param stream           [in] stream the barrier will be executed on
- * @return void
  */
-void shmem_barrier_all_on_stream(aclrtStream stream);
+SHMEM_HOST_API void shmem_barrier_all_on_stream(aclrtStream stream);
 
 /**
- * @brief barrier of team on default stream
+ * @fn SHMEM_HOST_API void shmem_barrier(shmem_team_t tid)
+ * @brief Both the host and device have a function named <b>shmem_barrier()</b> and has different meanings, which is distinguished by prefix macros SHMEM_HOST_API and SHMEM_DEVICE.
+ *        <br>
+ *        On the host side, this method is a barrier of team on default stream
  *
  * @param tid              [in] team to do barrier
- * @return void
  */
-void shmem_barrier(shmem_team_t tid);
+SHMEM_HOST_API void shmem_barrier(shmem_team_t tid);
 
 /**
- * @brief barrier of all teams on default stream
- *
- * @return void
+ * @fn SHMEM_HOST_API void shmem_barrier_all()
+ * @brief Both the host and device have a function named <b>shmem_barrier_all()</b> and has different meanings, which is distinguished by prefix macros SHMEM_HOST_API and SHMEM_DEVICE.
+ *        <br>
+ *        On the host side, this method is a barrier of all teams on default stream
  */
-void shmem_barrier_all();
+SHMEM_HOST_API void shmem_barrier_all();
 
 #endif

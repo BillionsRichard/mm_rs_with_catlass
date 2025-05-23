@@ -36,8 +36,6 @@ SHMEM_HOST_API int shmem_team_translate_pe(shmem_team_t srcTeam, int srcPe, shme
  * @brief Collective Interface. Destroys the team referenced by the team handle.
  * 
  * @param team              [in] A team handle.
- *
- * @return void
  */
 SHMEM_HOST_API void shmem_team_destroy(shmem_team_t team);
 

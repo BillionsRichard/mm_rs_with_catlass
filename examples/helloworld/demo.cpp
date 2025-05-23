@@ -1,5 +1,6 @@
 #include <iostream>
 #include <unistd.h>
+#include <cstring>
 #include <acl/acl.h>
 #include "shmem_api.h"
 
@@ -15,7 +16,8 @@ int main(int argc, char* argv[])
 {
     int nRanks = atoi(argv[1]);
     int rankId = atoi(argv[2]);
-    const char* Ipport = argv[3];
+    char* Ipport = new char[20];
+    strcpy(Ipport, argv[3]);
     uint64_t localMemSize = 1024UL * 1024UL * 1024;
     int testGNpuNum = 8;
     std::cout << "[TEST] input rank_size: " << nRanks << " rank_id:" << rankId << " input_ip: " << Ipport << std::endl;
@@ -25,6 +27,7 @@ int main(int argc, char* argv[])
     CHECK_ACL(aclrtSetDevice(deviceId));
     shmem_init_attr_t *attributes;
     status = shmem_set_attr(rankId, nRanks, localMemSize, Ipport, &attributes);
+    delete[] Ipport;
     if ( status != SHMEM_SUCCESS) {
         std::cout << "[ERROR] demo run failed!" << std::endl;
         std::exit(status);

@@ -138,7 +138,7 @@ function fn_gen_doc()
     sed -i "s#PROJECT_NUMBER         =.*#PROJECT_NUMBER         = $branch#g" $doxyfile
     sed -i "s#OUTPUT_DIRECTORY       =.*#OUTPUT_DIRECTORY       = $doxygen_output_dir#g" $doxyfile
     sed -i "s#OUTPUT_LANGUAGE        =.*#OUTPUT_LANGUAGE        = English#g" $doxyfile
-    sed -i "s#INPUT                  =.*#INPUT                  = $PROJECT_ROOT/include/host#g" $doxyfile
+    sed -i "s#INPUT                  =.*#INPUT                  = $PROJECT_ROOT/include/host $PROJECT_ROOT/include/device $PROJECT_ROOT/include/host_device#g" $doxyfile
     sed -i "s#RECURSIVE              =.*#RECURSIVE              = YES#g" $doxyfile
     sed -i "s#USE_MDFILE_AS_MAINPAGE =.*#USE_MDFILE_AS_MAINPAGE = $PROJECT_ROOT/README.md#g" $doxyfile
     sed -i "s#HTML_EXTRA_STYLESHEET  =.*#HTML_EXTRA_STYLESHEET  = $PROJECT_ROOT/docs/doxygen/custom.css#g" $doxyfile
@@ -151,6 +151,9 @@ function fn_gen_doc()
     sed -i "s#GENERATE_TREEVIEW      =.*#GENERATE_TREEVIEW      = YES#g" $doxyfile
     sed -i "s#WARN_AS_ERROR          =.*#WARN_AS_ERROR          = YES#g" $doxyfile
     sed -i "s#GENERATE_XML           =.*#GENERATE_XML           = YES#g" $doxyfile
+    sed -i "s#MACRO_EXPANSION        =.*#MACRO_EXPANSION        = YES#g" $doxyfile
+    sed -i "s#EXPAND_ONLY_PREDEF     =.*#EXPAND_ONLY_PREDEF     = YES#g" $doxyfile
+    sed -i "s#EXCLUDE_SYMBOLS        =.*#EXCLUDE_SYMBOLS        = SHMEM_GLOBAL SHMEM_TYPE_FUNC SHMEM_TYPENAME_P_AICORE SHMEM_TYPENAME_G_AICORE SHMEM_GET_TYPENAME_MEM SHMEM_GET_TYPENAME_MEM_TENSOR SHMEM_PUT_TYPENAME_MEM SHMEM_PUT_TYPENAME_MEM_TENSOR DcciCacheline addrGm#g" $doxyfile
 
     $THIRD_PARTY_DIR/doxygen/bin/doxygen $doxyfile
     [[ "$COVERAGE_TYPE" != "" ]] && return 0
@@ -172,6 +175,13 @@ while [[ $# -gt 0 ]]; do
             fn_build_doxygen
             fn_build_sphinx
             GEN_DOC=ON
+            shift
+            ;;
+        -onlygendoc)
+            fn_build_doxygen
+            fn_build_sphinx
+            fn_gen_doc
+            exit 0
             shift
             ;;
         *)

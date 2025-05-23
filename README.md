@@ -31,9 +31,8 @@ cmake >= 3.19
 GLIBC >= 2.28
 
 ## 快速上手
-详细用例介绍请参考[quickstart](examples/matmul_allreduce/README.md)  
-API使用样例请参考[API](docs/api.md)  
- - 设置环境变量<br>
+详细资料请参考[SHMEM](https://shmem-doc.pages.dev/)
+ - 设置CANN环境变量<br>
     ```sh
     # root用户安装（默认路径）
     source /usr/local/Ascend/ascend-toolkit/set_env.sh
@@ -57,7 +56,7 @@ API使用样例请参考[API](docs/api.md)
     ```
     出现提示`xxx install success!`则安装成功
 
-执行一个样例matmul_allreduce算子。  
+## 执行样例 matmul_allreduce算子。 
 1.在3rdparty目录下, clone AscendC Templates代码仓：
 
 ```sh
