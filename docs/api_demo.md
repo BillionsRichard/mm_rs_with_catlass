@@ -32,7 +32,7 @@ typedef struct {
 typedef struct {
     data_op_engine_type_t data_op_engine_type; // 数据引擎
     // timeout
-    uint32_t shmInit_timeout;
+    uint32_t it_timeout;
     uint32_t shm_create_timeout;
     uint32_t control_operation_timeout;
 } shmem_init_optional_attr_t;
@@ -45,11 +45,11 @@ typedef struct {
 #include <acl/acl.h>
 #include "shmem_api.h"
 aclInit(nullptr);
-status = aclrtSetDevice(deviceId);
+status = aclrtSetDevice(device_id);
 
 shmem_init_attr_t* attributes;
-shmem_set_attr(rankId, n_ranks, local_mem_size, testGlobalIpport, &attributes);
-// shmem_init_attr_t* attributes = new shmem_init_attr_t{rankId, n_ranks, testGlobalIpport, local_mem_size, {0, SHMEM_DATA_OP_MTE, 120, 120, 120}}; // 自定义attr
+shmem_set_attr(rank_id, n_ranks, local_mem_size, test_global_ipport, &attributes);
+// shmem_init_attr_t* attributes = new shmem_init_attr_t{rank_id, n_ranks, test_global_ipport, local_mem_size, {0, SHMEM_DATA_OP_MTE, 120, 120, 120}}; // 自定义attr
 shmem_init_attr(attributes);
 // delete attributes; // 销毁自定义attr
 
@@ -61,7 +61,7 @@ if (status == SHMEM_STATUS_IS_INITALIZED) {
 
 //#########################################
 status = shmem_finalize();
-aclrtResetDevice(deviceId);
+aclrtResetDevice(device_id);
 aclFinalize();
 
 ```
@@ -82,16 +82,16 @@ int team_size = 4;
 shmem_team_split_strided(SHMEM_TEAM_WORLD, start, stride, team_size, &team_odd);
 
 // ##################### host侧取值 ###############################
-if (rankId & 1) {
+if (rank_id & 1) {
     
     // shmem_team_n_pes(team_odd): Returns the number of PEs in the team.
     int team_n_pes = shmem_team_n_pes(team_odd); // team_n_pes == team_size
     // shmem_team_my_pe(team_odd): Returns the number of the calling PE in the specified team.
-    int team_my_pe = shmem_team_my_pe(team_odd); // team_my_pe == rankId / stride
+    int team_my_pe = shmem_team_my_pe(team_odd); // team_my_pe == rank_id / stride
     // shmem_n_pes(): Returns the number of PEs running in the program.
     int my_pe = shmem_n_pes(); // n_pes == n_ranks
     // shmem_my_pe(): Returns the PE number of the local PE
-    int my_pe = shmem_my_pe(); // my_pe == rankId
+    int my_pe = shmem_my_pe(); // my_pe == rank_id
 }
 
 // #################### 相关资源释放 ################################
@@ -105,13 +105,13 @@ shmem_team_destroy(team_odd);
 class KernelStateTest {
 public:
     __aicore__ inline KernelStateTest() {}
-    __aicore__ inline void Init(GM_ADDR gva, shmem_team_t teamId)
+    __aicore__ inline void Init(GM_ADDR gva, shmem_team_t team_id)
     {
-        gvaGm = (__gm__ int *)gva;
-        team_idx= teamId;
+        gva_gm = (__gm__ int *)gva;
+        team_idx= team_id;
 
         rank = smem_shm_get_global_rank();          // 获取当前ank
-        rankSize = smem_shm_get_global_rank_size(); // 获取总rank数
+        rank_size = smem_shm_get_global_rank_size(); // 获取总rank数
     }
     __aicore__ inline void Process()
     {
@@ -120,34 +120,34 @@ public:
         // shmem_int32_p 是RMA功能提供的接口，此处可简易理解为在device存储第二个入参的函数的结果。
         
         // shmem_n_pes(): Returns the number of PEs running in the program.
-        shmem_int32_p(gvaGm, shmem_n_pes(), rank); 
+        shmem_int32_p(gva_gm, shmem_n_pes(), rank); 
         // shmem_my_pe(): Returns the PE number of the local PE
-        shmem_int32_p(gvaGm + 1, shmem_my_pe(), rank); 
+        shmem_int32_p(gva_gm + 1, shmem_my_pe(), rank); 
         // shmem_team_my_pe(team_idx): Returns the number of the calling PE in the specified team.
-        shmem_int32_p(gvaGm + 2, shmem_team_my_pe(team_idx), rank); 
+        shmem_int32_p(gva_gm + 2, shmem_team_my_pe(team_idx), rank); 
         // shmem_team_n_pes(team_idx): Returns the number of PEs in the team.
-        shmem_int32_p(gvaGm + 3, shmem_team_n_pes(team_idx), rank); 
+        shmem_int32_p(gva_gm + 3, shmem_team_n_pes(team_idx), rank); 
         // shmem_team_translate_pe(team_idx, 1, SHMEM_TEAM_WORLD): Translate a given PE number in one team into the corresponding PE number in another team.
-        shmem_int32_p(gvaGm + 4, shmem_team_translate_pe(team_idx, 1, SHMEM_TEAM_WORLD), rank); 
+        shmem_int32_p(gva_gm + 4, shmem_team_translate_pe(team_idx, 1, SHMEM_TEAM_WORLD), rank); 
     }
 private:
-    __gm__ int *gvaGm;
+    __gm__ int *gva_gm;
     shmem_team_t team_idx;
 
     int64_t rank;
-    int64_t rankSize;
+    int64_t rank_size;
 };
 
-extern "C" __global__ __aicore__ void DeviceStateTest(GM_ADDR gva, int teamId)
+extern "C" __global__ __aicore__ void DeviceStateTest(GM_ADDR gva, int team_id)
 {
     KernelStateTest op;
-    op.Init(gva, (shmem_team_t)teamId);
+    op.Init(gva, (shmem_team_t)team_id);
     op.Process();
 }
 
-void GetDeviceState(uint32_t blockDim, void* stream, uint8_t* gva, shmem_team_t teamId)
+void GetDeviceState(uint32_t block_dim, void* stream, uint8_t* gva, shmem_team_t team_id)
 {
-    DeviceStateTest<<<blockDim, nullptr, stream>>>(gva, (int)teamId);
+    DeviceStateTest<<<block_dim, nullptr, stream>>>(gva, (int)team_id);
 }
 ```
 ## Mem API
@@ -174,23 +174,23 @@ public:
     __aicore__ inline KernelP() {}
     __aicore__ inline void Init(GM_ADDR gva, float val)
     {
-        gvaGm = (__gm__ float *)gva;
+        gva_gm = (__gm__ float *)gva;
         value = val;
 
         rank = smem_shm_get_global_rank();          // 获取当前ank
-        rankSize = smem_shm_get_global_rank_size(); // 获取总rank数
+        rank_size = smem_shm_get_global_rank_size(); // 获取总rank数
     }
     __aicore__ inline void Process()
     {
         // 把value的值put到共享内存gvaGm在pe=(rank + 1) % rankSize中的对应位置。
-        shmem_float_p(gvaGm, value, (rank + 1) % rankSize);
+        shmem_float_p(gva_gm, value, (rank + 1) % rank_size);
     }
 private:
-    __gm__ float *gvaGm;
+    __gm__ float *gva_gm;
     float value;
 
     int64_t rank;
-    int64_t rankSize;
+    int64_t rank_size;
 };
 
 extern "C" __global__ __aicore__ void PNumTest(GM_ADDR gva, float val)
@@ -200,9 +200,9 @@ extern "C" __global__ __aicore__ void PNumTest(GM_ADDR gva, float val)
     op.Process();
 }
 
-void PutOneNumDo(uint32_t blockDim, void* stream, uint8_t* gva, float val)
+void PutOneNumDo(uint32_t block_dim, void* stream, uint8_t* gva, float val)
 {
-    PNumTest<<<blockDim, nullptr, stream>>>(gva, val);
+    PNumTest<<<block_dim, nullptr, stream>>>(gva, val);
 }
 ```
 

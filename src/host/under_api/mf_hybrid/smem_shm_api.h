@@ -35,7 +35,7 @@ using SmemShmTopoCanReachFunc = int32_t (*)(smem_shm_t, uint32_t, uint32_t *);
 
 class SmemApi {
 public:
-    static int32_t LoadLibrary(const std::string &libDirPath);
+    static int32_t LoadLibrary(const std::string &lib_dir_path);
 
 public:
     /* smem api */
@@ -75,10 +75,10 @@ public:
         return gSmemShmConfigInit(config);
     }
 
-    static inline int32_t SmemShmInit(const char *configStoreIpPort, uint32_t worldSize, uint32_t rankId,
-                                      uint16_t deviceId, uint64_t gvaSpaceSize, smem_shm_config_t *config)
+    static inline int32_t SmemShmInit(const char *configStoreIpPort, uint32_t worldSize, uint32_t rank_id,
+                                      uint16_t device_id, uint64_t gvaSpaceSize, smem_shm_config_t *config)
     {
-        return gSmemShmInit(configStoreIpPort, worldSize, rankId, deviceId, gvaSpaceSize, config);
+        return gSmemShmInit(configStoreIpPort, worldSize, rank_id, device_id, gvaSpaceSize, config);
     }
 
     static inline void SmemShmUnInit(uint32_t flags)
@@ -91,10 +91,10 @@ public:
         return gSmemShmQuerySupportDataOp();
     }
 
-    static inline smem_shm_t SmemShmCreate(uint32_t id, uint32_t rankSize, uint32_t rankId, uint64_t symmetricSize,
+    static inline smem_shm_t SmemShmCreate(uint32_t id, uint32_t rank_size, uint32_t rank_id, uint64_t symmetricSize,
                                            smem_shm_data_op_type dataOpType, uint32_t flags, void **gva)
     {
-        return gSmemShmCreate(id, rankSize, rankId, symmetricSize, dataOpType, flags, gva);
+        return gSmemShmCreate(id, rank_size, rank_id, symmetricSize, dataOpType, flags, gva);
     }
 
     static inline int32_t SmemShmDestroy(smem_shm_t handle, uint32_t flags)

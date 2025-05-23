@@ -16,20 +16,20 @@ public:
      * @param path         [in/out] input path, converted realpath
      * @return true if successful
      */
-    static bool Realpath(std::string &path);
+    static bool get_real_path(std::string &path);
 
     /**
      * @brief Get real path of a library and check if exists
      *
-     * @param libDirPath   [in] dir path of the library
-     * @param libName      [in] library name
-     * @param realPath     [out] realpath of the library
+     * @param lib_dir_path   [in] dir path of the library
+     * @param lib_name      [in] library name
+     * @param real_path     [out] realpath of the library
      * @return true if successful
      */
-    static bool LibraryRealPath(const std::string &libDirPath, const std::string &libName, std::string &realPath);
+    static bool get_library_real_path(const std::string &lib_dir_path, const std::string &lib_name, std::string &real_path);
 };
 
-inline bool Func::Realpath(std::string &path)
+inline bool Func::get_real_path(std::string &path)
 {
     if (path.empty() || path.size() > PATH_MAX) {
         SHM_LOG_ERROR("Failed to get realpath of [" << path << "] as path is invalid");
@@ -37,22 +37,22 @@ inline bool Func::Realpath(std::string &path)
     }
 
     /* It will allocate memory to store path */
-    char *realPath = realpath(path.c_str(), nullptr);
-    if (realPath == nullptr) {
+    char *real_path = realpath(path.c_str(), nullptr);
+    if (real_path == nullptr) {
         SHM_LOG_ERROR("Failed to get realpath of [" << path << "] as error " << errno);
         return false;
     }
 
-    path = realPath;
-    free(realPath);
-    realPath = nullptr;
+    path = real_path;
+    free(real_path);
+    real_path = nullptr;
     return true;
 }
 
-inline bool Func::LibraryRealPath(const std::string &libDirPath, const std::string &libName, std::string &realPath)
+inline bool Func::get_library_real_path(const std::string &lib_dir_path, const std::string &lib_name, std::string &real_path)
 {
-    std::string tmpFullPath = libDirPath;
-    if (!Realpath(tmpFullPath)) {
+    std::string tmpFullPath = lib_dir_path;
+    if (!get_real_path(tmpFullPath)) {
         return false;
     }
 
@@ -60,14 +60,14 @@ inline bool Func::LibraryRealPath(const std::string &libDirPath, const std::stri
         tmpFullPath.push_back('/');
     }
 
-    tmpFullPath.append(libName);
+    tmpFullPath.append(lib_name);
     auto ret = ::access(tmpFullPath.c_str(), F_OK);
     if (ret != 0) {
         SHM_LOG_ERROR(tmpFullPath << " cannot be accessed, ret: " << ret);
         return false;
     }
 
-    realPath = tmpFullPath;
+    real_path = tmpFullPath;
     return true;
 }
 

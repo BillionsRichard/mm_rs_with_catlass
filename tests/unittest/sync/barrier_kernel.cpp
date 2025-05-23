@@ -65,7 +65,7 @@ extern "C" SHMEM_GLOBAL void barrier(GM_ADDR stub) {
     VecGuard();
 }
 
-extern "C" SHMEM_GLOBAL void increase(GM_ADDR addr, int rankId, int rankSize) {
+extern "C" SHMEM_GLOBAL void increase(GM_ADDR addr, int rank_id, int rank_size) {
     CVGuard();
     
 #ifdef __DAV_C220_CUBE__
@@ -78,7 +78,7 @@ extern "C" SHMEM_GLOBAL void increase(GM_ADDR addr, int rankId, int rankSize) {
     uint64_t val = shmemi_load<uint64_t>(addr);
 
     shmem_barrier_all();
-    GM_ADDR remote = shmemi_ptr(addr, (rankId + 1) % rankSize);
+    GM_ADDR remote = shmemi_ptr(addr, (rank_id + 1) % rank_size);
     shmemi_store<uint64_t>(remote, val + 1);
     shmem_barrier_all();
 #endif
@@ -92,6 +92,6 @@ void barrierDo(void* stream, uint8_t *stub) {
     barrier<<<16, nullptr, stream>>>(stub);
 }
 
-void increaseDo(void* stream, uint8_t *addr, int rankId, int rankSize) {
-    increase<<<16, nullptr, stream>>>(addr, rankId, rankSize);
+void increaseDo(void* stream, uint8_t *addr, int rank_id, int rank_size) {
+    increase<<<16, nullptr, stream>>>(addr, rank_id, rank_size);
 }

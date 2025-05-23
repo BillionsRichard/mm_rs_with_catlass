@@ -4,12 +4,12 @@
 #include "shmem_api.h"
 
 int testGlobalRanks;
-int testGNpuNum;
-const char* testGlobalIpport;
+int test_gnpu_num;
+const char* test_global_ipport;
 int testFirstRank;
 int testFirstNpu;
 
-void TestInit(int rankId, int n_ranks, uint64_t local_mem_size, aclrtStream *st)
+void TestInit(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st)
 {
     *st = nullptr;
     int status = 0;
@@ -19,24 +19,24 @@ void TestInit(int rankId, int n_ranks, uint64_t local_mem_size, aclrtStream *st)
     }
     EXPECT_EQ(status, 0);
     EXPECT_EQ(aclInit(nullptr), 0);
-    int32_t deviceId = rankId % testGNpuNum + testFirstNpu;
-    EXPECT_EQ(status = aclrtSetDevice(deviceId), 0);
+    int32_t device_id = rank_id % test_gnpu_num + testFirstNpu;
+    EXPECT_EQ(status = aclrtSetDevice(device_id), 0);
     aclrtStream stream = nullptr;
     EXPECT_EQ(status = aclrtCreateStream(&stream), 0);
 
     shmem_init_attr_t* attributes;
-    shmem_set_attr(rankId, n_ranks, local_mem_size, testGlobalIpport, &attributes);
+    shmem_set_attr(rank_id, n_ranks, local_mem_size, test_global_ipport, &attributes);
     status = shmem_init_attr(attributes);
     EXPECT_EQ(status, 0);
     *st = stream;
 }
 
-void TestFinalize(aclrtStream stream, int deviceId)
+void TestFinalize(aclrtStream stream, int device_id)
 {
     int status = shmem_finalize();
     EXPECT_EQ(status, 0);
     EXPECT_EQ(aclrtDestroyStream(stream), 0);
-    EXPECT_EQ(aclrtResetDevice(deviceId), 0);
+    EXPECT_EQ(aclrtResetDevice(device_id), 0);
     EXPECT_EQ(aclFinalize(), 0);
 }
 
@@ -62,8 +62,8 @@ void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t local_
 
 int main(int argc, char** argv) {
     testGlobalRanks = std::atoi(argv[1]);
-    testGlobalIpport = argv[2];
-    testGNpuNum = std::atoi(argv[3]);
+    test_global_ipport = argv[2];
+    test_gnpu_num = std::atoi(argv[3]);
     testFirstRank = std::atoi(argv[4]);
     testFirstNpu = std::atoi(argv[5]);
 

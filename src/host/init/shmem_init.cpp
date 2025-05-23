@@ -66,8 +66,8 @@ int32_t SmemHeapInit(shmem_init_attr_t *attributes)
     void *gva = nullptr;
     int32_t status = SHMEM_SUCCESS;
     uint64_t smemGlobalSize = gState.heap_size * gState.npes;
-    int32_t deviceId;
-    SHMEM_CHECK_RET(aclrtGetDevice(&deviceId));
+    int32_t device_id;
+    SHMEM_CHECK_RET(aclrtGetDevice(&device_id));
 
     status = SmemApi::SmemInit(DEFAULT_FLAG);
     if (status != SHMEM_SUCCESS) {
@@ -76,7 +76,7 @@ int32_t SmemHeapInit(shmem_init_attr_t *attributes)
     }
     smem_shm_config_t config;
     (void) SmemApi::SmemShmConfigInit(&config);
-    status = SmemApi::SmemShmInit(attributes->ip_port, attributes->n_ranks, attributes->my_rank, deviceId, smemGlobalSize,
+    status = SmemApi::SmemShmInit(attributes->ip_port, attributes->n_ranks, attributes->my_rank, device_id, smemGlobalSize,
              &config);
     if (status != SHMEM_SUCCESS) {
         SHM_LOG_ERROR("smem_init Failed");

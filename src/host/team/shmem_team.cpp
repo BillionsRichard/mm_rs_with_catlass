@@ -100,7 +100,7 @@ int32_t ShmemiTeamInit(int32_t rank, int32_t size)
         SHM_LOG_ERROR("malloc sync counter failed.");
         return SHMEM_INNER_ERROR;
     }
-    ret = ShmemiMemset((int32_t *) gState.sync_counter, SYNC_COUNTERS_SIZE / sizeof(int32_t), 1);
+    ret = shmemi_memset((int32_t *) gState.sync_counter, SYNC_COUNTERS_SIZE / sizeof(int32_t), 1);
     if (ret != 0) {
         ShmemiTeamFinalize();
         SHM_LOG_ERROR("memset sync counter failed.");
@@ -290,7 +290,7 @@ int32_t shmem_team_n_pes(shmem_team_t team)
 
 void shmem_barrier(shmem_team_t tid) {
     // using default stream to do barrier
-    ShmemiBarrierOnStream(tid, nullptr);
+    shmemi_barrier_on_stream(tid, nullptr);
 }
 
 void shmem_barrier_all() {
@@ -299,10 +299,10 @@ void shmem_barrier_all() {
 
 void shmem_barrier_on_stream(shmem_team_t tid, aclrtStream stream)
 {
-    ShmemiBarrierOnStream(tid, stream);
+    shmemi_barrier_on_stream(tid, stream);
 }
 
 void shmem_barrier_all_on_stream(aclrtStream stream)
 {
-    ShmemiBarrierOnStream(SHMEM_TEAM_WORLD, stream);
+    shmemi_barrier_on_stream(SHMEM_TEAM_WORLD, stream);
 }

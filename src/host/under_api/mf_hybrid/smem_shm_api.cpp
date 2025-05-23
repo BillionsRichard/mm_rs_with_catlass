@@ -35,28 +35,28 @@ SmemShmControlBarrierFunc SmemApi::gSmemShmControlBarrier = nullptr;
 SmemShmControlAllGatherFunc SmemApi::gSmemShmControlAllGather = nullptr;
 SmemShmTopoCanReachFunc SmemApi::gSmemShmTopoCanReach = nullptr;
 
-int32_t SmemApi::LoadLibrary(const std::string &libDirPath)
+int32_t SmemApi::LoadLibrary(const std::string &lib_dir_path)
 {
-    SHM_LOG_DEBUG("try to load library: " << gSmemFileName << ", dir: " << libDirPath.c_str());
+    SHM_LOG_DEBUG("try to load library: " << gSmemFileName << ", dir: " << lib_dir_path.c_str());
     std::lock_guard<std::mutex> guard(gMutex);
     if (gLoaded) {
         return SHMEM_SUCCESS;
     }
 
-    std::string realPath;
-    if (!libDirPath.empty()) {
-        if (!Func::LibraryRealPath(libDirPath, std::string(gSmemFileName), realPath)) {
-            SHM_LOG_ERROR("get lib path failed, library path: " << libDirPath);
+    std::string real_path;
+    if (!lib_dir_path.empty()) {
+        if (!Func::get_library_real_path(lib_dir_path, std::string(gSmemFileName), real_path)) {
+            SHM_LOG_ERROR("get lib path failed, library path: " << lib_dir_path);
             return SHMEM_INNER_ERROR;
         }
     } else {
-        realPath = std::string(gSmemFileName);
+        real_path = std::string(gSmemFileName);
     }
 
     /* dlopen library */
-    gSmemHandle = dlopen(realPath.c_str(), RTLD_NOW);
+    gSmemHandle = dlopen(real_path.c_str(), RTLD_NOW);
     if (gSmemHandle == nullptr) {
-        SHM_LOG_ERROR("Failed to open library: " << realPath << ", error: " << dlerror());
+        SHM_LOG_ERROR("Failed to open library: " << real_path << ", error: " << dlerror());
         return -1L;
     }
 
@@ -86,7 +86,7 @@ int32_t SmemApi::LoadLibrary(const std::string &libDirPath)
     DL_LOAD_SYM(gSmemShmTopoCanReach, SmemShmTopoCanReachFunc, gSmemHandle, "smem_shm_topology_can_reach");
 
     gLoaded = true;
-    SHM_LOG_INFO("loaded library: " << gSmemFileName << " under dir: " << libDirPath.c_str());
+    SHM_LOG_INFO("loaded library: " << gSmemFileName << " under dir: " << lib_dir_path.c_str());
     return SHMEM_SUCCESS;
 }
 }  // namespace shm
