@@ -411,6 +411,48 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
 
 
 /**
+ * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local device.
+ *
+ * @param dst               [in] Pointer on local UB of the destination data.
+ * @param src               [in] Pointer on Symmetric memory of the source data.
+ * @param elemSize          [in] Number of elements in the destination and source arrays.
+ * @param pe                [in] PE number of the remote PE.
+ * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
+ */
+template <typename T>
+SHMEM_DEVICE void shmem_mte_get_mem_nbi(__ubuf__ T* dst, __gm__ T* src, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+{
+    auto ptr = shmem_ptr(src, pe);
+    if (ptr == nullptr) return;
+    __gm__ T* remotePtr = reinterpret_cast<__gm__ T*>(ptr);
+
+    smem_shm_copy_gm2ub(dst, remotePtr, elemSize * sizeof(T));
+}
+
+
+/**
+ * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local device.
+ *
+ * @param dst               [in] LocalTensor on local UB of the destination data.
+ * @param src               [in] GlobalTensor on Symmetric memory of the source data.
+ * @param elemSize          [in] Number of elements in the destination and source arrays.
+ * @param pe                [in] PE number of the remote PE.
+ * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
+ */
+template <typename T>
+SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::LocalTensor<T> dst, AscendC::GlobalTensor<T> src, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+{
+    auto ptr = shmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
+    if (ptr == nullptr) return;
+
+    AscendC::GlobalTensor<T> remoteBuff;
+    remoteBuff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
+
+    smem_shm_copy_gm2ub(dst, remoteBuff, elemSize * sizeof(T));
+}
+
+
+/**
  * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
  *
  * @param dst               [in] Pointer on Symmetric memory of the destination data.
@@ -431,22 +473,23 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __ubuf__ T* src, uint32_t
 
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local device.
+ * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
  *
- * @param dst               [in] Pointer on local UB of the destination data.
- * @param src               [in] Pointer on Symmetric memory of the source data.
+ * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.
+ * @param src               [in] LocalTensor on local UB of the source data.
  * @param elemSize          [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
  * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
  */
 template <typename T>
-SHMEM_DEVICE void shmem_mte_get_mem_nbi(__ubuf__ T* dst, __gm__ T* src, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::LocalTensor<T> src, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
 {
-    auto ptr = shmem_ptr(src, pe);
+    auto ptr = shmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
     if (ptr == nullptr) return;
-    __gm__ T* remotePtr = reinterpret_cast<__gm__ T*>(ptr);
+    AscendC::GlobalTensor<T> remoteBuff;
+    remoteBuff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
-    smem_shm_copy_gm2ub(dst, remotePtr, elemSize * sizeof(T));
+    smem_shm_copy_ub2gm(remoteBuff, src, elemSize * sizeof(T));
 }
 
 
