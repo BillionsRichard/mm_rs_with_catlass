@@ -18,19 +18,19 @@ SHMEM_HOST_API int shmem_init_status();
 /**
  * @brief Set the default attributes to be used in <b>shmem_init_attr()</b>.
  *
- * @param myRank            [in] Current rank
- * @param nRanks            [in] Total number of ranks
- * @param localMemSize      [in] The size of shared memory currently occupied by current rank
- * @param ipPort            [in] The ip and port number of the sever, e.g. tcp://ip:port
+ * @param my_rank            [in] Current rank
+ * @param n_ranks            [in] Total number of ranks
+ * @param local_mem_size      [in] The size of shared memory currently occupied by current rank
+ * @param ip_port            [in] The ip and port number of the sever, e.g. tcp://ip:port
  * @param attributes        [out] Pointer to the default attributes used for initialization
  * @return Returns 0 on success or an error code on failure
  */
-SHMEM_HOST_API int shmem_set_attr(int myRank, int nRanks, uint64_t localMemSize, const char* ipPort, shmem_init_attr_t **attributes);
+SHMEM_HOST_API int shmem_set_attr(int my_rank, int n_ranks, uint64_t local_mem_size, const char* ip_port, shmem_init_attr_t **attributes);
 
 /**
  * @brief Modify the data operation engine type in the attributes that will be used for initialization.
- *        If this method is not used, the default dataOpEngineType value is SHMEM_DATA_OP_MTE
- *        if method <b>shmem_set_attr()</b> is used after this method, the dataOpEngineType param will be overwritten by the default value.
+ *        If this method is not used, the default data_op_engine_type value is SHMEM_DATA_OP_MTE
+ *        if method <b>shmem_set_attr()</b> is used after this method, the data_op_engine_type param will be overwritten by the default value.
  *
  * @param attributes        [in/out] Pointer to the attributes to modify the data operation engine type
  * @param value             [in] Value of data operation engine type

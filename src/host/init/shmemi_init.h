@@ -5,7 +5,7 @@
 #include "internal/host_device/shmemi_types.h"
 
 namespace shm {
-extern ShmemiDeviceHostState gState;
+extern shmemi_device_host_state_t gState;
 
 int32_t UpdateDeviceState(void);
 

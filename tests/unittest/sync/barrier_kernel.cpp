@@ -36,8 +36,8 @@ SHMEM_DEVICE void VecGuard() {
     local.InitBuffer(0, 32);
     
     GlobalTensor<half> global;
-    ShmemiTeam *team = ShmemiGetState()->teamPools[0];
-    auto addr = (__gm__ half *) ((uint64_t) ShmemiGetTeamSyncCounter(team->teamIdx) + SHMEMI_SYNCBIT_SIZE);
+    shmemi_team_t *team = shmemi_get_state()->team_pools[0];
+    auto addr = (__gm__ half *) ((uint64_t) shmemi_get_team_sync_counter(team->team_idx) + SHMEMI_SYNCBIT_SIZE);
     global.SetGlobalBuffer(addr, 32);
 
     DataCopy<half>(local, global, 32);
@@ -53,10 +53,10 @@ SHMEM_DEVICE void CVGuard() {
     VecGuard();
 }
 
-extern "C" SHMEM_GLOBAL void fetchAddr(GM_ADDR syncArray, GM_ADDR syncCounter) {
-    ShmemiTeam *team = ShmemiGetState()->teamPools[0];
-    *((__gm__ uint64_t*) syncArray) = (uint64_t) ShmemiGetTeamSyncArray(team->teamIdx);
-    *((__gm__ uint64_t*) syncCounter) = (uint64_t) ShmemiGetTeamSyncCounter(team->teamIdx);
+extern "C" SHMEM_GLOBAL void fetchAddr(GM_ADDR sync_array, GM_ADDR sync_counter) {
+    shmemi_team_t *team = shmemi_get_state()->team_pools[0];
+    *((__gm__ uint64_t*) sync_array) = (uint64_t) shmemi_get_team_sync_array(team->team_idx);
+    *((__gm__ uint64_t*) sync_counter) = (uint64_t) shmemi_get_team_sync_counter(team->team_idx);
 }
 
 extern "C" SHMEM_GLOBAL void barrier(GM_ADDR stub) {
@@ -75,17 +75,17 @@ extern "C" SHMEM_GLOBAL void increase(GM_ADDR addr, int rankId, int rankSize) {
 #endif
 
 #ifdef __DAV_C220_VEC__
-    uint64_t val = ShmemiLoad<uint64_t>(addr);
+    uint64_t val = shmemi_load<uint64_t>(addr);
 
     shmem_barrier_all();
-    GM_ADDR remote = ShmemiPtr(addr, (rankId + 1) % rankSize);
-    ShmemiStore<uint64_t>(remote, val + 1);
+    GM_ADDR remote = shmemi_ptr(addr, (rankId + 1) % rankSize);
+    shmemi_store<uint64_t>(remote, val + 1);
     shmem_barrier_all();
 #endif
 }
 
-void fetchAddrDo(void* stream, uint8_t* syncArray, uint8_t* syncCounter) {
-    fetchAddr<<<1, nullptr, stream>>>(syncArray, syncCounter);
+void fetchAddrDo(void* stream, uint8_t* sync_array, uint8_t* sync_counter) {
+    fetchAddr<<<1, nullptr, stream>>>(sync_array, sync_counter);
 }
 
 void barrierDo(void* stream, uint8_t *stub) {

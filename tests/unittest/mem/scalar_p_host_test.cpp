@@ -8,8 +8,8 @@ using namespace std;
 #include <gtest/gtest.h>
 extern int testGNpuNum;
 extern int testFirstNpu;
-extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localMemSize, int processCount);
-extern void TestInit(int rankId, int nRanks, uint64_t localMemSize, aclrtStream *st);
+extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t local_mem_size, int processCount);
+extern void TestInit(int rankId, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
 extern void TestFinalize(aclrtStream stream, int deviceId);
 
 extern void PutOneNumDo(uint32_t blockDim, void* stream, uint8_t* gva, float val);
@@ -41,14 +41,14 @@ static int32_t TestScalarPutGet(aclrtStream stream, uint32_t rankId, uint32_t ra
     return flag;
 }
 
-void TestShmemScalarP(int rankId, int nRanks, uint64_t localMemSize)
+void TestShmemScalarP(int rankId, int n_ranks, uint64_t local_mem_size)
 {
     int32_t deviceId = rankId % testGNpuNum + testFirstNpu;
     aclrtStream stream;
-    TestInit(rankId, nRanks, localMemSize, &stream);
+    TestInit(rankId, n_ranks, local_mem_size, &stream);
     ASSERT_NE(stream, nullptr);
 
-    int status = TestScalarPutGet(stream, rankId, nRanks);
+    int status = TestScalarPutGet(stream, rankId, n_ranks);
     ASSERT_EQ(status, 0);
 
     std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
@@ -61,6 +61,6 @@ void TestShmemScalarP(int rankId, int nRanks, uint64_t localMemSize)
 TEST(TestScalarPApi, TestShmemScalarP)
 {
     const int processCount = testGNpuNum;
-    uint64_t localMemSize = 1024UL * 1024UL * 1024;
-    TestMutilTask(TestShmemScalarP, localMemSize, processCount);
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    TestMutilTask(TestShmemScalarP, local_mem_size, processCount);
 }

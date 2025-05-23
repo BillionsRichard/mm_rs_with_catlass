@@ -21,20 +21,20 @@ enum {
 // 初始化属性
 typedef struct {
     int version;                            // 版本
-    int myRank;                             // 当前rank
-    int nRanks;                             // 总rank数
-    const char* ipPort;                     // ip端口
-    uint64_t localMemSize;                  // 本地申请内存大小
-    shmem_init_optional_attr_t optionAttr;  // 可选参数
+    int my_rank;                             // 当前rank
+    int n_ranks;                             // 总rank数
+    const char* ip_port;                     // ip端口
+    uint64_t local_mem_size;                  // 本地申请内存大小
+    shmem_init_optional_attr_t option_attr;  // 可选参数
 } shmem_init_attr_t;
 
 // 可选属性
 typedef struct {
-    data_op_engine_type_t dataOpEngineType; // 数据引擎
+    data_op_engine_type_t data_op_engine_type; // 数据引擎
     // timeout
-    uint32_t shmInitTimeout;
-    uint32_t shmCreateTimeout;
-    uint32_t controlOperationTimeout;
+    uint32_t shmInit_timeout;
+    uint32_t shm_create_timeout;
+    uint32_t control_operation_timeout;
 } shmem_init_optional_attr_t;
 ```
 
@@ -48,8 +48,8 @@ aclInit(nullptr);
 status = aclrtSetDevice(deviceId);
 
 shmem_init_attr_t* attributes;
-shmem_set_attr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
-// shmem_init_attr_t* attributes = new shmem_init_attr_t{rankId, nRanks, testGlobalIpport, localMemSize, {0, SHMEM_DATA_OP_MTE, 120, 120, 120}}; // 自定义attr
+shmem_set_attr(rankId, n_ranks, local_mem_size, testGlobalIpport, &attributes);
+// shmem_init_attr_t* attributes = new shmem_init_attr_t{rankId, n_ranks, testGlobalIpport, local_mem_size, {0, SHMEM_DATA_OP_MTE, 120, 120, 120}}; // 自定义attr
 shmem_init_attr(attributes);
 // delete attributes; // 销毁自定义attr
 
@@ -89,7 +89,7 @@ if (rankId & 1) {
     // shmem_team_my_pe(team_odd): Returns the number of the calling PE in the specified team.
     int team_my_pe = shmem_team_my_pe(team_odd); // team_my_pe == rankId / stride
     // shmem_n_pes(): Returns the number of PEs running in the program.
-    int my_pe = shmem_n_pes(); // n_pes == nRanks
+    int my_pe = shmem_n_pes(); // n_pes == n_ranks
     // shmem_my_pe(): Returns the PE number of the local PE
     int my_pe = shmem_my_pe(); // my_pe == rankId
 }
@@ -108,7 +108,7 @@ public:
     __aicore__ inline void Init(GM_ADDR gva, shmem_team_t teamId)
     {
         gvaGm = (__gm__ int *)gva;
-        teamIdx= teamId;
+        team_idx= teamId;
 
         rank = smem_shm_get_global_rank();          // 获取当前ank
         rankSize = smem_shm_get_global_rank_size(); // 获取总rank数
@@ -123,16 +123,16 @@ public:
         shmem_int32_p(gvaGm, shmem_n_pes(), rank); 
         // shmem_my_pe(): Returns the PE number of the local PE
         shmem_int32_p(gvaGm + 1, shmem_my_pe(), rank); 
-        // shmem_team_my_pe(teamIdx): Returns the number of the calling PE in the specified team.
-        shmem_int32_p(gvaGm + 2, shmem_team_my_pe(teamIdx), rank); 
-        // shmem_team_n_pes(teamIdx): Returns the number of PEs in the team.
-        shmem_int32_p(gvaGm + 3, shmem_team_n_pes(teamIdx), rank); 
-        // shmem_team_translate_pe(teamIdx, 1, SHMEM_TEAM_WORLD): Translate a given PE number in one team into the corresponding PE number in another team.
-        shmem_int32_p(gvaGm + 4, shmem_team_translate_pe(teamIdx, 1, SHMEM_TEAM_WORLD), rank); 
+        // shmem_team_my_pe(team_idx): Returns the number of the calling PE in the specified team.
+        shmem_int32_p(gvaGm + 2, shmem_team_my_pe(team_idx), rank); 
+        // shmem_team_n_pes(team_idx): Returns the number of PEs in the team.
+        shmem_int32_p(gvaGm + 3, shmem_team_n_pes(team_idx), rank); 
+        // shmem_team_translate_pe(team_idx, 1, SHMEM_TEAM_WORLD): Translate a given PE number in one team into the corresponding PE number in another team.
+        shmem_int32_p(gvaGm + 4, shmem_team_translate_pe(team_idx, 1, SHMEM_TEAM_WORLD), rank); 
     }
 private:
     __gm__ int *gvaGm;
-    shmem_team_t teamIdx;
+    shmem_team_t team_idx;
 
     int64_t rank;
     int64_t rankSize;

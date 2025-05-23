@@ -10,22 +10,22 @@ using namespace std;
 #include <gtest/gtest.h>
 extern int testGNpuNum;
 extern int testFirstNpu;
-extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localMemSize, int processCount);
-extern void TestInit(int rankId, int nRanks, uint64_t localMemSize, aclrtStream *st);
+extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t local_mem_size, int processCount);
+extern void TestInit(int rankId, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
 extern void TestFinalize(aclrtStream stream, int deviceId);
 
 extern void TeamAllGather(uint32_t blockDim, void* stream, uint8_t* gva, shmem_team_t teamId);
 
-void TestShmemTeamAllGather(int rankId, int nRanks, uint64_t localMemSize) {
+void TestShmemTeamAllGather(int rankId, int n_ranks, uint64_t local_mem_size) {
     int32_t deviceId = rankId % testGNpuNum + testFirstNpu;
     aclrtStream stream;
-    TestInit(rankId, nRanks, localMemSize, &stream);
+    TestInit(rankId, n_ranks, local_mem_size, &stream);
     ASSERT_NE(stream, nullptr);
     
     shmem_team_t teamOdd;
     int start = 1;
     int stride = 2;
-    int teamSize = nRanks / 2;
+    int teamSize = n_ranks / 2;
     void *ptr = shmem_malloc(1024);
     if (rankId & 1) {
         // Team split
@@ -71,6 +71,6 @@ void TestShmemTeamAllGather(int rankId, int nRanks, uint64_t localMemSize) {
 TEST(TestTeamFunc, TestShmemTeam)
 {   
     const int processCount = testGNpuNum;
-    uint64_t localMemSize = 1024UL * 1024UL * 1024;
-    TestMutilTask(TestShmemTeamAllGather, localMemSize, processCount);
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    TestMutilTask(TestShmemTeamAllGather, local_mem_size, processCount);
 }

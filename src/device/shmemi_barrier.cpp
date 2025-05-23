@@ -4,7 +4,7 @@
 
 // kernels
 SHMEM_GLOBAL void KShmemBarrier(int32_t tid) {
-    ShmemiBarrier<false>(tid);
+    shmemi_barrier<false>(tid);
 } 
 
 // interfaces

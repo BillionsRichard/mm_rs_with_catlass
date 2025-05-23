@@ -10,27 +10,27 @@ extern "C" {
 /**
  * @brief Collective Interface. Creates a new SHMEM team from an existing parent team.
  * 
- * @param parentTeam        [in] A team handle.
- * @param peStart           [in] The first PE number of the subset of PEs from the parent team.
- * @param peStride          [in] The stride between team PE numbers in the parent team.
- * @param peSize            [in] The total number of PEs in new team.
- * @param newTeam           [out] A team handle.
+ * @param parent_team        [in] A team handle.
+ * @param pe_start           [in] The first PE number of the subset of PEs from the parent team.
+ * @param pe_stride          [in] The stride between team PE numbers in the parent team.
+ * @param pe_size            [in] The total number of PEs in new team.
+ * @param new_team           [out] A team handle.
  *
- * @return 0 on successful creation of newTeam; otherwise nonzero.
+ * @return 0 on successful creation of new_team; otherwise nonzero.
  */
-SHMEM_HOST_API int shmem_team_split_strided(shmem_team_t parentTeam, int peStart, int peStride, int peSize, shmem_team_t *newTeam);
+SHMEM_HOST_API int shmem_team_split_strided(shmem_team_t parent_team, int pe_start, int pe_stride, int pe_size, shmem_team_t *new_team);
 
 /**
  * @brief Translate a given PE number in one team into the corresponding PE number in another team.
  * 
- * @param srcTeam           [in] A team handle.
- * @param srcPe             [in] The PE number in srcTeam.
- * @param destTeam          [in] A team handle.
+ * @param src_team           [in] A team handle.
+ * @param src_pe             [in] The PE number in src_team.
+ * @param dest_team          [in] A team handle.
  *
  * @return The number of PEs in the specified team. 
  *         If the team handle is NVSHMEM_TEAM_INVALID, returns -1.
  */
-SHMEM_HOST_API int shmem_team_translate_pe(shmem_team_t srcTeam, int srcPe, shmem_team_t destTeam);
+SHMEM_HOST_API int shmem_team_translate_pe(shmem_team_t src_team, int src_pe, shmem_team_t dest_team);
 
 /**
  * @brief Collective Interface. Destroys the team referenced by the team handle.

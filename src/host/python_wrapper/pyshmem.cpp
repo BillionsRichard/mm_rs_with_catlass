@@ -50,7 +50,7 @@ int ShmemInitialize(int rank, int worldSize, int64_t memSize)
         return -1;
     }
 
-    attribute.ipPort = url.c_str();
+    attribute.ip_port = url.c_str();
     auto ret = shmem_init_attr(&attribute);
     if (ret != 0) {
         std::cerr << "initialize with mype: " << rank << ", npes: " << worldSize << " failed: " << ret;
@@ -134,13 +134,13 @@ Arguments:
     m.def(
         "team_split_strided",
         [](int parent, int start, int stride, int size) {
-            shmem_team_t newTeam;
-            auto ret = shmem_team_split_strided(parent, start, stride, size, &newTeam);
+            shmem_team_t new_team;
+            auto ret = shmem_team_split_strided(parent, start, stride, size, &new_team);
             if (ret != 0) {
                 std::cerr << "split parent team(" << parent << ") failed: " << ret << std::endl;
                 return ret;
             }
-            return newTeam;
+            return new_team;
         },
         py::call_guard<py::gil_scoped_release>(), py::arg("parent"), py::arg("start"), py::arg("stride"),
         py::arg("size"), R"(

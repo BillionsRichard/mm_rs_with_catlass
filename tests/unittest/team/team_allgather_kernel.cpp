@@ -41,7 +41,7 @@ extern "C" __global__ __aicore__ void DeviceTeamAllGatherTest(GM_ADDR gva, int t
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
     }
-    ShmemiBarrier(teamId);
+    shmemi_barrier(teamId);
 }
 
 void TeamAllGather(uint32_t blockDim, void* stream, uint8_t* gva, shmem_team_t teamId)

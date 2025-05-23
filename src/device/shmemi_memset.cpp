@@ -11,7 +11,7 @@ SHMEM_GLOBAL void KMemset(GM_ADDR array, int32_t len, T val) {
         *tmp++ = val;
     }
 
-    DcciEntireCache();
+    dcci_entire_cache();
 } 
 
 // interfaces

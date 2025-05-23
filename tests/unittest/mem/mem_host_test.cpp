@@ -10,8 +10,8 @@ using namespace std;
 #include <gtest/gtest.h>
 extern int testGNpuNum;
 extern int testFirstNpu;
-extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localMemSize, int processCount);
-extern void TestInit(int rankId, int nRanks, uint64_t localMemSize, aclrtStream *st);
+extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t local_mem_size, int processCount);
+extern void TestInit(int rankId, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
 extern void TestFinalize(aclrtStream stream, int deviceId);
 
 extern void TestPut(uint32_t blockDim, void* stream, uint8_t* gva, uint8_t* devPtr);
@@ -67,13 +67,13 @@ static void TestPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankId, uint32
     ASSERT_EQ(flag, 0);
 }
 
-void TestShmemMem(int rankId, int nRanks, uint64_t localMemSize) {
+void TestShmemMem(int rankId, int n_ranks, uint64_t local_mem_size) {
     int32_t deviceId = rankId % testGNpuNum + testFirstNpu;
     aclrtStream stream;
-    TestInit(rankId, nRanks, localMemSize, &stream);
+    TestInit(rankId, n_ranks, local_mem_size, &stream);
     ASSERT_NE(stream, nullptr);
 
-    TestPutGet(stream, (uint8_t *)shm::gState.heapBase, rankId, nRanks);
+    TestPutGet(stream, (uint8_t *)shm::gState.heap_base, rankId, n_ranks);
     std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
     TestFinalize(stream, deviceId);
     if (::testing::Test::HasFailure()){
@@ -84,6 +84,6 @@ void TestShmemMem(int rankId, int nRanks, uint64_t localMemSize) {
 TEST(TestMemApi, TestShmemMem)
 {   
     const int processCount = testGNpuNum;
-    uint64_t localMemSize = 1024UL * 1024UL * 1024;
-    TestMutilTask(TestShmemMem, localMemSize, processCount);
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    TestMutilTask(TestShmemMem, local_mem_size, processCount);
 }
