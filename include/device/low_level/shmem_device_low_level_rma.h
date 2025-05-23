@@ -411,7 +411,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
 
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local device.
+ * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local UB.
  *
  * @param dst               [in] Pointer on local UB of the destination data.
  * @param src               [in] Pointer on Symmetric memory of the source data.
@@ -431,7 +431,7 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__ubuf__ T* dst, __gm__ T* src, uint32_t
 
 
 /**
- * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local device.
+ * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local UB.
  *
  * @param dst               [in] LocalTensor on local UB of the destination data.
  * @param src               [in] GlobalTensor on Symmetric memory of the source data.
@@ -453,7 +453,76 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::LocalTensor<T> dst, AscendC::Gl
 
 
 /**
- * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
+ * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data 
+ *        on symmetric memory from the specified PE to address on the local UB.
+ *
+ * @param dst               [in] Pointer on local UB of the destination data.
+ * @param src               [in] Pointer on Symmetric memory of the source data.
+ * @param copyParams        [in] Params to describe how non-contiguous data is organized in src and dst.
+ * @param pe                [in] PE number of the remote PE.
+ * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
+ */
+template <typename T>
+SHMEM_DEVICE void shmem_mte_get_mem_nbi(__ubuf__ T* dst, __gm__ T* src, const non_contiguous_copy_param& copyParams, int pe, AscendC::TEventID EVENT_ID)
+{
+    auto ptr = shmem_ptr(src, pe);
+    if (ptr == nullptr) return;
+    __gm__ T* remotePtr = reinterpret_cast<__gm__ T*>(ptr);
+
+    AscendC::GlobalTensor<T> srcTensor;
+    AscendC::LocalTensor<T> ubTensor;
+    ubTensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
+    ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(dst);
+    srcTensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(remotePtr));
+
+    uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
+    uint32_t ubStride = (copyParams.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
+    AscendC::DataCopyExtParams dataCopyParamsGM2UB(
+        copyParams.repeat,
+        copyParams.length * sizeof(T),
+        (copyParams.srcLd - copyParams.length) * sizeof(T),
+        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
+        0
+    );
+    smem_shm_copy_gm2ub(ubTensor, srcTensor, dataCopyParamsGM2UB);
+}
+
+
+/**
+ * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data 
+ *        on symmetric memory from the specified PE to address on the local UB.
+ *
+ * @param dst               [in] LocalTensor on local UB of the destination data.
+ * @param src               [in] GlobalTensor on Symmetric memory of the source data.
+ * @param copyParams        [in] Params to describe how non-contiguous data is organized in src and dst.
+ * @param pe                [in] PE number of the remote PE.
+ * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
+ */
+template <typename T>
+SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::LocalTensor<T> dst, AscendC::GlobalTensor<T> src, const non_contiguous_copy_param& copyParams, int pe, AscendC::TEventID EVENT_ID)
+{
+    auto ptr = shmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
+    if (ptr == nullptr) return;
+
+    AscendC::GlobalTensor<T> remoteBuff;
+    remoteBuff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
+
+    uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
+    uint32_t ubStride = (copyParams.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
+    AscendC::DataCopyExtParams dataCopyParamsGM2UB(
+        copyParams.repeat,
+        copyParams.length * sizeof(T),
+        (copyParams.srcLd - copyParams.length) * sizeof(T),
+        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
+        0
+    );
+    smem_shm_copy_gm2ub(dst, remoteBuff, dataCopyParamsGM2UB);
+}
+
+
+/**
+ * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data 
+ *        on symmetric memory from the specified PE to address on the local UB.
  *
  * @param dst               [in] Pointer on Symmetric memory of the destination data.
  * @param src               [in] Pointer on local UB of the source data.
@@ -473,7 +542,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __ubuf__ T* src, uint32_t
 
 
 /**
- * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
+ * @brief Asynchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.
  *
  * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.
  * @param src               [in] LocalTensor on local UB of the source data.
@@ -490,6 +559,73 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::L
     remoteBuff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
     smem_shm_copy_ub2gm(remoteBuff, src, elemSize * sizeof(T));
+}
+
+
+/**
+ * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data 
+ *        on local UB to symmetric address on the specified PE.
+ *
+ * @param dst               [in] Pointer on Symmetric memory of the destination data.
+ * @param src               [in] Pointer on local UB of the source data.
+ * @param copyParams        [in] Params to describe how non-contiguous data is organized in src and dst.
+ * @param pe                [in] PE number of the remote PE.
+ * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
+ */
+template <typename T>
+SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __ubuf__ T* src, const non_contiguous_copy_param& copyParams, int pe, AscendC::TEventID EVENT_ID)
+{
+    auto ptr = shmem_ptr(dst, pe);
+    if (ptr == nullptr) return;
+    __gm__ T* remotePtr = reinterpret_cast<__gm__ T*>(ptr);
+
+    AscendC::LocalTensor<T> ubTensor;
+    AscendC::GlobalTensor<T> dstTensor;
+    ubTensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
+    ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(src);
+    dstTensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(remotePtr));
+
+    uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
+    uint32_t ubStride = (copyParams.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
+    AscendC::DataCopyExtParams dataCopyParamsUB2GM(
+        copyParams.repeat,
+        copyParams.length * sizeof(T),
+        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
+        (copyParams.dstLd - copyParams.length) * sizeof(T),
+        0
+    );
+    smem_shm_copy_ub2gm(dstTensor, ubTensor, dataCopyParamsUB2GM);
+}
+
+
+/**
+ * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data 
+ *        on local UB to symmetric address on the specified PE.
+ *
+ * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.
+ * @param src               [in] LocalTensor on local UB of the source data.
+ * @param copyParams        [in] Params to describe how non-contiguous data is organized in src and dst.
+ * @param pe                [in] PE number of the remote PE.
+ * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
+ */
+template <typename T>
+SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::LocalTensor<T> src, const non_contiguous_copy_param& copyParams, int pe, AscendC::TEventID EVENT_ID)
+{
+    auto ptr = shmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
+    if (ptr == nullptr) return;
+    AscendC::GlobalTensor<T> remoteBuff;
+    remoteBuff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
+
+    uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
+    uint32_t ubStride = (copyParams.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
+    AscendC::DataCopyExtParams dataCopyParamsUB2GM(
+        copyParams.repeat,
+        copyParams.length * sizeof(T),
+        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
+        (copyParams.dstLd - copyParams.length) * sizeof(T),
+        0
+    );
+    smem_shm_copy_ub2gm(remoteBuff, src, dataCopyParamsUB2GM);
 }
 
 
