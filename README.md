@@ -31,9 +31,8 @@ cmake >= 3.19
 GLIBC >= 2.28
 
 ## 快速上手
-详细用例介绍请参考[quickstart](examples/matmul_allreduce/README.md)  
-API使用样例请参考[API](docs/api.md)  
- - 设置环境变量<br>
+详细资料请参考[SHMEM](https://shmem-doc.pages.dev/)
+ - 设置CANN环境变量<br>
     ```sh
     # root用户安装（默认路径）
     source /usr/local/Ascend/ascend-toolkit/set_env.sh
@@ -58,34 +57,24 @@ API使用样例请参考[API](docs/api.md)
     出现提示`xxx install success!`则安装成功
 
 执行一个样例matmul_allreduce算子。  
-1.在3rdparty目录下, clone catlass代码仓：
+1.在3rdparty目录下, clone catlass代码仓:
 
 ```sh
 git clone https://gitee.com/ascend/catlass.git
 ```
 
-2.在example/matmul_allreduce目录下进行demo编译: 
+2.在example/matmul_allreduce目录下进行demo编译:
 
 ```sh
-bash build.sh
+bash scripts/build.sh
 ```
 
-3.在example/matmul_allreduce目录下生成golden数据：
-
-```sh
-python3 utils/gen_data.py 1 2 1024 1024 16 0 0
-```
-
-4.在example/matmul_allreduce目录执行demo：
+3.在example/matmul_allreduce目录执行demo:
 
 ```sh
-bash run.sh
+bash scripts/run.sh $RANK $M $K $N
 ```
-5.在example/matmul_allreduce目录验证算子精度：
-    
-```sh
-python3 utils/verify_result.py ./out/output.bin ./out/golden.bin 1 1024 1024 16
-```
+
 ## 功能自测用例
 
  - 共享内存库接口单元测试

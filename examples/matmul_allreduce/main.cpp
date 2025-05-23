@@ -57,7 +57,6 @@
 // utils
 #include "utils/utils.h"
 
-static uint32_t gNpuNum = 8;
 static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 1024;
 
 using namespace AscendC;
@@ -249,12 +248,19 @@ int main(int argc, char **argv)
 {
     int status = SHMEM_SUCCESS;
     int rankSize = atoi(argv[1]);
-    int rankId = atoi(argv[2]);
+    int nRankId = atoi(argv[2]);
     std::string ipport = argv[3];
+
+    static uint32_t  gNpuNum = atoi(argv[4]);
+    int firstRank = atoi(argv[5]);
+    int firstNpu = atoi(argv[6]);
+
+    int rankId = nRankId + firstRank;
+
     std::cout << "[TEST] input rank_size: " << rankSize << " rank_id:" << rankId << " input_ip: " << ipport << std::endl;
 
     ACL_CHECK(aclInit(nullptr));
-    int32_t deviceId = rankId % gNpuNum;
+    int32_t deviceId = rankId % gNpuNum + firstNpu;
     ACL_CHECK(aclrtSetDevice(deviceId));
     aclrtStream stream = nullptr;
     ACL_CHECK(aclrtCreateStream(&stream));

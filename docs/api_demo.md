@@ -1,0 +1,219 @@
+# SHMEM API 样例
+SHMEM包含host和device两类接口。host接口用SHMEM_HOST_API宏标识，device接口用SHMEM_DEVICE宏标识。
+
+此章介绍各类API的常见接口的使用样例。
+
+## Init API
+SHMEM的初始化接口样例
+
+### 初始化状态  
+```c++
+enum {
+    SHMEM_STATUS_NOT_INITALIZED = 0,    // 未初始化
+    SHMEM_STATUS_SHM_CREATED,           // 完成共享内存堆创建 
+    SHMEM_STATUS_IS_INITALIZED,         // 初始化完成 
+    SHMEM_STATUS_INVALID = INT_MAX,
+};
+```
+
+### 初始化所需的attributes 
+```c++
+// 初始化属性
+typedef struct {
+    int version;                            // 版本
+    int myRank;                             // 当前rank
+    int nRanks;                             // 总rank数
+    const char* ipPort;                     // ip端口
+    uint64_t localMemSize;                  // 本地申请内存大小
+    shmem_init_optional_attr_t optionAttr;  // 可选参数
+} shmem_init_attr_t;
+
+// 可选属性
+typedef struct {
+    data_op_engine_type_t dataOpEngineType; // 数据引擎
+    // timeout
+    uint32_t shmInitTimeout;
+    uint32_t shmCreateTimeout;
+    uint32_t controlOperationTimeout;
+} shmem_init_optional_attr_t;
+```
+
+### 初始化样例
+```c++
+#include <iostream>
+#include <unistd.h>
+#include <acl/acl.h>
+#include "shmem_api.h"
+aclInit(nullptr);
+status = aclrtSetDevice(deviceId);
+
+shmem_init_attr_t* attributes;
+shmem_set_attr(rankId, nRanks, localMemSize, testGlobalIpport, &attributes);
+// shmem_init_attr_t* attributes = new shmem_init_attr_t{rankId, nRanks, testGlobalIpport, localMemSize, {0, SHMEM_DATA_OP_MTE, 120, 120, 120}}; // 自定义attr
+shmem_init_attr(attributes);
+// delete attributes; // 销毁自定义attr
+
+status = shmem_init_status();
+if (status == SHMEM_STATUS_IS_INITALIZED) {
+    std::cout << "Init success!" << std::endl;
+}
+//################你的任务#################
+
+//#########################################
+status = shmem_finalize();
+aclrtResetDevice(deviceId);
+aclFinalize();
+
+```
+
+## Team API
+SHMEM的通信域管理接口样例
+
+### host侧接口样例
+
+```c++
+// ################### 调用初始化相关接口 ###########################
+//...
+// ###################### 子通信域切分 #############################
+shmem_team_t team_odd;
+int start = 1;
+int stride = 2;
+int team_size = 4;
+shmem_team_split_strided(SHMEM_TEAM_WORLD, start, stride, team_size, &team_odd);
+
+// ##################### host侧取值 ###############################
+if (rankId & 1) {
+    
+    // shmem_team_n_pes(team_odd): Returns the number of PEs in the team.
+    int team_n_pes = shmem_team_n_pes(team_odd); // team_n_pes == team_size
+    // shmem_team_my_pe(team_odd): Returns the number of the calling PE in the specified team.
+    int team_my_pe = shmem_team_my_pe(team_odd); // team_my_pe == rankId / stride
+    // shmem_n_pes(): Returns the number of PEs running in the program.
+    int my_pe = shmem_n_pes(); // n_pes == nRanks
+    // shmem_my_pe(): Returns the PE number of the local PE
+    int my_pe = shmem_my_pe(); // my_pe == rankId
+}
+
+// #################### 相关资源释放 ################################
+shmem_team_destroy(team_odd);
+// ################## 调用去初始化相关接口 ###########################
+//...
+```
+
+### device侧接口样例
+```c++
+class KernelStateTest {
+public:
+    __aicore__ inline KernelStateTest() {}
+    __aicore__ inline void Init(GM_ADDR gva, shmem_team_t teamId)
+    {
+        gvaGm = (__gm__ int *)gva;
+        teamIdx= teamId;
+
+        rank = smem_shm_get_global_rank();          // 获取当前ank
+        rankSize = smem_shm_get_global_rank_size(); // 获取总rank数
+    }
+    __aicore__ inline void Process()
+    {
+        AscendC::PipeBarrier<PIPE_ALL>();
+        // ##################### device侧取值 ###############################
+        // shmem_int32_p 是RMA功能提供的接口，此处可简易理解为在device存储第二个入参的函数的结果。
+        
+        // shmem_n_pes(): Returns the number of PEs running in the program.
+        shmem_int32_p(gvaGm, shmem_n_pes(), rank); 
+        // shmem_my_pe(): Returns the PE number of the local PE
+        shmem_int32_p(gvaGm + 1, shmem_my_pe(), rank); 
+        // shmem_team_my_pe(teamIdx): Returns the number of the calling PE in the specified team.
+        shmem_int32_p(gvaGm + 2, shmem_team_my_pe(teamIdx), rank); 
+        // shmem_team_n_pes(teamIdx): Returns the number of PEs in the team.
+        shmem_int32_p(gvaGm + 3, shmem_team_n_pes(teamIdx), rank); 
+        // shmem_team_translate_pe(teamIdx, 1, SHMEM_TEAM_WORLD): Translate a given PE number in one team into the corresponding PE number in another team.
+        shmem_int32_p(gvaGm + 4, shmem_team_translate_pe(teamIdx, 1, SHMEM_TEAM_WORLD), rank); 
+    }
+private:
+    __gm__ int *gvaGm;
+    shmem_team_t teamIdx;
+
+    int64_t rank;
+    int64_t rankSize;
+};
+
+extern "C" __global__ __aicore__ void DeviceStateTest(GM_ADDR gva, int teamId)
+{
+    KernelStateTest op;
+    op.Init(gva, (shmem_team_t)teamId);
+    op.Process();
+}
+
+void GetDeviceState(uint32_t blockDim, void* stream, uint8_t* gva, shmem_team_t teamId)
+{
+    DeviceStateTest<<<blockDim, nullptr, stream>>>(gva, (int)teamId);
+}
+```
+## Mem API
+SHMEM的内存管理接口样例
+
+```c++
+// ################### 调用初始化相关接口 ###########################
+//...
+// ################## 内存管理接口调用 ###########################
+// 分配1024 bytes，返回所分配内存的指针ptr.
+void *ptr = shmem_malloc(1024);
+// 释放ptr对应的被分配的内存空间.
+shmem_free(ptr);
+// ################## 调用去初始化相关接口 ###########################
+//...
+```
+
+## RMA API
+SHMEM的远端内存访问接口样例
+
+```c++
+class KernelP {
+public:
+    __aicore__ inline KernelP() {}
+    __aicore__ inline void Init(GM_ADDR gva, float val)
+    {
+        gvaGm = (__gm__ float *)gva;
+        value = val;
+
+        rank = smem_shm_get_global_rank();          // 获取当前ank
+        rankSize = smem_shm_get_global_rank_size(); // 获取总rank数
+    }
+    __aicore__ inline void Process()
+    {
+        // 把value的值put到共享内存gvaGm在pe=(rank + 1) % rankSize中的对应位置。
+        shmem_float_p(gvaGm, value, (rank + 1) % rankSize);
+    }
+private:
+    __gm__ float *gvaGm;
+    float value;
+
+    int64_t rank;
+    int64_t rankSize;
+};
+
+extern "C" __global__ __aicore__ void PNumTest(GM_ADDR gva, float val)
+{
+    KernelP op;
+    op.Init(gva, val);
+    op.Process();
+}
+
+void PutOneNumDo(uint32_t blockDim, void* stream, uint8_t* gva, float val)
+{
+    PNumTest<<<blockDim, nullptr, stream>>>(gva, val);
+}
+```
+
+## Sync API
+SHMEM的同步管理接口样例
+
+```c++
+// 任务1
+// ...
+// 阻塞直到所有任务完成。
+shmem_barrier_all()
+// 任务2
+// ...
+```

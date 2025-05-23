@@ -7,8 +7,30 @@ Welcome to Shmem's Documentation!
     :name: Getting Started
 
     quickstart.md
-    api.md
-    ../scripts/README.md
+    related_scripts.md
+
+.. toctree::
+    :maxdepth: 2
+    :caption: Using SHMEM
+    :name: Using SHMEM
+    
+    api_demo.md
+
+.. toctree::
+    :maxdepth: 2
+    :caption: API
+    :name: API
+
+    def.rst
+    host_api.rst
+    device_api.rst
+
+.. toctree::
+    :maxdepth: 2
+    :caption: Example
+    :name: Example
+
+    example.md
 
 .. toctree::
     :maxdepth: 2
@@ -16,6 +38,13 @@ Welcome to Shmem's Documentation!
     :name: Architecture
 
     code_organization.md
+
+.. toctree::
+    :maxdepth: 2
+    :caption: Troubleshooting And FAQs
+    :name: Troubleshooting And FAQs
+
+    Troubleshooting_FAQs.md
 
 
 Indices and tables
