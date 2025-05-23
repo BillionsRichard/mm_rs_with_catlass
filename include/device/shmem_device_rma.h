@@ -145,10 +145,10 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
  * @param dst               [in] Pointer on local device of the destination data.
  * @param src               [in] Pointer on Symmetric memory of the source data.
  * @param buf               [in] Pointer on local UB.
+ * @param ubSize            [in] The size of temp Buffer on UB. (In Bytes)
  * @param copyParams        [in] Params to describe how non-contiguous data is managed in src and dst.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] ID used to Sync MTE2\MTE3 Event.
- * @return void
+ * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
  */
 template <typename T>
 SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, const non_contiguous_copy_param& copyParams, int pe, AscendC::TEventID EVENT_ID)
@@ -244,8 +244,7 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
  * @param buf               [in] LocalTensor on local UB.
  * @param copyParams        [in] Params to describe how non-contiguous data is organized in src and dst.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] ID used to Sync MTE2\MTE3 Event.
- * @return void
+ * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
  */
 template <typename T>
 SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, const non_contiguous_copy_param& copyParams, int pe, AscendC::TEventID EVENT_ID)
@@ -332,10 +331,10 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
  * @param dst               [in] Pointer on Symmetric memory of the destination data.
  * @param src               [in] Pointer on local device of the source data.
  * @param buf               [in] Pointer on local UB.
+ * @param ubSize            [in] The size of temp Buffer on UB. (In Bytes)
  * @param copyParams        [in] Params to describe how non-contiguous data is organized in src and dst.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] ID used to Sync MTE2\MTE3 Event.
- * @return void
+ * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
  */
 template <typename T>
 SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, const non_contiguous_copy_param& copyParams, int pe, AscendC::TEventID EVENT_ID)
@@ -431,8 +430,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
  * @param buf               [in] LocalTensor on local UB.
  * @param copyParams        [in] Params to describe how non-contiguous data is organized in src and dst.
  * @param pe                [in] PE number of the remote PE.
- * @param EVENT_ID          [in] ID used to Sync MTE2\MTE3 Event.
- * @return void
+ * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
  */
 template <typename T>
 SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, const non_contiguous_copy_param& copyParams, int pe, AscendC::TEventID EVENT_ID)
@@ -504,7 +502,6 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
      * @param src               [in] Pointer on Symmetric memory of the source data.                                            \
      * @param copyParams        [in] Params to describe how non-contiguous data is managed in src and dst.                      \
      * @param pe                [in] PE number of the remote PE.                                                                \
-     * @return None.                                                                                                            \
      */                                                                                                                         \
     SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, const non_contiguous_copy_param& copyParams, int32_t pe)         \
     {                                                                                                                           \
@@ -562,7 +559,6 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR);
      * @param src               [in] GlobalTensor on Symmetric memory of the source data.                                       \
      * @param copyParams        [in] Params to describe how non-contiguous data is managed in src and dst.                      \
      * @param pe                [in] PE number of the remote PE.                                                                \
-     * @return void                                                                                                             \
      */                                                                                                                         \
     SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, const non_contiguous_copy_param& copyParams, int pe)  \
     {                                                                                                                           \
@@ -620,7 +616,6 @@ SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
      * @param src               [in] Pointer on local device of the source data.                                                \
      * @param copyParams        [in] Params to describe how non-contiguous data is managed in src and dst.                      \
      * @param pe                [in] PE number of the remote PE.                                                                \
-     * @return None.                                                                                                            \
      */                                                                                                                         \
     SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, const non_contiguous_copy_param& copyParams, int32_t pe)        \
     {                                                                                                                           \
@@ -679,7 +674,6 @@ SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM_TENSOR);
      * @param src               [in] GlobalTensor on local device of the source data.                                           \
      * @param copyParams        [in] Params to describe how non-contiguous data is managed in src and dst.                      \
      * @param pe                [in] PE number of the remote PE.                                                                \
-     * @return None.                                                                                                            \
      */                                                                                                                         \
     SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, const non_contiguous_copy_param& copyParams, int pe)  \
     {                                                                                                                           \
