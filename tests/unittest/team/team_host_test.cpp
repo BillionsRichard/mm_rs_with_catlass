@@ -9,45 +9,45 @@ using namespace std;
 
 #include <gtest/gtest.h>
 extern int test_gnpu_num;
-extern int testFirstNpu;
-extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t local_mem_size, int processCount);
-extern void TestInit(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
-extern void TestFinalize(aclrtStream stream, int device_id);
+extern int test_first_npu;
+extern void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64_t local_mem_size, int process_count);
+extern void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
+extern void test_finalize(aclrtStream stream, int device_id);
 
-extern void GetDeviceState(uint32_t block_dim, void* stream, uint8_t* gva, shmem_team_t team_id);
+extern void get_device_state(uint32_t block_dim, void* stream, uint8_t* gva, shmem_team_t team_id);
 
-static int32_t TestGetDeviceState(aclrtStream stream, uint8_t *gva, uint32_t rank_id, uint32_t rank_size, shmem_team_t team_id, int stride)
+static int32_t test_get_device_state(aclrtStream stream, uint8_t *gva, uint32_t rank_id, uint32_t rank_size, shmem_team_t team_id, int stride)
 {
-    int *yHost;
-    size_t inputSize = 1024 * sizeof(int);
-    EXPECT_EQ(aclrtMallocHost((void **) (&yHost), inputSize), 0);      // size = 1024
+    int *y_host;
+    size_t input_size = 1024 * sizeof(int);
+    EXPECT_EQ(aclrtMallocHost((void **) (&y_host), input_size), 0);      // size = 1024
 
     uint32_t block_dim = 1;
     void *ptr = shmem_malloc(1024);
     int32_t device_id;
     SHMEM_CHECK_RET(aclrtGetDevice(&device_id));
-    GetDeviceState(block_dim, stream, (uint8_t *) ptr, team_id);
+    get_device_state(block_dim, stream, (uint8_t *) ptr, team_id);
     EXPECT_EQ(aclrtSynchronizeStream(stream), 0);
     sleep(2);
 
-    EXPECT_EQ(aclrtMemcpy(yHost, 5 * sizeof(int), ptr, 5 * sizeof(int), ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    EXPECT_EQ(aclrtMemcpy(y_host, 5 * sizeof(int), ptr, 5 * sizeof(int), ACL_MEMCPY_DEVICE_TO_HOST), 0);
 
     if (rank_id & 1) {
-        EXPECT_EQ(yHost[0], rank_size);
-        EXPECT_EQ(yHost[1], rank_id);
-        EXPECT_EQ(yHost[2], rank_id / stride);
-        EXPECT_EQ(yHost[3], rank_size / stride);
-        EXPECT_EQ(yHost[4], stride + rank_id % stride);
+        EXPECT_EQ(y_host[0], rank_size);
+        EXPECT_EQ(y_host[1], rank_id);
+        EXPECT_EQ(y_host[2], rank_id / stride);
+        EXPECT_EQ(y_host[3], rank_size / stride);
+        EXPECT_EQ(y_host[4], stride + rank_id % stride);
     }
 
-    EXPECT_EQ(aclrtFreeHost(yHost), 0);
+    EXPECT_EQ(aclrtFreeHost(y_host), 0);
     return 0;
 }
 
-void TestShmemTeam(int rank_id, int n_ranks, uint64_t local_mem_size) {
-    int32_t device_id = rank_id % test_gnpu_num + testFirstNpu;
+void test_shmem_team(int rank_id, int n_ranks, uint64_t local_mem_size) {
+    int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
     aclrtStream stream;
-    TestInit(rank_id, n_ranks, local_mem_size, &stream);
+    test_init(rank_id, n_ranks, local_mem_size, &stream);
     ASSERT_NE(stream, nullptr);
     // #################### 子通信域切分测试 ############################
     shmem_team_t team_odd;
@@ -66,14 +66,14 @@ void TestShmemTeam(int rank_id, int n_ranks, uint64_t local_mem_size) {
 
     // #################### device代码测试 ##############################
 
-    auto status = TestGetDeviceState(stream, (uint8_t *)shm::gState.heap_base, rank_id, n_ranks, team_odd, stride);
+    auto status = test_get_device_state(stream, (uint8_t *)shm::g_state.heap_base, rank_id, n_ranks, team_odd, stride);
     EXPECT_EQ(status, SHMEM_SUCCESS);
 
     // #################### 相关资源释放 ################################
     shmem_team_destroy(team_odd);
 
     std::cerr << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;
-    TestFinalize(stream, device_id);
+    test_finalize(stream, device_id);
     if (::testing::Test::HasFailure()){
         exit(1);
     }
@@ -83,7 +83,7 @@ void TestShmemTeam(int rank_id, int n_ranks, uint64_t local_mem_size) {
 
 TEST(TestTeamApi, TestShmemTeam)
 {   
-    const int processCount = test_gnpu_num;
+    const int process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
-    TestMutilTask(TestShmemTeam, local_mem_size, processCount);
+    test_mutil_task(test_shmem_team, local_mem_size, process_count);
 }

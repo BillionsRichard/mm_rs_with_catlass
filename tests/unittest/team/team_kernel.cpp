@@ -1,9 +1,9 @@
 #include "kernel_operator.h"
 #include "shmem_api.h"
 
-class KernelStateTest {
+class kernel_state_test {
 public:
-    __aicore__ inline KernelStateTest() {}
+    __aicore__ inline kernel_state_test() {}
     __aicore__ inline void Init(GM_ADDR gva, shmem_team_t team_id)
     {
         gva_gm = (__gm__ int *)gva;
@@ -29,14 +29,14 @@ private:
     int64_t rank_size;
 };
 
-extern "C" __global__ __aicore__ void DeviceStateTest(GM_ADDR gva, int team_id)
+extern "C" __global__ __aicore__ void device_state_test(GM_ADDR gva, int team_id)
 {
-    KernelStateTest op;
+    kernel_state_test op;
     op.Init(gva, (shmem_team_t)team_id);
     op.Process();
 }
 
-void GetDeviceState(uint32_t block_dim, void* stream, uint8_t* gva, shmem_team_t team_id)
+void get_device_state(uint32_t block_dim, void* stream, uint8_t* gva, shmem_team_t team_id)
 {
-    DeviceStateTest<<<block_dim, nullptr, stream>>>(gva, (int)team_id);
+    device_state_test<<<block_dim, nullptr, stream>>>(gva, (int)team_id);
 }

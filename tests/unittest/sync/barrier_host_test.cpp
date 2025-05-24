@@ -9,18 +9,18 @@
 using namespace std;
 extern int32_t test_gnpu_num;
 extern const char* test_global_ipport;
-extern int testFirstNpu;
-extern void TestMutilTask(std::function<void(int32_t, int32_t, uint64_t)> func, uint64_t local_mem_size, int32_t processCount);
-extern void TestInit(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size, aclrtStream *st);
-extern void TestFinalize(aclrtStream stream, int32_t device_id);
+extern int test_first_npu;
+extern void test_mutil_task(std::function<void(int32_t, int32_t, uint64_t)> func, uint64_t local_mem_size, int32_t process_count);
+extern void test_init(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size, aclrtStream *st);
+extern void test_finalize(aclrtStream stream, int32_t device_id);
 
-extern void fetchAddrDo(void* stream, uint8_t* sync_array, uint8_t* sync_counter);
-extern void barrierDo(void* stream, uint8_t *stub);
-extern void increaseDo(void* stream, uint8_t *addr, int32_t rank_id, int32_t rank_size);
+extern void fetch_addr_do(void* stream, uint8_t* sync_array, uint8_t* sync_counter);
+extern void barrier_do(void* stream, uint8_t *stub);
+extern void increase_do(void* stream, uint8_t *addr, int32_t rank_id, int32_t rank_size);
 
 constexpr int32_t SHMEM_BARRIER_TEST_NUM = 3;
 
-static void fetchFlags(uint32_t rank_id, int32_t t, void *sync_array, void *sync_counter) {
+static void fetch_flags(uint32_t rank_id, int32_t t, void *sync_array, void *sync_counter) {
     static int32_t tmp[SHMEMI_SYNCBIT_SIZE / sizeof(int32_t) * 8];
 
     EXPECT_EQ(aclrtMemcpy(tmp, SHMEMI_SYNCBIT_SIZE, sync_counter, SHMEMI_SYNCBIT_SIZE, ACL_MEMCPY_DEVICE_TO_HOST), 0);
@@ -39,77 +39,77 @@ static void fetchFlags(uint32_t rank_id, int32_t t, void *sync_array, void *sync
     }
 }
 
-static void TestBarrierWhiteBox(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size)
+static void test_barrier_white_box(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size)
 {
     ASSERT_EQ(test_gnpu_num, 8); // fetchFlags函数仅支持8卡验证
-    int32_t device_id = rank_id % test_gnpu_num + testFirstNpu;
+    int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
     aclrtStream stream;
-    TestInit(rank_id, n_ranks, local_mem_size, &stream);
+    test_init(rank_id, n_ranks, local_mem_size, &stream);
     ASSERT_NE(stream, nullptr);
 
     void *sync_array, *sync_counter;
     // get flag addr
-    void *syncArrayHost, *syncCounterHost;
-    void *syncArrayDevice, *syncCounterDevice;
-    ASSERT_EQ(aclrtMallocHost(&syncArrayHost, sizeof(void *)), 0);
-    ASSERT_EQ(aclrtMallocHost(&syncCounterHost, sizeof(void *)), 0);
-    ASSERT_EQ(aclrtMalloc(&syncArrayDevice, sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST), 0);
-    ASSERT_EQ(aclrtMalloc(&syncCounterDevice, sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST), 0);
+    void *sync_array_host, *sync_counter_host;
+    void *sync_array_device, *sync_counter_device;
+    ASSERT_EQ(aclrtMallocHost(&sync_array_host, sizeof(void *)), 0);
+    ASSERT_EQ(aclrtMallocHost(&sync_counter_host, sizeof(void *)), 0);
+    ASSERT_EQ(aclrtMalloc(&sync_array_device, sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST), 0);
+    ASSERT_EQ(aclrtMalloc(&sync_counter_device, sizeof(void *), ACL_MEM_MALLOC_HUGE_FIRST), 0);
 
-    fetchAddrDo(stream, (uint8_t *)syncArrayDevice, (uint8_t *)syncCounterDevice);
+    fetch_addr_do(stream, (uint8_t *)sync_array_device, (uint8_t *)sync_counter_device);
     ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
-    ASSERT_EQ(aclrtMemcpy(syncArrayHost, sizeof(void *), syncArrayDevice, sizeof(void *), ACL_MEMCPY_DEVICE_TO_HOST), 0);
-    ASSERT_EQ(aclrtMemcpy(syncCounterHost, sizeof(void *), syncCounterDevice, sizeof(void *), ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    ASSERT_EQ(aclrtMemcpy(sync_array_host, sizeof(void *), sync_array_device, sizeof(void *), ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    ASSERT_EQ(aclrtMemcpy(sync_counter_host, sizeof(void *), sync_counter_device, sizeof(void *), ACL_MEMCPY_DEVICE_TO_HOST), 0);
 
-    sync_array = (void *) *((uint64_t *) syncArrayHost);
-    sync_counter = (void *) *((uint64_t *) syncCounterHost);
+    sync_array = (void *) *((uint64_t *) sync_array_host);
+    sync_counter = (void *) *((uint64_t *) sync_counter_host);
 
-    ASSERT_EQ(aclrtFreeHost(syncArrayHost), 0);
-    ASSERT_EQ(aclrtFreeHost(syncCounterHost), 0);
-    ASSERT_EQ(aclrtFree(syncArrayDevice), 0);
-    ASSERT_EQ(aclrtFree(syncCounterDevice), 0);
+    ASSERT_EQ(aclrtFreeHost(sync_array_host), 0);
+    ASSERT_EQ(aclrtFreeHost(sync_counter_host), 0);
+    ASSERT_EQ(aclrtFree(sync_array_device), 0);
+    ASSERT_EQ(aclrtFree(sync_counter_device), 0);
 
     // run barrier and check flags
     for (int32_t i = 1; i <= SHMEM_BARRIER_TEST_NUM; i++) {
-        barrierDo(stream, nullptr);
+        barrier_do(stream, nullptr);
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
-        fetchFlags(rank_id, i, sync_array, sync_counter);
+        fetch_flags(rank_id, i, sync_array, sync_counter);
         if (i < SHMEM_BARRIER_TEST_NUM) {
             sleep(1); // 确保check完成再进行下一轮
         }
     }
 
-    TestFinalize(stream, device_id);
+    test_finalize(stream, device_id);
     if (::testing::Test::HasFailure()){
         exit(1);
     }
 }
 
-static void TestBarrierBlackBox(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size) {
-    int32_t device_id = rank_id % test_gnpu_num + testFirstNpu;
+static void test_barrier_black_box(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size) {
+    int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
     aclrtStream stream;
-    TestInit(rank_id, n_ranks, local_mem_size, &stream);
+    test_init(rank_id, n_ranks, local_mem_size, &stream);
     ASSERT_NE(stream, nullptr);
 
-    uint64_t *addrDev = (uint64_t *)shmem_malloc(sizeof(uint64_t));
-    uint64_t *addrHost;
-    ASSERT_EQ(aclrtMallocHost((void **)&addrHost, sizeof(uint64_t)), 0);
-    *addrHost = 0;
+    uint64_t *addr_dev = (uint64_t *)shmem_malloc(sizeof(uint64_t));
+    uint64_t *addr_host;
+    ASSERT_EQ(aclrtMallocHost((void **)&addr_host, sizeof(uint64_t)), 0);
+    *addr_host = 0;
 
     for (int32_t i = 1; i <= SHMEM_BARRIER_TEST_NUM; i++) {
         std::cout << "[TEST] barriers test blackbox rank_id: " << rank_id << " time: " << i << std::endl;
-        increaseDo(stream, (uint8_t *)addrDev, rank_id, n_ranks);
+        increase_do(stream, (uint8_t *)addr_dev, rank_id, n_ranks);
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
-        ASSERT_EQ(aclrtMemcpy(addrHost, sizeof(uint64_t), addrDev, sizeof(uint64_t), ACL_MEMCPY_DEVICE_TO_HOST), 0);
-        ASSERT_EQ((*addrHost), i);
+        ASSERT_EQ(aclrtMemcpy(addr_host, sizeof(uint64_t), addr_dev, sizeof(uint64_t), ACL_MEMCPY_DEVICE_TO_HOST), 0);
+        ASSERT_EQ((*addr_host), i);
         if (i < SHMEM_BARRIER_TEST_NUM) {
             sleep(1); // 确保check完成再进行下一轮
         }
     }
 
-    ASSERT_EQ(aclrtFreeHost(addrHost), 0);
+    ASSERT_EQ(aclrtFreeHost(addr_host), 0);
 
-    TestFinalize(stream, device_id);
+    test_finalize(stream, device_id);
     if (::testing::Test::HasFailure()){
         exit(1);
     }
@@ -117,14 +117,14 @@ static void TestBarrierBlackBox(int32_t rank_id, int32_t n_ranks, uint64_t local
 
 TEST(TestBarrierApi, TestBarrierWhiteBox)
 {
-    const int32_t processCount = test_gnpu_num;
+    const int32_t process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
-    TestMutilTask(TestBarrierWhiteBox, local_mem_size, processCount);
+    test_mutil_task(test_barrier_white_box, local_mem_size, process_count);
 }
 
 TEST(TestBarrierApi, TestBarrierBlackBox)
 {
-    const int32_t processCount = test_gnpu_num;
+    const int32_t process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
-    TestMutilTask(TestBarrierBlackBox, local_mem_size, processCount);
+    test_mutil_task(test_barrier_black_box, local_mem_size, process_count);
 }

@@ -2,7 +2,7 @@
 #include "device/shmem_device_def.h"
 #include "shmem_api.h"
 
-SHMEM_DEVICE void CubeGuard() {
+SHMEM_DEVICE void cube_guard() {
     using namespace AscendC;
 
 #ifdef __DAV_C220_CUBE__
@@ -27,7 +27,7 @@ SHMEM_DEVICE void CubeGuard() {
 #endif
 }
 
-SHMEM_DEVICE void VecGuard() {
+SHMEM_DEVICE void vec_guard() {
     using namespace AscendC;
 
 #ifdef __DAV_C220_VEC__
@@ -49,20 +49,20 @@ SHMEM_DEVICE void VecGuard() {
 
 SHMEM_DEVICE void CVGuard() {
     // insert Mmad and DataCopy calls to make sure barrier works.
-    CubeGuard();
-    VecGuard();
+    cube_guard();
+    vec_guard();
 }
 
-extern "C" SHMEM_GLOBAL void fetchAddr(GM_ADDR sync_array, GM_ADDR sync_counter) {
+extern "C" SHMEM_GLOBAL void fetch_addr(GM_ADDR sync_array, GM_ADDR sync_counter) {
     shmemi_team_t *team = shmemi_get_state()->team_pools[0];
     *((__gm__ uint64_t*) sync_array) = (uint64_t) shmemi_get_team_sync_array(team->team_idx);
     *((__gm__ uint64_t*) sync_counter) = (uint64_t) shmemi_get_team_sync_counter(team->team_idx);
 }
 
 extern "C" SHMEM_GLOBAL void barrier(GM_ADDR stub) {
-    CubeGuard();
+    cube_guard();
     shmem_barrier_all();
-    VecGuard();
+    vec_guard();
 }
 
 extern "C" SHMEM_GLOBAL void increase(GM_ADDR addr, int rank_id, int rank_size) {
@@ -84,14 +84,14 @@ extern "C" SHMEM_GLOBAL void increase(GM_ADDR addr, int rank_id, int rank_size) 
 #endif
 }
 
-void fetchAddrDo(void* stream, uint8_t* sync_array, uint8_t* sync_counter) {
-    fetchAddr<<<1, nullptr, stream>>>(sync_array, sync_counter);
+void fetch_addr_do(void* stream, uint8_t* sync_array, uint8_t* sync_counter) {
+    fetch_addr<<<1, nullptr, stream>>>(sync_array, sync_counter);
 }
 
-void barrierDo(void* stream, uint8_t *stub) {
+void barrier_do(void* stream, uint8_t *stub) {
     barrier<<<16, nullptr, stream>>>(stub);
 }
 
-void increaseDo(void* stream, uint8_t *addr, int rank_id, int rank_size) {
+void increase_do(void* stream, uint8_t *addr, int rank_id, int rank_size) {
     increase<<<16, nullptr, stream>>>(addr, rank_id, rank_size);
 }

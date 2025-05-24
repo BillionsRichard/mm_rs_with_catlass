@@ -8,7 +8,7 @@
 #include "shmemi_logger.h"
 
 namespace shm {
-class Func {
+class funci {
 public:
     /**
      * @brief Get real path
@@ -29,7 +29,7 @@ public:
     static bool get_library_real_path(const std::string &lib_dir_path, const std::string &lib_name, std::string &real_path);
 };
 
-inline bool Func::get_real_path(std::string &path)
+inline bool funci::get_real_path(std::string &path)
 {
     if (path.empty() || path.size() > PATH_MAX) {
         SHM_LOG_ERROR("Failed to get realpath of [" << path << "] as path is invalid");
@@ -49,25 +49,25 @@ inline bool Func::get_real_path(std::string &path)
     return true;
 }
 
-inline bool Func::get_library_real_path(const std::string &lib_dir_path, const std::string &lib_name, std::string &real_path)
+inline bool funci::get_library_real_path(const std::string &lib_dir_path, const std::string &lib_name, std::string &real_path)
 {
-    std::string tmpFullPath = lib_dir_path;
-    if (!get_real_path(tmpFullPath)) {
+    std::string tmp_full_path = lib_dir_path;
+    if (!get_real_path(tmp_full_path)) {
         return false;
     }
 
-    if (tmpFullPath.back() != '/') {
-        tmpFullPath.push_back('/');
+    if (tmp_full_path.back() != '/') {
+        tmp_full_path.push_back('/');
     }
 
-    tmpFullPath.append(lib_name);
-    auto ret = ::access(tmpFullPath.c_str(), F_OK);
+    tmp_full_path.append(lib_name);
+    auto ret = ::access(tmp_full_path.c_str(), F_OK);
     if (ret != 0) {
-        SHM_LOG_ERROR(tmpFullPath << " cannot be accessed, ret: " << ret);
+        SHM_LOG_ERROR(tmp_full_path << " cannot be accessed, ret: " << ret);
         return false;
     }
 
-    real_path = tmpFullPath;
+    real_path = tmp_full_path;
     return true;
 }
 

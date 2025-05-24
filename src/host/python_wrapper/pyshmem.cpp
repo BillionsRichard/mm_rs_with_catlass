@@ -22,7 +22,7 @@ namespace py = pybind11;
 
 namespace shm {
 namespace {
-inline std::string GetConnectURL()
+inline std::string get_connect_url()
 {
     auto address = std::getenv("SHMEM_MASTER_ADDR");
     auto port = std::getenv("SHMEM_MASTER_PORT");
@@ -36,15 +36,15 @@ inline std::string GetConnectURL()
         return "";
     }
 
-    auto portInt = std::strtol(port, nullptr, 10) + 11;
-    return std::string("tcp://").append(address).append(":").append(std::to_string(portInt));
+    auto port_int = std::strtol(port, nullptr, 10) + 11;
+    return std::string("tcp://").append(address).append(":").append(std::to_string(port_int));
 }
 
-int ShmemInitialize(int rank, int worldSize, int64_t memSize)
+int shmem_initialize(int rank, int world_size, int64_t mem_size)
 {
     shmem_init_attr_t attribute{
-        0, rank, worldSize, "", static_cast<uint64_t>(memSize), {SHMEM_DATA_OP_MTE, 120, 120, 120}};
-    auto url = GetConnectURL();
+        0, rank, world_size, "", static_cast<uint64_t>(mem_size), {SHMEM_DATA_OP_MTE, 120, 120, 120}};
+    auto url = get_connect_url();
     if (url.empty()) {
         std::cerr << "cannot get store connect URL(" << url << ") from ENV." << std::endl;
         return -1;
@@ -53,7 +53,7 @@ int ShmemInitialize(int rank, int worldSize, int64_t memSize)
     attribute.ip_port = url.c_str();
     auto ret = shmem_init_attr(&attribute);
     if (ret != 0) {
-        std::cerr << "initialize with mype: " << rank << ", npes: " << worldSize << " failed: " << ret;
+        std::cerr << "initialize with mype: " << rank << ", npes: " << world_size << " failed: " << ret;
         return ret;
     }
 
@@ -64,7 +64,7 @@ int ShmemInitialize(int rank, int worldSize, int64_t memSize)
 
 PYBIND11_MODULE(_pyaclshmem, m)
 {
-    m.def("aclshmem_init", &shm::ShmemInitialize, py::call_guard<py::gil_scoped_release>(), py::arg("mype"),
+    m.def("aclshmem_init", &shm::shmem_initialize, py::call_guard<py::gil_scoped_release>(), py::arg("mype"),
           py::arg("npes"), py::arg("mem_size"), R"(
 Initialize share memory module.
 
@@ -128,7 +128,7 @@ Set the params of UB used for MTE operation initiated by NPU.
 Arguments:
     offset(int): start offset of UB
     size(int): size of UB
-    event(int): eventId used for sync
+    event(int): event_id used for sync
     )");
 
     m.def(

@@ -57,19 +57,19 @@ typedef struct {
     int npes;
     void *heap_base;
     void *p2p_heap_base[SHMEM_MAX_RANKS];
-    void *sdmaHeapBase[SHMEM_MAX_RANKS];
-    void *roceHeapBase[SHMEM_MAX_RANKS];
+    void *sdma_heap_base[SHMEM_MAX_RANKS];
+    void *roce_heap_base[SHMEM_MAX_RANKS];
     size_t heap_size;
 
     shmemi_team_t *team_pools[SHMEM_MAX_TEAMS];
     
     // Using shmemi_sync_bit instead of basic types to shmemi_store flag, avoiding concurrent write due to cacheline sharing.
     // Refer to shmemi_barrier.h for more details.
-    shmemi_sync_bit *syncPool;
+    shmemi_sync_bit *sync_pool;
     shmemi_sync_bit *sync_counter;
 
-    bool isShmemInitialized;
-    bool isShmemCreated;
+    bool is_shmem_initialized;
+    bool is_shmem_created;
 
     shmemi_mte_config_t mte_config;
 } shmemi_device_host_state_t;

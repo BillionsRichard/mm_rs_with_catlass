@@ -62,7 +62,7 @@ SHMEM_HOST_API int shmem_init_attr(shmem_init_attr_t *attributes);
 
 /**
  * @brief Ends the program previously initialized by <b>shmem_init_attr()</b>.
- *        Release all resources used by the SHMEM library.
+ *        release all resources used by the SHMEM library.
  *
  * @return Returns 0 on success or an error code on failure
  */

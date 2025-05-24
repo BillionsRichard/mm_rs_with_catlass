@@ -56,14 +56,14 @@ enum shmem_init_status_t{
  *
  * - int version: version
  * - data_op_engine_type_t data_op_engine_type: data_op_engine_type
- * - uint32_t shmInit_timeout: shmInit_timeout
+ * - uint32_t shm_init_timeout: shm_init_timeout
  * - uint32_t shm_create_timeout: shm_create_timeout
  * - uint32_t control_operation_timeout: control_operation_timeout
 */
 typedef struct {
     int version;
     data_op_engine_type_t data_op_engine_type;
-    uint32_t shmInit_timeout;
+    uint32_t shm_init_timeout;
     uint32_t shm_create_timeout;
     uint32_t control_operation_timeout;
 } shmem_init_optional_attr_t;

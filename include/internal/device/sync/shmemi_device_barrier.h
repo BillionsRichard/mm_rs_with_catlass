@@ -22,7 +22,7 @@ SHMEM_DEVICE void shmemi_barrier_core() {
 
 SHMEM_DEVICE 
 __gm__ shmemi_sync_bit *shmemi_get_team_sync_array(shmem_team_t team_idx) {
-    uint64_t addr = (uint64_t) shmemi_get_state()->syncPool;
+    uint64_t addr = (uint64_t) shmemi_get_state()->sync_pool;
     addr += team_idx * SYNC_ARRAY_SIZE;
     return (__gm__ shmemi_sync_bit *) addr;
 }

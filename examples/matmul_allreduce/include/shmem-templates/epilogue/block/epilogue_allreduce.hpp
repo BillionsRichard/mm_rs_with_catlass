@@ -189,8 +189,8 @@ public:
                 auto offsetOut = blockOffset + rankBlockOffset;
 
                 auto residueProcessShape = actualCommSubBlockShape % params.processShape;
-                auto processCount = CeilDiv(actualCommSubBlockShape, params.processShape);
-                uint32_t processLoop = processCount.row() * processCount.column();
+                auto process_count = CeilDiv(actualCommSubBlockShape, params.processShape);
+                uint32_t processLoop = process_count.row() * process_count.column();
 
                 // [ReduceScatter] 1. Alloc TmpUB
                 AscendC::LocalTensor<half> inputBuffer = resource.ubBuf.template GetBufferByByte<ElementC>(0);
@@ -199,9 +199,9 @@ public:
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
 
                 for (uint32_t processIndex = 0; processIndex < processLoop; ++processIndex) {
-                    MatrixCoord processCoord{processIndex / processCount.column(), processIndex % processCount.column()};
+                    MatrixCoord processCoord{processIndex / process_count.column(), processIndex % process_count.column()};
                     auto actualProcessShape = GetActualShape(
-                        processCount,
+                        process_count,
                         processCoord,
                         params.processShape,
                         residueProcessShape
@@ -252,9 +252,9 @@ public:
                 auto offsetOut = outputBlockOffset + rankBlockOffset;
 
                 auto residueProcessShape = actualCommSubBlockShape % params.processShape;
-                auto processCount = CeilDiv(actualCommSubBlockShape, params.processShape);
+                auto process_count = CeilDiv(actualCommSubBlockShape, params.processShape);
 
-                uint32_t processLoop = processCount.row() * processCount.column();
+                uint32_t processLoop = process_count.row() * process_count.column();
 
                 // [AllGather] 1. Alloc TmpUB
                 AscendC::LocalTensor<half> inputBuffer = resource.ubBuf.template GetBufferByByte<ElementC>(0);
@@ -263,9 +263,9 @@ public:
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
 
                 for (uint32_t processIndex = 0; processIndex < processLoop; ++processIndex) {
-                    MatrixCoord processCoord{processIndex / processCount.column(), processIndex % processCount.column()};
+                    MatrixCoord processCoord{processIndex / process_count.column(), processIndex % process_count.column()};
                     auto actualProcessShape = GetActualShape(
-                        processCount,
+                        process_count,
                         processCoord,
                         params.processShape,
                         residueProcessShape
