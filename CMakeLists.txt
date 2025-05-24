@@ -37,7 +37,7 @@ set(SOC_VERSION "Ascend910B3" CACHE STRING "system on chip type")
 
 # 遗留问题: 此处一定要选Debug?
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type release/Debug (default Debug)" FORCE)
+    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type Release/Debug (default Debug)" FORCE)
 endif()
 
 set(ASCEND_CANN_PACKAGE_PATH "${ASCEND_HOME_PATH}" CACHE STRING "ASCEND_CANN_PACKAGE_PATH")
