@@ -5,7 +5,25 @@
 #include "internal/device/shmemi_device_common.h"
 #include "shmem_device_team.h"
 
-
+/**
+ * @brief Standard RMA Types and Names
+ *
+ * |NAME       | TYPE      |
+ * |-----------|-----------|
+ * |half       | half      |
+ * |float      | float     |
+ * |double     | double    |
+ * |int8       | int8      |
+ * |int16      | int16     |
+ * |int32      | int32     |
+ * |int64      | int64     |
+ * |uint8      | uint8     |
+ * |uint16     | uint16    |
+ * |uint32     | uint32    |
+ * |uint64     | uint64    |
+ * |char       | char      |
+ * |bfloat16   | bfloat16  |
+*/
 #define SHMEM_TYPE_FUNC(FUNC)        \
     FUNC(half, half);                \
     FUNC(float, float);              \
