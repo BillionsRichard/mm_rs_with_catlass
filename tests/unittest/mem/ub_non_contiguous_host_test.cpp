@@ -10,12 +10,12 @@ using namespace std;
 #include <gtest/gtest.h>
 extern int test_gnpu_num;
 extern int test_first_npu;
-extern void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64_t localMemSize, int processCount);
-extern void test_init(int rank_id, int n_ranks, uint64_t localMemSize, aclrtStream *st);
+extern void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64_t local_mem_size, int processCount);
+extern void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
 extern void test_finalize(aclrtStream stream, int device_id);
 
 extern void TestUBNonContiguousPut(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr);
-extern void TestUBNonContiguousGet(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr);
+extern void test_ub_non_contiguous_get(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr);
 
 static void TestUBNonContiguousPutGet(aclrtStream stream, uint8_t *gva, uint32_t rank_id, uint32_t rank_size)
 {
@@ -48,9 +48,9 @@ static void TestUBNonContiguousPutGet(aclrtStream stream, uint8_t *gva, uint32_t
 
     ASSERT_EQ(aclrtMemcpy(input.data(), input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);
 
-    string pName = "[Process " + to_string(rank_id) + "] ";
+    string p_name = "[Process " + to_string(rank_id) + "] ";
     if (rank_id == 0) {
-        std::cout << pName << std::endl;
+        std::cout << p_name << std::endl;
         for (int i = 0; i < total_size; i++) {
             std::cout << input[i] << " ";
             if (i % col == col - 1) {
@@ -59,14 +59,14 @@ static void TestUBNonContiguousPutGet(aclrtStream stream, uint8_t *gva, uint32_t
         }
     }
 
-    TestUBNonContiguousGet(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);
+    test_ub_non_contiguous_get(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);
     ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
     sleep(2);
 
     ASSERT_EQ(aclrtMemcpy(input.data(), input_size, dev_ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);
 
     if (rank_id == 0) {
-        std::cout << pName << std::endl;
+        std::cout << p_name << std::endl;
         for (int i = 0; i < total_size; i++) {
             std::cout << input[i] << " ";
             if (i % col == col - 1) {
@@ -92,10 +92,10 @@ static void TestUBNonContiguousPutGet(aclrtStream stream, uint8_t *gva, uint32_t
     ASSERT_EQ(flag, 0);
 }
 
-void TestShmemUBNonContiguous(int rank_id, int n_ranks, uint64_t localMemSize) {
+void test_shmem_ub_non_contiguous(int rank_id, int n_ranks, uint64_t local_mem_size) {
     int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
     aclrtStream stream;
-    test_init(rank_id, n_ranks, localMemSize, &stream);
+    test_init(rank_id, n_ranks, local_mem_size, &stream);
     ASSERT_NE(stream, nullptr);
 
     TestUBNonContiguousPutGet(stream, (uint8_t *)shm::g_state.heap_base, rank_id, n_ranks);
@@ -109,6 +109,6 @@ void TestShmemUBNonContiguous(int rank_id, int n_ranks, uint64_t localMemSize) {
 TEST(TestMemApi, TestShmemUBNonContiguous)
 {   
     const int processCount = test_gnpu_num;
-    uint64_t localMemSize = 1024UL * 1024UL * 1024;
-    test_mutil_task(TestShmemUBNonContiguous, localMemSize, processCount);
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    test_mutil_task(test_shmem_ub_non_contiguous, local_mem_size, processCount);
 }

@@ -3,66 +3,66 @@
 
 #include "shmem_api.h"
 
-class KernelUBPutNum {
+class kernel_ub_put_num {
 public:
-    __aicore__ inline KernelUBPutNum() {}
+    __aicore__ inline kernel_ub_put_num() {}
     __aicore__ inline void Init(GM_ADDR gva, GM_ADDR dev)
     {
-        gvaGm = (__gm__ float *)gva;
-        devGm = (__gm__ float *)dev;
+        gva_gm = (__gm__ float *)gva;
+        dev_gm = (__gm__ float *)dev;
 
         rank = smem_shm_get_global_rank();
-        rankSize = smem_shm_get_global_rank_size();
+        rank_size = smem_shm_get_global_rank_size();
 
         // set GM Buffer
-        srcGlobal.SetGlobalBuffer(devGm);
-        dstGlobal.SetGlobalBuffer(gvaGm);
+        src_gm.SetGlobalBuffer(dev_gm);
+        dst_gm.SetGlobalBuffer(gva_gm);
 
         // 1x512 Bytes Buffer
-        pipe.InitBuffer(bufQueue, 1, 512);
+        pipe.InitBuffer(buf_queue, 1, 512);
     }
     __aicore__ inline void Process()
     {
         int total_size = 512;
-        int localSize = 128;
+        int local_size = 128;
 
-        AscendC::LocalTensor<float> bufTensor = bufQueue.AllocTensor<float>();
-        __ubuf__ float *buf = (__ubuf__ float *)bufTensor.address_.bufferAddr;
-        AscendC::DataCopy(bufTensor, srcGlobal, total_size);
+        AscendC::LocalTensor<float> buf_tensor = buf_queue.AllocTensor<float>();
+        __ubuf__ float *buf = (__ubuf__ float *)buf_tensor.address_.bufferAddr;
+        AscendC::DataCopy(buf_tensor, src_gm, total_size);
 
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);
 
-        shmem_mte_put_mem_nbi(dstGlobal, bufTensor, localSize, (rank + 1) % rankSize, EVENT_ID0);
-        shmem_mte_put_mem_nbi(gvaGm + localSize * 1, buf + localSize * 1, localSize, (rank + 1) % rankSize, EVENT_ID0);
+        shmem_mte_put_mem_nbi(dst_gm, buf_tensor, local_size, (rank + 1) % rank_size, EVENT_ID0);
+        shmem_mte_put_mem_nbi(gva_gm + local_size * 1, buf + local_size * 1, local_size, (rank + 1) % rank_size, EVENT_ID0);
 
-        shmem_put_float_mem_nbi(dstGlobal[localSize * 2], bufTensor[localSize * 2], localSize, (rank + 1) % rankSize);
-        shmem_put_float_mem_nbi(gvaGm + localSize * 3, buf + localSize * 3, localSize, (rank + 1) % rankSize);
+        shmem_put_float_mem_nbi(dst_gm[local_size * 2], buf_tensor[local_size * 2], local_size, (rank + 1) % rank_size);
+        shmem_put_float_mem_nbi(gva_gm + local_size * 3, buf + local_size * 3, local_size, (rank + 1) % rank_size);
 
-        bufQueue.FreeTensor(bufTensor);
+        buf_queue.FreeTensor(buf_tensor);
     }
 private:
     AscendC::TPipe pipe;
-    AscendC::TQue<AscendC::TPosition::VECIN, 2> bufQueue;
+    AscendC::TQue<AscendC::TPosition::VECIN, 2> buf_queue;
 
-    AscendC::GlobalTensor<float> srcGlobal, dstGlobal;
-    __gm__ float *gvaGm;
-    __gm__ float *devGm;
+    AscendC::GlobalTensor<float> src_gm, dst_gm;
+    __gm__ float *gva_gm;
+    __gm__ float *dev_gm;
 
     int64_t rank;
-    int64_t rankSize;
+    int64_t rank_size;
 };
 
-extern "C" __global__ __aicore__ void UBPutNumTest(GM_ADDR gva, GM_ADDR dev)
+extern "C" __global__ __aicore__ void ub_put_num_test(GM_ADDR gva, GM_ADDR dev)
 {
-    KernelUBPutNum op;
+    kernel_ub_put_num op;
     op.Init(gva, dev);
     op.Process();
 }
 
-void TestUBPut(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev)
+void test_ub_put(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev)
 {
-    UBPutNumTest<<<block_dim, nullptr, stream>>>(gva, dev);
+    ub_put_num_test<<<block_dim, nullptr, stream>>>(gva, dev);
 }
 
 class KernelUBGetNum {
@@ -70,54 +70,54 @@ public:
     __aicore__ inline KernelUBGetNum() {}
     __aicore__ inline void Init(GM_ADDR gva, GM_ADDR dev)
     {
-        gvaGm = (__gm__ float *)gva;
-        devGm = (__gm__ float *)dev;
+        gva_gm = (__gm__ float *)gva;
+        dev_gm = (__gm__ float *)dev;
 
         rank = smem_shm_get_global_rank();
-        rankSize = smem_shm_get_global_rank_size();
+        rank_size = smem_shm_get_global_rank_size();
 
         // set GM Buffer
-        srcGlobal.SetGlobalBuffer(gvaGm);
-        dstGlobal.SetGlobalBuffer(devGm);
+        src_gm.SetGlobalBuffer(gva_gm);
+        dst_gm.SetGlobalBuffer(dev_gm);
 
         // 1x512 Bytes Buffer
-        pipe.InitBuffer(bufQueue, 1, 512);
+        pipe.InitBuffer(buf_queue, 1, 512);
     }
     __aicore__ inline void Process()
     {
         int total_size = 512;
-        int localSize = 128;
+        int local_size = 128;
         
-        AscendC::LocalTensor<float> bufTensor = bufQueue.AllocTensor<float>();
-        __ubuf__ float *buf = (__ubuf__ float *)bufTensor.address_.bufferAddr;
+        AscendC::LocalTensor<float> buf_tensor = buf_queue.AllocTensor<float>();
+        __ubuf__ float *buf = (__ubuf__ float *)buf_tensor.address_.bufferAddr;
 
-        shmem_mte_get_mem_nbi(buf, gvaGm, localSize, (rank + 1) % rankSize, EVENT_ID0);
-        shmem_mte_get_mem_nbi(bufTensor[localSize * 1], srcGlobal[localSize * 1], localSize, (rank + 1) % rankSize, EVENT_ID0);
+        shmem_mte_get_mem_nbi(buf, gva_gm, local_size, (rank + 1) % rank_size, EVENT_ID0);
+        shmem_mte_get_mem_nbi(buf_tensor[local_size * 1], src_gm[local_size * 1], local_size, (rank + 1) % rank_size, EVENT_ID0);
 
-        shmem_get_float_mem_nbi(buf + localSize * 2, gvaGm + localSize * 2, localSize, (rank + 1) % rankSize);
-        shmem_get_float_mem_nbi(bufTensor[localSize * 3], srcGlobal[localSize * 3], localSize, (rank + 1) % rankSize);
+        shmem_get_float_mem_nbi(buf + local_size * 2, gva_gm + local_size * 2, local_size, (rank + 1) % rank_size);
+        shmem_get_float_mem_nbi(buf_tensor[local_size * 3], src_gm[local_size * 3], local_size, (rank + 1) % rank_size);
 
         AscendC::SetFlag<AscendC::HardEvent::MTE2_V>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_V>(EVENT_ID0);
 
         float scalar = 55.0f;
-        AscendC::Adds(bufTensor, bufTensor, scalar, total_size);
+        AscendC::Adds(buf_tensor, buf_tensor, scalar, total_size);
 
         AscendC::SetFlag<AscendC::HardEvent::V_MTE3>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::V_MTE3>(EVENT_ID0);
 
-        AscendC::DataCopy(dstGlobal, bufTensor, total_size);
-        bufQueue.FreeTensor(bufTensor);
+        AscendC::DataCopy(dst_gm, buf_tensor, total_size);
+        buf_queue.FreeTensor(buf_tensor);
     }
 private:
     AscendC::TPipe pipe;
-    AscendC::TQue<AscendC::TPosition::VECIN, 2> bufQueue;
-    AscendC::GlobalTensor<float> srcGlobal, dstGlobal;
-    __gm__ float *gvaGm;
-    __gm__ float *devGm;
+    AscendC::TQue<AscendC::TPosition::VECIN, 2> buf_queue;
+    AscendC::GlobalTensor<float> src_gm, dst_gm;
+    __gm__ float *gva_gm;
+    __gm__ float *dev_gm;
 
     int64_t rank;
-    int64_t rankSize;
+    int64_t rank_size;
 };
 
 extern "C" __global__ __aicore__ void UBGetNumTest(GM_ADDR gva, GM_ADDR dev)
@@ -127,7 +127,7 @@ extern "C" __global__ __aicore__ void UBGetNumTest(GM_ADDR gva, GM_ADDR dev)
     op.Process();
 }
 
-void TestUBGet(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev)
+void test_ub_get(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev)
 {
     UBGetNumTest<<<block_dim, nullptr, stream>>>(gva, dev);
 }
