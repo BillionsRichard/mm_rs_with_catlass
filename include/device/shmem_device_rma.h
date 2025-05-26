@@ -6,7 +6,25 @@
 #include "low_level/shmem_device_low_level_rma.h"
 #include "shmem_device_team.h"
 
-
+/**
+ * @brief Standard RMA Types and Names
+ *
+ * |NAME       | TYPE      |
+ * |-----------|-----------|
+ * |half       | half      |
+ * |float      | float     |
+ * |double     | double    |
+ * |int8       | int8      |
+ * |int16      | int16     |
+ * |int32      | int32     |
+ * |int64      | int64     |
+ * |uint8      | uint8     |
+ * |uint16     | uint16    |
+ * |uint32     | uint32    |
+ * |uint64     | uint64    |
+ * |char       | char      |
+ * |bfloat16   | bfloat16  |
+*/
 #define SHMEM_TYPE_FUNC(FUNC)        \
     FUNC(half, half);                \
     FUNC(float, float);              \
@@ -35,10 +53,10 @@
     {                                                                                       \
         auto ptr = shmem_ptr(dst, pe);                                                      \
         if (ptr == nullptr) return;                                                         \
-        __gm__ TYPE* addrGm = reinterpret_cast<__gm__ TYPE*>(ptr);                          \
+        __gm__ TYPE* addr_gm = reinterpret_cast<__gm__ TYPE*>(ptr);                         \
                                                                                             \
-        *addrGm = value;                                                                    \
-        DcciCacheline((__gm__ uint8_t *)addrGm);                                            \
+        *addr_gm = value;                                                                   \
+        dcci_cacheline((__gm__ uint8_t *)addr_gm);                                          \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_TYPENAME_P_AICORE);
@@ -55,10 +73,10 @@ SHMEM_TYPE_FUNC(SHMEM_TYPENAME_P_AICORE);
     SHMEM_DEVICE TYPE shmem_##NAME##_g(__gm__ TYPE* src, int32_t pe)                        \
     {                                                                                       \
         auto ptr = shmem_ptr(src, pe);                                                      \
-        __gm__ TYPE* addrGm = reinterpret_cast<__gm__ TYPE*>(ptr);                          \
+        __gm__ TYPE* addr_gm = reinterpret_cast<__gm__ TYPE*>(ptr);                         \
                                                                                             \
-        DcciCacheline((__gm__ uint8_t *)addrGm);                                            \
-        return *addrGm;                                                                     \
+        dcci_cacheline((__gm__ uint8_t *)addr_gm);                                          \
+        return *addr_gm;                                                                    \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_TYPENAME_G_AICORE);
@@ -66,26 +84,26 @@ SHMEM_TYPE_FUNC(SHMEM_TYPENAME_G_AICORE);
 
 #define SHMEM_GET_TYPENAME_MEM(NAME, TYPE)                                                                                      \
     /**                                                                                                                         \
-    * @fn SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elemSize, int32_t pe)       \
+    * @fn SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elem_size, int32_t pe)      \
     * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE. \
     *                                                                                                                           \
     * @param dst               [in] Pointer on local device of the destination data.                                            \
     * @param src               [in] Pointer on Symmetric memory of the source data.                                             \
-    * @param elemSize          [in] Number of elements in the dest and source arrays.                                           \
+    * @param elem_size          [in] Number of elements in the dest and source arrays.                                          \
     * @param pe                [in] PE number of the remote PE.                                                                 \
     */                                                                                                                          \
-    SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elemSize, int32_t pe)             \
+    SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elem_size, int32_t pe)            \
     {                                                                                                                           \
         /* ROCE */                                                                                                              \
         /* RDMA */                                                                                                              \
         /* MTE  */                                                                                                              \
         /* Global State Get */                                                                                                  \
-        __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();                                                           \
+        __gm__ shmemi_device_host_state_t *device_state = shmemi_get_state();                                                   \
         /* CopyUB Config Set */                                                                                                 \
-        uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                                       \
-        uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                                    \
-        AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                                      \
-        shmem_mte_get_mem_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE*>(copyUB), copyUBSize, elemSize, pe, copyEventID);       \
+        uint64_t copy_ub = device_state->mte_config.shmem_ub;                                                                   \
+        uint32_t copy_ub_size = device_state->mte_config.ub_size;                                                               \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                                 \
+        shmem_mte_get_mem_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE*>(copy_ub), copy_ub_size, elem_size, pe, copy_event_id); \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
@@ -98,21 +116,21 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM);
      *                                                                                                                          \
      * @param dst               [in] Pointer on local device of the destination data.                                           \
      * @param src               [in] Pointer on Symmetric memory of the source data.                                            \
-     * @param copyParams        [in] Params to describe how non-contiguous data is managed in src and dst.                      \
+     * @param copy_params        [in] Params to describe how non-contiguous data is managed in src and dst.                     \
      * @param pe                [in] PE number of the remote PE.                                                                \
      */                                                                                                                         \
-    SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, const non_contiguous_copy_param& copyParams, int32_t pe)         \
+    SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, const non_contiguous_copy_param& copy_params, int32_t pe)         \
     {                                                                                                                           \
         /* ROCE */                                                                                                              \
         /* RDMA */                                                                                                              \
         /* MTE  */                                                                                                              \
         /* Global State Get */                                                                                                  \
-        __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();                                                           \
+        __gm__ shmemi_device_host_state_t *device_state = shmemi_get_state();                                                   \
         /* CopyUB Config Set */                                                                                                 \
-        uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                                       \
-        uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                                    \
-        AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                                      \
-        shmem_mte_get_mem_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE*>(copyUB), copyUBSize, copyParams, pe, copyEventID);     \
+        uint64_t copy_ub = device_state->mte_config.shmem_ub;                                                                   \
+        uint32_t copy_ub_size = device_state->mte_config.ub_size;                                                               \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                                 \
+        shmem_mte_get_mem_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE*>(copy_ub), copy_ub_size, copy_params, pe, copy_event_id);   \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_DETAILED);
@@ -124,25 +142,25 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_DETAILED);
     *                                                                                                                           \
     * @param dst               [in] GlobalTensor on local device of the destination data.                                       \
     * @param src               [in] GlobalTensor on Symmetric memory of the source data.                                        \
-    * @param elemSize          [in] Number of elements in the dest and source arrays.                                           \
+    * @param elem_size          [in] Number of elements in the dest and source arrays.                                          \
     * @param pe                [in] PE number of the remote PE.                                                                 \
     */                                                                                                                          \
-    SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, uint32_t elemSize, int pe)   \
+    SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, uint32_t elem_size, int pe)   \
     {                                                                                                                           \
         /* ROCE */                                                                                                              \
         /* RDMA */                                                                                                              \
         /* MTE  */                                                                                                              \
         /* Global State Get */                                                                                                  \
-        __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();                                                           \
+        __gm__ shmemi_device_host_state_t *device_state = shmemi_get_state();                                                   \
         /* CopyUB Config Set */                                                                                                 \
-        uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                                       \
+        uint64_t copy_ub = device_state->mte_config.shmem_ub;                                                                   \
         /* Create LocalTensor */                                                                                                \
-        AscendC::LocalTensor<TYPE> ubTensor;                                                                                    \
-        ubTensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                           \
-        ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copyUB);                                                      \
-        ubTensor.address_.dataLen = deviceState->mteConfig.ubSize;                                                              \
-        AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                                      \
-        shmem_mte_get_mem_nbi(dst, src, ubTensor, elemSize, pe, copyEventID);                                                   \
+        AscendC::LocalTensor<TYPE> ub_tensor;                                                                                   \
+        ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                          \
+        ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                                    \
+        ub_tensor.address_.dataLen = device_state->mte_config.ub_size;                                                          \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                                 \
+        shmem_mte_get_mem_nbi(dst, src, ub_tensor, elem_size, pe, copy_event_id);                                               \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR);
@@ -155,25 +173,25 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR);
      *                                                                                                                          \
      * @param dst               [in] GlobalTensor on local device of the destination data.                                      \
      * @param src               [in] GlobalTensor on Symmetric memory of the source data.                                       \
-     * @param copyParams        [in] Params to describe how non-contiguous data is managed in src and dst.                      \
+     * @param copy_params        [in] Params to describe how non-contiguous data is managed in src and dst.                     \
      * @param pe                [in] PE number of the remote PE.                                                                \
      */                                                                                                                         \
-    SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, const non_contiguous_copy_param& copyParams, int pe)  \
+    SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, const non_contiguous_copy_param& copy_params, int pe)  \
     {                                                                                                                           \
         /* ROCE */                                                                                                              \
         /* RDMA */                                                                                                              \
         /* MTE  */                                                                                                              \
         /* Global State Get */                                                                                                  \
-        __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();                                                           \
+        __gm__ shmemi_device_host_state_t *device_state = shmemi_get_state();                                                   \
         /* CopyUB Config Set */                                                                                                 \
-        uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                                       \
+        uint64_t copy_ub = device_state->mte_config.shmem_ub;                                                                   \
         /* Create LocalTensor */                                                                                                \
-        AscendC::LocalTensor<TYPE> ubTensor;                                                                                    \
-        ubTensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                           \
-        ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copyUB);                                                      \
-        ubTensor.address_.dataLen = deviceState->mteConfig.ubSize;                                                              \
-        AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                                      \
-        shmem_mte_get_mem_nbi(dst, src, ubTensor, copyParams, pe, copyEventID);                                                 \
+        AscendC::LocalTensor<TYPE> ub_tensor;                                                                                   \
+        ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                          \
+        ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                                    \
+        ub_tensor.address_.dataLen = device_state->mte_config.ub_size;                                                          \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                                 \
+        shmem_mte_get_mem_nbi(dst, src, ub_tensor, copy_params, pe, copy_event_id);                                             \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED);
@@ -185,21 +203,21 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED);
     *                                                                                                                           \
     * @param dst               [in] Pointer on Symmetric memory of the destination data.                                        \
     * @param src               [in] Pointer on local device of the source data.                                                 \
-    * @param elemSize          [in] Number of elements in the destination and source arrays.                                    \
+    * @param elem_size          [in] Number of elements in the destination and source arrays.                                   \
     * @param pe                [in] PE number of the remote PE.                                                                 \
     */                                                                                                                          \
-    SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elemSize, int32_t pe)             \
+    SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elem_size, int32_t pe)            \
     {                                                                                                                           \
         /* ROCE */                                                                                                              \
         /* RDMA */                                                                                                              \
         /* MTE  */                                                                                                              \
         /* Global State Get */                                                                                                  \
-        __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();                                                           \
+        __gm__ shmemi_device_host_state_t *device_state = shmemi_get_state();                                                   \
         /* CopyUB Config Set */                                                                                                 \
-        uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                                       \
-        uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                                    \
-        AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                                      \
-        shmem_mte_put_mem_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE*>(copyUB), copyUBSize, elemSize, pe, copyEventID);       \
+        uint64_t copy_ub = device_state->mte_config.shmem_ub;                                                                   \
+        uint32_t copy_ub_size = device_state->mte_config.ub_size;                                                               \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                                 \
+        shmem_mte_put_mem_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE*>(copy_ub), copy_ub_size, elem_size, pe, copy_event_id); \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
@@ -212,21 +230,21 @@ SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM);
      *                                                                                                                          \
      * @param dst               [in] Pointer on Symmetric memory of the destination data.                                       \
      * @param src               [in] Pointer on local device of the source data.                                                \
-     * @param copyParams        [in] Params to describe how non-contiguous data is managed in src and dst.                      \
+     * @param copy_params        [in] Params to describe how non-contiguous data is managed in src and dst.                     \
      * @param pe                [in] PE number of the remote PE.                                                                \
      */                                                                                                                         \
-    SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, const non_contiguous_copy_param& copyParams, int32_t pe)        \
+    SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, const non_contiguous_copy_param& copy_params, int32_t pe)        \
     {                                                                                                                           \
         /* ROCE */                                                                                                              \
         /* RDMA */                                                                                                              \
         /* MTE  */                                                                                                              \
         /* Global State Get */                                                                                                  \
-        __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();                                                           \
+        __gm__ shmemi_device_host_state_t *device_state = shmemi_get_state();                                                   \
         /* CopyUB Config Set */                                                                                                 \
-        uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                                       \
-        uint32_t copyUBSize = deviceState->mteConfig.ubSize;                                                                    \
-        AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                                      \
-        shmem_mte_put_mem_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE*>(copyUB), copyUBSize, copyParams, pe, copyEventID);     \
+        uint64_t copy_ub = device_state->mte_config.shmem_ub;                                                                   \
+        uint32_t copy_ub_size = device_state->mte_config.ub_size;                                                               \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                                 \
+        shmem_mte_put_mem_nbi(dst, src, reinterpret_cast<__ubuf__ TYPE*>(copy_ub), copy_ub_size, copy_params, pe, copy_event_id);   \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM_DETAILED);
@@ -238,25 +256,25 @@ SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM_DETAILED);
     *                                                                                                                           \
     * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.                                   \
     * @param src               [in] GlobalTensor on local device of the source data.                                            \
-    * @param elemSize          [in] Number of elements in the destination and source arrays.                                    \
+    * @param elem_size          [in] Number of elements in the destination and source arrays.                                   \
     * @param pe                [in] PE number of the remote PE.                                                                 \
     */                                                                                                                          \
-    SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, uint32_t elemSize, int pe)   \
+    SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, uint32_t elem_size, int pe)   \
     {                                                                                                                           \
         /* ROCE */                                                                                                              \
         /* RDMA */                                                                                                              \
         /* MTE  */                                                                                                              \
         /* Global State Get */                                                                                                  \
-        __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();                                                           \
+        __gm__ shmemi_device_host_state_t *device_state = shmemi_get_state();                                                   \
         /* CopyUB Config Set */                                                                                                 \
-        uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                                       \
+        uint64_t copy_ub = device_state->mte_config.shmem_ub;                                                                   \
         /* Create LocalTensor */                                                                                                \
-        AscendC::LocalTensor<TYPE> ubTensor;                                                                                    \
-        ubTensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                           \
-        ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copyUB);                                                      \
-        ubTensor.address_.dataLen = deviceState->mteConfig.ubSize;                                                              \
-        AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                                      \
-        shmem_mte_put_mem_nbi(dst, src, ubTensor, elemSize, pe, copyEventID);                                                   \
+        AscendC::LocalTensor<TYPE> ub_tensor;                                                                                   \
+        ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                          \
+        ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                                    \
+        ub_tensor.address_.dataLen = device_state->mte_config.ub_size;                                                          \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                                 \
+        shmem_mte_put_mem_nbi(dst, src, ub_tensor, elem_size, pe, copy_event_id);                                               \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM_TENSOR);
@@ -269,25 +287,25 @@ SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM_TENSOR);
      *                                                                                                                          \
      * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.                                  \
      * @param src               [in] GlobalTensor on local device of the source data.                                           \
-     * @param copyParams        [in] Params to describe how non-contiguous data is managed in src and dst.                      \
+     * @param copy_params        [in] Params to describe how non-contiguous data is managed in src and dst.                     \
      * @param pe                [in] PE number of the remote PE.                                                                \
      */                                                                                                                         \
-    SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, const non_contiguous_copy_param& copyParams, int pe)  \
+    SHMEM_DEVICE void shmem_put_##NAME##_mem_nbi(AscendC::GlobalTensor<TYPE> dst, AscendC::GlobalTensor<TYPE> src, const non_contiguous_copy_param& copy_params, int pe)  \
     {                                                                                                                           \
         /* ROCE */                                                                                                              \
         /* RDMA */                                                                                                              \
         /* MTE  */                                                                                                              \
         /* Global State Get */                                                                                                  \
-        __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();                                                           \
+        __gm__ shmemi_device_host_state_t *device_state = shmemi_get_state();                                                   \
         /* CopyUB Config Set */                                                                                                 \
-        uint64_t copyUB = deviceState->mteConfig.shmemUB;                                                                       \
+        uint64_t copy_ub = device_state->mte_config.shmem_ub;                                                                   \
         /* Create LocalTensor */                                                                                                \
-        AscendC::LocalTensor<TYPE> ubTensor;                                                                                    \
-        ubTensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                           \
-        ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copyUB);                                                      \
-        ubTensor.address_.dataLen = deviceState->mteConfig.ubSize;                                                              \
-        AscendC::TEventID copyEventID = (AscendC::TEventID)deviceState->mteConfig.eventID;                                      \
-        shmem_mte_put_mem_nbi(dst, src, ubTensor, copyParams, pe, copyEventID);                                                 \
+        AscendC::LocalTensor<TYPE> ub_tensor;                                                                                   \
+        ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);                                          \
+        ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(copy_ub);                                                    \
+        ub_tensor.address_.dataLen = device_state->mte_config.ub_size;                                                          \
+        AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;                                 \
+        shmem_mte_put_mem_nbi(dst, src, ub_tensor, copy_params, pe, copy_event_id);                                             \
     }
 
 SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM_TENSOR_DETAILED);

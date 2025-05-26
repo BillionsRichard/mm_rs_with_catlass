@@ -2,7 +2,7 @@
 #include "device/shmem_device_def.h"
 #include "shmem_api.h"
 
-SHMEM_DEVICE void CubeGuard() {
+SHMEM_DEVICE void cube_guard() {
     using namespace AscendC;
 
 #ifdef __DAV_C220_CUBE__
@@ -27,24 +27,24 @@ SHMEM_DEVICE void CubeGuard() {
 #endif
 }
 
-extern "C" __global__ __aicore__ void DeviceTeamAllGatherTest(GM_ADDR gva, int teamId)
+extern "C" __global__ __aicore__ void device_team_all_gather_test(GM_ADDR gva, int team_id)
 {
-    int64_t teamRank = shmem_team_my_pe(teamId);
-    int64_t teamSize = shmem_team_n_pes(teamId);
-    __gm__ int32_t* gvaGm = (__gm__ int32_t *)gva;
+    int64_t team_rank = shmem_team_my_pe(team_id);
+    int64_t team_size = shmem_team_n_pes(team_id);
+    __gm__ int32_t* gva_gm = (__gm__ int32_t *)gva;
     AscendC::PipeBarrier<PIPE_ALL>();
-    CubeGuard();
+    cube_guard();
     // All Gather
-    for (int i = 0; i < teamSize - 1; i++) {
-        int64_t dstRank = shmem_team_translate_pe(teamId, (teamRank + 1 + i) % teamSize, SHMEM_TEAM_WORLD);
-        shmem_put_int32_mem_nbi(gvaGm + 16 * teamRank, gvaGm + 16 * teamRank, 16, dstRank);
+    for (int i = 0; i < team_size - 1; i++) {
+        int64_t dst_rank = shmem_team_translate_pe(team_id, (team_rank + 1 + i) % team_size, SHMEM_TEAM_WORLD);
+        shmem_put_int32_mem_nbi(gva_gm + 16 * team_rank, gva_gm + 16 * team_rank, 16, dst_rank);
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
     }
-    ShmemiBarrier(teamId);
+    shmemi_barrier(team_id);
 }
 
-void TeamAllGather(uint32_t blockDim, void* stream, uint8_t* gva, shmem_team_t teamId)
+void team_allgather(uint32_t block_dim, void* stream, uint8_t* gva, shmem_team_t team_id)
 {
-    DeviceTeamAllGatherTest<<<blockDim, nullptr, stream>>>(gva, (int)teamId);
+    device_team_all_gather_test<<<block_dim, nullptr, stream>>>(gva, (int)team_id);
 }

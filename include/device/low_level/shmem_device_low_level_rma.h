@@ -19,22 +19,22 @@
 SHMEM_DEVICE __gm__ void* shmem_ptr(__gm__ void* ptr, int pe)
 {
     // Get Global State
-    __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();
+    __gm__ shmemi_device_host_state_t *device_state = shmemi_get_state();
 
     // Check whether ptr belongs to this rank.
-    uint64_t lowerBound = (uint64_t)deviceState->p2pHeapBase[shmem_my_pe()];
-    uint64_t upperBound = lowerBound + deviceState->heapSize;
-    if (uint64_t(ptr) < lowerBound || uint64_t(ptr) >= upperBound) {
+    uint64_t lower_bound = (uint64_t)device_state->p2p_heap_base[shmem_my_pe()];
+    uint64_t upper_bound = lower_bound + device_state->heap_size;
+    if (uint64_t(ptr) < lower_bound || uint64_t(ptr) >= upper_bound) {
         return nullptr;
     }
 
     // Back to root address
-    uint64_t offset = reinterpret_cast<uint64_t>(ptr) - reinterpret_cast<uint64_t>(deviceState->heapBase);
+    uint64_t offset = reinterpret_cast<uint64_t>(ptr) - reinterpret_cast<uint64_t>(device_state->heap_base);
     
     // Address translate
-    uint64_t remotePtr = reinterpret_cast<uint64_t>(deviceState->p2pHeapBase[pe]) + offset;
+    uint64_t remote_ptr = reinterpret_cast<uint64_t>(device_state->p2p_heap_base[pe]) + offset;
 
-    return reinterpret_cast<__gm__ void*>(remotePtr);
+    return reinterpret_cast<__gm__ void*>(remote_ptr);
 }
 
 
@@ -44,37 +44,37 @@ SHMEM_DEVICE __gm__ void* shmem_ptr(__gm__ void* ptr, int pe)
  * @param dst               [in] Pointer on local device of the destination data.
  * @param src               [in] Pointer on Symmetric memory of the source data.
  * @param buf               [in] Pointer on local UB.
- * @param ubSize            [in] The size of temp Buffer on UB. (In Bytes)
- * @param elemSize          [in] Number of elements in the destination and source arrays.
+ * @param ub_size           [in] The size of temp Buffer on UB. (In Bytes)
+ * @param elem_size         [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
  * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
  */
 template <typename T>
-SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ub_size, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr(src, pe);
     if (ptr == nullptr) return;
-    __gm__ T* remotePtr = reinterpret_cast<__gm__ T*>(ptr);
+    __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
 
-    // blockSize: dataMove Unit
-    uint32_t blockSize = ubSize / sizeof(T) * sizeof(T);
-    uint32_t remain = (elemSize * sizeof(T)) % blockSize;
+    // block_size: dataMove Unit
+    uint32_t block_size = ub_size / sizeof(T) * sizeof(T);
+    uint32_t remain = (elem_size * sizeof(T)) % block_size;
 
-    int repeat_times = (elemSize * sizeof(T)) / blockSize;
-    int repeat_elem = blockSize / sizeof(T);
+    int repeat_times = (elem_size * sizeof(T)) / block_size;
+    int repeat_elem = block_size / sizeof(T);
     int loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
     for (int i = 0; i < repeat_times; i++) {
-        smem_shm_copy_gm2ub(buf, remotePtr + i * repeat_elem, blockSize);
+        smem_shm_copy_gm2ub(buf, remote_ptr + i * repeat_elem, block_size);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        smem_shm_copy_ub2gm(dst + i * repeat_elem, buf, blockSize);
+        smem_shm_copy_ub2gm(dst + i * repeat_elem, buf, block_size);
         if (i != loop_times - 1) {      // Last PIPE Sync Should be done outside
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
         }
     }
     if (remain > 0) {
-        smem_shm_copy_gm2ub(buf, remotePtr + repeat_times * repeat_elem, remain);
+        smem_shm_copy_gm2ub(buf, remote_ptr + repeat_times * repeat_elem, remain);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         smem_shm_copy_ub2gm(dst + repeat_times * repeat_elem, buf, remain);
@@ -89,48 +89,48 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
  * @param dst               [in] Pointer on local device of the destination data.
  * @param src               [in] Pointer on Symmetric memory of the source data.
  * @param buf               [in] Pointer on local UB.
- * @param ubSize            [in] The size of temp Buffer on UB. (In Bytes)
- * @param copyParams        [in] Params to describe how non-contiguous data is managed in src and dst.
+ * @param ub_size           [in] The size of temp Buffer on UB. (In Bytes)
+ * @param copy_params       [in] Params to describe how non-contiguous data is managed in src and dst.
  * @param pe                [in] PE number of the remote PE.
  * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
  */
 template <typename T>
-SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, const non_contiguous_copy_param& copyParams, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ub_size, const non_contiguous_copy_param& copy_params, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr(src, pe);
     if (ptr == nullptr) return;
-    __gm__ T* remotePtr = reinterpret_cast<__gm__ T*>(ptr);
+    __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
 
-    AscendC::GlobalTensor<T> srcTensor;
-    AscendC::LocalTensor<T> ubTensor;
-    AscendC::GlobalTensor<T> dstTensor;
-    ubTensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
-    ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);
-    srcTensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(remotePtr));
-    dstTensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(dst));
+    AscendC::GlobalTensor<T> src_tensor;
+    AscendC::LocalTensor<T> ub_tensor;
+    AscendC::GlobalTensor<T> dst_tensor;
+    ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
+    ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);
+    src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(remote_ptr));
+    dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(dst));
 
     uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
-    uint32_t ubStride = (copyParams.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
-    AscendC::DataCopyExtParams dataCopyParamsGM2UB(
-        copyParams.repeat,
-        copyParams.length * sizeof(T),
-        (copyParams.srcLd - copyParams.length) * sizeof(T),
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
+    uint32_t ub_stride = (copy_params.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
+    AscendC::DataCopyExtParams data_copy_params_gm2ub(
+        copy_params.repeat,
+        copy_params.length * sizeof(T),
+        (copy_params.src_ld - copy_params.length) * sizeof(T),
+        (ub_stride - copy_params.length) / ELE_NUM_PER_UNIT,
         0
     );
-    smem_shm_copy_gm2ub(ubTensor, srcTensor, dataCopyParamsGM2UB);
+    smem_shm_copy_gm2ub(ub_tensor, src_tensor, data_copy_params_gm2ub);
 
     AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
     AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
 
-    AscendC::DataCopyExtParams dataCopyParamsUB2GM(
-        copyParams.repeat,
-        copyParams.length * sizeof(T),
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
-        (copyParams.dstLd - copyParams.length) * sizeof(T),
+    AscendC::DataCopyExtParams data_copy_params_ub2gm(
+        copy_params.repeat,
+        copy_params.length * sizeof(T),
+        (ub_stride - copy_params.length) / ELE_NUM_PER_UNIT,
+        (copy_params.dst_ld - copy_params.length) * sizeof(T),
         0
     );
-    smem_shm_copy_ub2gm(dstTensor, ubTensor, dataCopyParamsUB2GM);
+    smem_shm_copy_ub2gm(dst_tensor, ub_tensor, data_copy_params_ub2gm);
 }
 
 
@@ -140,38 +140,38 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
  * @param dst               [in] GlobalTensor on local device of the destination data.
  * @param src               [in] GlobalTensor on Symmetric memory of the source data.
  * @param buf               [in] LocalTensor on local UB.
- * @param elemSize          [in] Number of elements in the destination and source arrays.
+ * @param elem_size         [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
  * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
  */
 template <typename T>
-SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
     if (ptr == nullptr) return;
 
-    AscendC::GlobalTensor<T> remoteBuff;
-    remoteBuff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
+    AscendC::GlobalTensor<T> remote_buff;
+    remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
-    // blockSize: dataMove Unit
-    uint32_t blockSize = buf.GetSize() / sizeof(T) * sizeof(T);
-    uint32_t remain = (elemSize * sizeof(T)) % blockSize;
+    // block_size: dataMove Unit
+    uint32_t block_size = buf.GetSize() / sizeof(T) * sizeof(T);
+    uint32_t remain = (elem_size * sizeof(T)) % block_size;
 
-    int repeat_times = (elemSize * sizeof(T)) / blockSize;
-    int repeat_elem = blockSize / sizeof(T);
+    int repeat_times = (elem_size * sizeof(T)) / block_size;
+    int repeat_elem = block_size / sizeof(T);
     int loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
     for (int i = 0; i < repeat_times; i++) {
-        smem_shm_copy_gm2ub(buf, remoteBuff[i * repeat_elem], blockSize);
+        smem_shm_copy_gm2ub(buf, remote_buff[i * repeat_elem], block_size);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        smem_shm_copy_ub2gm(dst[i * repeat_elem], buf, blockSize);
+        smem_shm_copy_ub2gm(dst[i * repeat_elem], buf, block_size);
         if (i != loop_times - 1) {      // Last PIPE Sync Should be done outside
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
         }
     }
     if (remain > 0) {
-        smem_shm_copy_gm2ub(buf, remoteBuff[repeat_times * repeat_elem], remain);
+        smem_shm_copy_gm2ub(buf, remote_buff[repeat_times * repeat_elem], remain);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         smem_shm_copy_ub2gm(dst[repeat_times * repeat_elem], buf, remain);
@@ -186,41 +186,41 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
  * @param dst               [in] GlobalTensor on local device of the destination data.
  * @param src               [in] GlobalTensor on Symmetric memory of the source data.
  * @param buf               [in] LocalTensor on local UB.
- * @param copyParams        [in] Params to describe how non-contiguous data is organized in src and dst.
+ * @param copy_params       [in] Params to describe how non-contiguous data is organized in src and dst.
  * @param pe                [in] PE number of the remote PE.
  * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
  */
 template <typename T>
-SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, const non_contiguous_copy_param& copyParams, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, const non_contiguous_copy_param& copy_params, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
     if (ptr == nullptr) return;
 
-    AscendC::GlobalTensor<T> remoteBuff;
-    remoteBuff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
+    AscendC::GlobalTensor<T> remote_buff;
+    remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
     uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
-    uint32_t ubStride = (copyParams.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
-    AscendC::DataCopyExtParams dataCopyParamsGM2UB(
-        copyParams.repeat,
-        copyParams.length * sizeof(T),
-        (copyParams.srcLd - copyParams.length) * sizeof(T),
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
+    uint32_t ub_stride = (copy_params.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
+    AscendC::DataCopyExtParams data_copy_params_gm2ub(
+        copy_params.repeat,
+        copy_params.length * sizeof(T),
+        (copy_params.src_ld - copy_params.length) * sizeof(T),
+        (ub_stride - copy_params.length) / ELE_NUM_PER_UNIT,
         0
     );
-    smem_shm_copy_gm2ub(buf, remoteBuff, dataCopyParamsGM2UB);
+    smem_shm_copy_gm2ub(buf, remote_buff, data_copy_params_gm2ub);
 
     AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
     AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
 
-    AscendC::DataCopyExtParams dataCopyParamsUB2GM(
-        copyParams.repeat,
-        copyParams.length * sizeof(T),
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
-        (copyParams.dstLd - copyParams.length) * sizeof(T),
+    AscendC::DataCopyExtParams data_copy_params_ub2gm(
+        copy_params.repeat,
+        copy_params.length * sizeof(T),
+        (ub_stride - copy_params.length) / ELE_NUM_PER_UNIT,
+        (copy_params.dst_ld - copy_params.length) * sizeof(T),
         0
     );
-    smem_shm_copy_ub2gm(dst, buf, dataCopyParamsUB2GM);
+    smem_shm_copy_ub2gm(dst, buf, data_copy_params_ub2gm);
 }
 
 
@@ -230,30 +230,30 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
  * @param dst               [in] Pointer on Symmetric memory of the destination data.
  * @param src               [in] Pointer on local device of the source data.
  * @param buf               [in] Pointer on local UB.
- * @param ubSize            [in] The size of temp Buffer on UB. (In Bytes)
- * @param elemSize          [in] Number of elements in the destination and source arrays.
+ * @param ub_size           [in] The size of temp Buffer on UB. (In Bytes)
+ * @param elem_size         [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
  * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
  */
 template <typename T>
-SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ub_size, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr(dst, pe);
     if (ptr == nullptr) return;
-    __gm__ T* remotePtr = reinterpret_cast<__gm__ T*>(ptr);
+    __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
 
-    // blockSize: dataMove Unit
-    uint32_t blockSize = ubSize / sizeof(T) * sizeof(T);
-    uint32_t remain = (elemSize * sizeof(T)) % blockSize;
+    // block_size: dataMove Unit
+    uint32_t block_size = ub_size / sizeof(T) * sizeof(T);
+    uint32_t remain = (elem_size * sizeof(T)) % block_size;
 
-    int repeat_times = (elemSize * sizeof(T)) / blockSize;
-    int repeat_elem = blockSize / sizeof(T);
+    int repeat_times = (elem_size * sizeof(T)) / block_size;
+    int repeat_elem = block_size / sizeof(T);
     int loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
     for (int i = 0; i < repeat_times; i++) {
-        smem_shm_copy_gm2ub(buf, src + i * repeat_elem, blockSize);
+        smem_shm_copy_gm2ub(buf, src + i * repeat_elem, block_size);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        smem_shm_copy_ub2gm(remotePtr + i * repeat_elem, buf, blockSize);
+        smem_shm_copy_ub2gm(remote_ptr + i * repeat_elem, buf, block_size);
         if (i != loop_times - 1) {      // Last PIPE Sync Should be done outside
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
@@ -263,7 +263,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
         smem_shm_copy_gm2ub(buf, src + repeat_times * repeat_elem, remain);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        smem_shm_copy_ub2gm(remotePtr + repeat_times * repeat_elem, buf, remain);
+        smem_shm_copy_ub2gm(remote_ptr + repeat_times * repeat_elem, buf, remain);
     }
 }
 
@@ -275,48 +275,48 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
  * @param dst               [in] Pointer on Symmetric memory of the destination data.
  * @param src               [in] Pointer on local device of the source data.
  * @param buf               [in] Pointer on local UB.
- * @param ubSize            [in] The size of temp Buffer on UB. (In Bytes)
- * @param copyParams        [in] Params to describe how non-contiguous data is organized in src and dst.
+ * @param ub_size           [in] The size of temp Buffer on UB. (In Bytes)
+ * @param copy_params       [in] Params to describe how non-contiguous data is organized in src and dst.
  * @param pe                [in] PE number of the remote PE.
  * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
  */
 template <typename T>
-SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ubSize, const non_contiguous_copy_param& copyParams, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ub_size, const non_contiguous_copy_param& copy_params, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr(dst, pe);
     if (ptr == nullptr) return;
-    __gm__ T* remotePtr = reinterpret_cast<__gm__ T*>(ptr);
+    __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
 
-    AscendC::GlobalTensor<T> srcTensor;
-    AscendC::LocalTensor<T> ubTensor;
-    AscendC::GlobalTensor<T> dstTensor;
-    ubTensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
-    ubTensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);
-    srcTensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(src));
-    dstTensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(remotePtr));
+    AscendC::GlobalTensor<T> src_tensor;
+    AscendC::LocalTensor<T> ub_tensor;
+    AscendC::GlobalTensor<T> dst_tensor;
+    ub_tensor.address_.logicPos = static_cast<uint8_t>(AscendC::TPosition::VECIN);
+    ub_tensor.address_.bufferAddr = reinterpret_cast<uint64_t>(buf);
+    src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(src));
+    dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(remote_ptr));
 
     uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
-    uint32_t ubStride = (copyParams.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
-    AscendC::DataCopyExtParams dataCopyParamsGM2UB(
-        copyParams.repeat,
-        copyParams.length * sizeof(T),
-        (copyParams.srcLd - copyParams.length) * sizeof(T),
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
+    uint32_t ub_stride = (copy_params.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
+    AscendC::DataCopyExtParams data_copy_params_gm2ub(
+        copy_params.repeat,
+        copy_params.length * sizeof(T),
+        (copy_params.src_ld - copy_params.length) * sizeof(T),
+        (ub_stride - copy_params.length) / ELE_NUM_PER_UNIT,
         0
     );
-    smem_shm_copy_gm2ub(ubTensor, srcTensor, dataCopyParamsGM2UB);
+    smem_shm_copy_gm2ub(ub_tensor, src_tensor, data_copy_params_gm2ub);
 
     AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
     AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
 
-    AscendC::DataCopyExtParams dataCopyParamsUB2GM(
-        copyParams.repeat,
-        copyParams.length * sizeof(T),
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
-        (copyParams.dstLd - copyParams.length) * sizeof(T),
+    AscendC::DataCopyExtParams data_copy_params_ub2gm(
+        copy_params.repeat,
+        copy_params.length * sizeof(T),
+        (ub_stride - copy_params.length) / ELE_NUM_PER_UNIT,
+        (copy_params.dst_ld - copy_params.length) * sizeof(T),
         0
     );
-    smem_shm_copy_ub2gm(dstTensor, ubTensor, dataCopyParamsUB2GM);
+    smem_shm_copy_ub2gm(dst_tensor, ub_tensor, data_copy_params_ub2gm);
 }
 
 
@@ -326,31 +326,31 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
  * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.
  * @param src               [in] GlobalTensor on local device of the source data.
  * @param buf               [in] Pointer on local UB.
- * @param elemSize          [in] Number of elements in the destination and source arrays.
+ * @param elem_size         [in] Number of elements in the destination and source arrays.
  * @param pe                [in] PE number of the remote PE.
  * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
  */
 template <typename T>
-SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elemSize, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
     if (ptr == nullptr) return;
 
-    AscendC::GlobalTensor<T> remoteBuff;
-    remoteBuff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
+    AscendC::GlobalTensor<T> remote_buff;
+    remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
-    // blockSize: dataMove Unit
-    uint32_t blockSize = buf.GetSize() / sizeof(T) * sizeof(T);
-    uint32_t remain = (elemSize * sizeof(T)) % blockSize;
+    // block_size: dataMove Unit
+    uint32_t block_size = buf.GetSize() / sizeof(T) * sizeof(T);
+    uint32_t remain = (elem_size * sizeof(T)) % block_size;
 
-    int repeat_times = (elemSize * sizeof(T)) / blockSize;
-    int repeat_elem = blockSize / sizeof(T);
+    int repeat_times = (elem_size * sizeof(T)) / block_size;
+    int repeat_elem = block_size / sizeof(T);
     int loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
     for (int i = 0; i < repeat_times; i++) {
-        smem_shm_copy_gm2ub(buf, src[i * repeat_elem], blockSize);
+        smem_shm_copy_gm2ub(buf, src[i * repeat_elem], block_size);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        smem_shm_copy_ub2gm(remoteBuff[i * repeat_elem], buf, blockSize);
+        smem_shm_copy_ub2gm(remote_buff[i * repeat_elem], buf, block_size);
         if (i != loop_times - 1) {      // Last PIPE Sync Should be done outside
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
@@ -360,7 +360,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
         smem_shm_copy_gm2ub(buf, src[repeat_times * repeat_elem], remain);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
-        smem_shm_copy_ub2gm(remoteBuff[repeat_times * repeat_elem], buf, remain);
+        smem_shm_copy_ub2gm(remote_buff[repeat_times * repeat_elem], buf, remain);
     }
 }
 
@@ -372,41 +372,41 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
  * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.
  * @param src               [in] GlobalTensor on local device of the source data.
  * @param buf               [in] LocalTensor on local UB.
- * @param copyParams        [in] Params to describe how non-contiguous data is organized in src and dst.
+ * @param copy_params       [in] Params to describe how non-contiguous data is organized in src and dst.
  * @param pe                [in] PE number of the remote PE.
  * @param EVENT_ID          [in] ID used to Sync MTE2\\MTE3 Event.
  */
 template <typename T>
-SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, const non_contiguous_copy_param& copyParams, int pe, AscendC::TEventID EVENT_ID)
+SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, const non_contiguous_copy_param& copy_params, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
     if (ptr == nullptr) return;
 
-    AscendC::GlobalTensor<T> remoteBuff;
-    remoteBuff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
+    AscendC::GlobalTensor<T> remote_buff;
+    remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
     uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
-    uint32_t ubStride = (copyParams.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
-    AscendC::DataCopyExtParams dataCopyParamsGM2UB(
-        copyParams.repeat,
-        copyParams.length * sizeof(T),
-        (copyParams.srcLd - copyParams.length) * sizeof(T),
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
+    uint32_t ub_stride = (copy_params.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
+    AscendC::DataCopyExtParams data_copy_params_gm2ub(
+        copy_params.repeat,
+        copy_params.length * sizeof(T),
+        (copy_params.src_ld - copy_params.length) * sizeof(T),
+        (ub_stride - copy_params.length) / ELE_NUM_PER_UNIT,
         0
     );
-    smem_shm_copy_gm2ub(buf, src, dataCopyParamsGM2UB);
+    smem_shm_copy_gm2ub(buf, src, data_copy_params_gm2ub);
 
     AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
     AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
 
-    AscendC::DataCopyExtParams dataCopyParamsUB2GM(
-        copyParams.repeat,
-        copyParams.length * sizeof(T),
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
-        (copyParams.dstLd - copyParams.length) * sizeof(T),
+    AscendC::DataCopyExtParams data_copy_params_ub2gm(
+        copy_params.repeat,
+        copy_params.length * sizeof(T),
+        (ub_stride - copy_params.length) / ELE_NUM_PER_UNIT,
+        (copy_params.dst_ld - copy_params.length) * sizeof(T),
         0
     );
-    smem_shm_copy_ub2gm(remoteBuff, buf, dataCopyParamsUB2GM);
+    smem_shm_copy_ub2gm(remote_buff, buf, data_copy_params_ub2gm);
 }
 
 
