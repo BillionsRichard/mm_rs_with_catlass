@@ -23,11 +23,21 @@ public:
     }
     __aicore__ inline void Process()
     {
-        AscendC::LocalTensor<float> bufTensor = bufQueue.AllocTensor<float>();
-        AscendC::DataCopy(bufTensor, srcGlobal, 512);
+        int totalSize = 512;
+        int localSize = 128;
 
-        AscendC::PipeBarrier<PIPE_MTE2>();
-        shmem_mte_put_mem_nbi(dstGlobal, bufTensor, 512, (rank + 1) % rankSize, EVENT_ID0);
+        AscendC::LocalTensor<float> bufTensor = bufQueue.AllocTensor<float>();
+        __ubuf__ float *buf = (__ubuf__ float *)bufTensor.address_.bufferAddr;
+        AscendC::DataCopy(bufTensor, srcGlobal, totalSize);
+
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);
+
+        shmem_mte_put_mem_nbi(dstGlobal, bufTensor, localSize, (rank + 1) % rankSize, EVENT_ID0);
+        shmem_mte_put_mem_nbi(gvaGm + localSize * 1, buf + localSize * 1, localSize, (rank + 1) % rankSize, EVENT_ID0);
+
+        shmem_put_float_mem_nbi(dstGlobal[localSize * 2], bufTensor[localSize * 2], localSize, (rank + 1) % rankSize);
+        shmem_put_float_mem_nbi(gvaGm + localSize * 3, buf + localSize * 3, localSize, (rank + 1) % rankSize);
 
         bufQueue.FreeTensor(bufTensor);
     }
@@ -75,21 +85,28 @@ public:
     }
     __aicore__ inline void Process()
     {
+        int totalSize = 512;
+        int localSize = 128;
+        
         AscendC::LocalTensor<float> bufTensor = bufQueue.AllocTensor<float>();
         __ubuf__ float *buf = (__ubuf__ float *)bufTensor.address_.bufferAddr;
 
-        shmem_mte_get_mem_nbi(buf, gvaGm, 512, (rank + 1) % rankSize, EVENT_ID0);
+        shmem_mte_get_mem_nbi(buf, gvaGm, localSize, (rank + 1) % rankSize, EVENT_ID0);
+        shmem_mte_get_mem_nbi(bufTensor[localSize * 1], srcGlobal[localSize * 1], localSize, (rank + 1) % rankSize, EVENT_ID0);
+
+        shmem_get_float_mem_nbi(buf + localSize * 2, gvaGm + localSize * 2, localSize, (rank + 1) % rankSize);
+        shmem_get_float_mem_nbi(bufTensor[localSize * 3], srcGlobal[localSize * 3], localSize, (rank + 1) % rankSize);
 
         AscendC::SetFlag<AscendC::HardEvent::MTE2_V>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_V>(EVENT_ID0);
 
         float scalar = 55.0f;
-        AscendC::Adds(bufTensor, bufTensor, scalar, 512);
+        AscendC::Adds(bufTensor, bufTensor, scalar, totalSize);
 
         AscendC::SetFlag<AscendC::HardEvent::V_MTE3>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::V_MTE3>(EVENT_ID0);
 
-        AscendC::DataCopy(dstGlobal, bufTensor, 512);
+        AscendC::DataCopy(dstGlobal, bufTensor, totalSize);
         bufQueue.FreeTensor(bufTensor);
     }
 private:
