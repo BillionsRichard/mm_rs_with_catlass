@@ -84,7 +84,6 @@ SHMEM_TYPE_FUNC(SHMEM_TYPENAME_G_AICORE);
 
 #define SHMEM_GET_TYPENAME_MEM(NAME, TYPE)                                                                                      \
     /**                                                                                                                         \
-    * @fn SHMEM_DEVICE void shmem_get_##NAME##_mem_nbi(__gm__ TYPE* dst, __gm__ TYPE* src, uint32_t elem_size, int32_t pe)      \
     * @brief Asynchronous interface. Copy contiguous data on symmetric memory from the specified PE to address on the local PE. \
     *                                                                                                                           \
     * @param dst               [in] Pointer on local device of the destination data.                                            \
