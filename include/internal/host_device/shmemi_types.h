@@ -43,7 +43,7 @@ typedef struct {
     int team_idx;
 } shmemi_team_t;
 
-// MTEConfig
+// mte_config
 typedef struct {
     int64_t shmem_ub;        // __ubuf__ Ptr, Shmem memcpy needed.
     uint32_t ub_size;        // UB's Size, in Bytes.

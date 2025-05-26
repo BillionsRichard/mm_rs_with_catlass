@@ -25,11 +25,11 @@ public:
     {
         int row = 16;
         int col = 32;
-        int totalSize = row * col;
+        int total_size = row * col;
 
         AscendC::LocalTensor<float> bufTensor = bufQueue.AllocTensor<float>();
         __ubuf__ float *buf = (__ubuf__ float *)bufTensor.address_.bufferAddr;
-        AscendC::DataCopy(bufTensor, srcGlobal, totalSize);
+        AscendC::DataCopy(bufTensor, srcGlobal, total_size);
 
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);
@@ -37,8 +37,8 @@ public:
         non_contiguous_copy_param copyParams;
         copyParams.repeat = row / 2;
         copyParams.length = col / 2;
-        copyParams.srcLd = col;
-        copyParams.dstLd = col / 2;
+        copyParams.src_ld = col;
+        copyParams.dst_ld = col / 2;
 
         shmem_mte_put_mem_nbi(dstGlobal, bufTensor, copyParams, (rank + 1) % rankSize, EVENT_ID0);
         shmem_mte_put_mem_nbi(gvaGm + row * col / 4, buf + row * col / 2, copyParams, (rank + 1) % rankSize, EVENT_ID0);
@@ -67,9 +67,9 @@ extern "C" __global__ __aicore__ void UBPutNumNonContiguousTest(GM_ADDR gva, GM_
     op.Process();
 }
 
-void TestUBNonContiguousPut(uint32_t blockDim, void* stream, uint8_t* gva, uint8_t* dev)
+void TestUBNonContiguousPut(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev)
 {
-    UBPutNumNonContiguousTest<<<blockDim, nullptr, stream>>>(gva, dev);
+    UBPutNumNonContiguousTest<<<block_dim, nullptr, stream>>>(gva, dev);
 }
 
 class KernelUBGetNumNonContiguous {
@@ -94,7 +94,7 @@ public:
     {
         int row = 16;
         int col = 32;
-        int totalSize = row * col;
+        int total_size = row * col;
 
         AscendC::LocalTensor<float> bufTensor = bufQueue.AllocTensor<float>();
         __ubuf__ float *buf = (__ubuf__ float *)bufTensor.address_.bufferAddr;
@@ -102,8 +102,8 @@ public:
         non_contiguous_copy_param copyParams;
         copyParams.repeat = row / 2;
         copyParams.length = col / 2;
-        copyParams.srcLd = col / 2;
-        copyParams.dstLd = col;
+        copyParams.src_ld = col / 2;
+        copyParams.dst_ld = col;
 
         shmem_mte_get_mem_nbi(buf, gvaGm, copyParams, (rank + 1) % rankSize, EVENT_ID0);
         shmem_mte_get_mem_nbi(bufTensor[col / 2], srcGlobal[row * col / 2], copyParams, (rank + 1) % rankSize, EVENT_ID0);
@@ -114,7 +114,7 @@ public:
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);
 
-        AscendC::DataCopy(dstGlobal, bufTensor, totalSize);
+        AscendC::DataCopy(dstGlobal, bufTensor, total_size);
         bufQueue.FreeTensor(bufTensor);
     }
 private:
@@ -135,7 +135,7 @@ extern "C" __global__ __aicore__ void UBGetNonContiguousNumTest(GM_ADDR gva, GM_
     op.Process();
 }
 
-void TestUBNonContiguousGet(uint32_t blockDim, void* stream, uint8_t* gva, uint8_t* dev)
+void TestUBNonContiguousGet(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev)
 {
-    UBGetNonContiguousNumTest<<<blockDim, nullptr, stream>>>(gva, dev);
+    UBGetNonContiguousNumTest<<<block_dim, nullptr, stream>>>(gva, dev);
 }

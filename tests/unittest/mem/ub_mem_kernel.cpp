@@ -23,12 +23,12 @@ public:
     }
     __aicore__ inline void Process()
     {
-        int totalSize = 512;
+        int total_size = 512;
         int localSize = 128;
 
         AscendC::LocalTensor<float> bufTensor = bufQueue.AllocTensor<float>();
         __ubuf__ float *buf = (__ubuf__ float *)bufTensor.address_.bufferAddr;
-        AscendC::DataCopy(bufTensor, srcGlobal, totalSize);
+        AscendC::DataCopy(bufTensor, srcGlobal, total_size);
 
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);
@@ -60,9 +60,9 @@ extern "C" __global__ __aicore__ void UBPutNumTest(GM_ADDR gva, GM_ADDR dev)
     op.Process();
 }
 
-void TestUBPut(uint32_t blockDim, void* stream, uint8_t* gva, uint8_t* dev)
+void TestUBPut(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev)
 {
-    UBPutNumTest<<<blockDim, nullptr, stream>>>(gva, dev);
+    UBPutNumTest<<<block_dim, nullptr, stream>>>(gva, dev);
 }
 
 class KernelUBGetNum {
@@ -85,7 +85,7 @@ public:
     }
     __aicore__ inline void Process()
     {
-        int totalSize = 512;
+        int total_size = 512;
         int localSize = 128;
         
         AscendC::LocalTensor<float> bufTensor = bufQueue.AllocTensor<float>();
@@ -101,12 +101,12 @@ public:
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_V>(EVENT_ID0);
 
         float scalar = 55.0f;
-        AscendC::Adds(bufTensor, bufTensor, scalar, totalSize);
+        AscendC::Adds(bufTensor, bufTensor, scalar, total_size);
 
         AscendC::SetFlag<AscendC::HardEvent::V_MTE3>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::V_MTE3>(EVENT_ID0);
 
-        AscendC::DataCopy(dstGlobal, bufTensor, totalSize);
+        AscendC::DataCopy(dstGlobal, bufTensor, total_size);
         bufQueue.FreeTensor(bufTensor);
     }
 private:
@@ -127,7 +127,7 @@ extern "C" __global__ __aicore__ void UBGetNumTest(GM_ADDR gva, GM_ADDR dev)
     op.Process();
 }
 
-void TestUBGet(uint32_t blockDim, void* stream, uint8_t* gva, uint8_t* dev)
+void TestUBGet(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev)
 {
-    UBGetNumTest<<<blockDim, nullptr, stream>>>(gva, dev);
+    UBGetNumTest<<<block_dim, nullptr, stream>>>(gva, dev);
 }

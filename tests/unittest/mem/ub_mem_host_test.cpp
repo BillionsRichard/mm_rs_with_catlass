@@ -8,54 +8,54 @@ using namespace std;
 #include "shmemi_host_common.h"
 
 #include <gtest/gtest.h>
-extern int testGNpuNum;
-extern int testFirstNpu;
-extern void TestMutilTask(std::function<void(int, int, uint64_t)> func, uint64_t localMemSize, int processCount);
-extern void TestInit(int rankId, int nRanks, uint64_t localMemSize, aclrtStream *st);
-extern void TestFinalize(aclrtStream stream, int deviceId);
+extern int test_gnpu_num;
+extern int test_first_npu;
+extern void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64_t localMemSize, int processCount);
+extern void test_init(int rank_id, int n_ranks, uint64_t localMemSize, aclrtStream *st);
+extern void test_finalize(aclrtStream stream, int device_id);
 
-extern void TestUBPut(uint32_t blockDim, void* stream, uint8_t* gva, uint8_t* devPtr);
-extern void TestUBGet(uint32_t blockDim, void* stream, uint8_t* gva, uint8_t* devPtr);
+extern void TestUBPut(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr);
+extern void TestUBGet(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr);
 
-static void TestUBPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankId, uint32_t rankSize)
+static void TestUBPutGet(aclrtStream stream, uint8_t *gva, uint32_t rank_id, uint32_t rank_size)
 {
-    int totalSize = 512;
-    size_t inputSize = totalSize * sizeof(float);
+    int total_size = 512;
+    size_t input_size = total_size * sizeof(float);
     
-    std::vector<float> input(totalSize, 0);
-    for (int i = 0; i < totalSize; i++) {
-        input[i] = (rankId * 10);
+    std::vector<float> input(total_size, 0);
+    for (int i = 0; i < total_size; i++) {
+        input[i] = (rank_id * 10);
     }
     
-    void *devPtr;
-    ASSERT_EQ(aclrtMalloc(&devPtr, inputSize, ACL_MEM_MALLOC_NORMAL_ONLY), 0);
+    void *dev_ptr;
+    ASSERT_EQ(aclrtMalloc(&dev_ptr, input_size, ACL_MEM_MALLOC_NORMAL_ONLY), 0);
 
-    ASSERT_EQ(aclrtMemcpy(devPtr, inputSize, input.data(), inputSize, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+    ASSERT_EQ(aclrtMemcpy(dev_ptr, input_size, input.data(), input_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);
 
-    uint32_t blockDim = 1;
-    void *ptr = shmem_malloc(totalSize * sizeof(float));
-    TestUBPut(blockDim, stream, (uint8_t *)ptr, (uint8_t *)devPtr);
+    uint32_t block_dim = 1;
+    void *ptr = shmem_malloc(total_size * sizeof(float));
+    TestUBPut(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);
     ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
     sleep(2);
 
-    ASSERT_EQ(aclrtMemcpy(input.data(), inputSize, ptr, inputSize, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    ASSERT_EQ(aclrtMemcpy(input.data(), input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);
 
-    string pName = "[Process " + to_string(rankId) + "] ";
+    string pName = "[Process " + to_string(rank_id) + "] ";
     std::cout << pName;
-    for (int i = 0; i < totalSize; i++) {
+    for (int i = 0; i < total_size; i++) {
         std::cout << input[i] << " ";
     }
     std::cout << std::endl;
 
-    TestUBGet(blockDim, stream, (uint8_t *)ptr, (uint8_t *)devPtr);
+    TestUBGet(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);
     ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
     sleep(2);
 
-    ASSERT_EQ(aclrtMemcpy(input.data(), inputSize, devPtr, inputSize, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    ASSERT_EQ(aclrtMemcpy(input.data(), input_size, dev_ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);
 
-    if (rankId == 0) {
+    if (rank_id == 0) {
         std::cout << pName;
-        for (int i = 0; i < totalSize; i++) {
+        for (int i = 0; i < total_size; i++) {
             std::cout << input[i] << " ";
         }
         std::cout << std::endl;
@@ -63,22 +63,22 @@ static void TestUBPutGet(aclrtStream stream, uint8_t *gva, uint32_t rankId, uint
 
     // for gtest
     int32_t flag = 0;
-    for (int i = 0; i < totalSize; i++) {
-        int golden = rankId % rankSize;
+    for (int i = 0; i < total_size; i++) {
+        int golden = rank_id % rank_size;
         if (input[i] != golden * 10 + 55.0f) flag = 1;
     }
     ASSERT_EQ(flag, 0);
 }
 
-void TestShmemUBMem(int rankId, int nRanks, uint64_t localMemSize) {
-    int32_t deviceId = rankId % testGNpuNum + testFirstNpu;
+void TestShmemUBMem(int rank_id, int n_ranks, uint64_t localMemSize) {
+    int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
     aclrtStream stream;
-    TestInit(rankId, nRanks, localMemSize, &stream);
+    test_init(rank_id, n_ranks, localMemSize, &stream);
     ASSERT_NE(stream, nullptr);
 
-    TestUBPutGet(stream, (uint8_t *)shm::gState.heapBase, rankId, nRanks);
-    std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
-    TestFinalize(stream, deviceId);
+    TestUBPutGet(stream, (uint8_t *)shm::g_state.heap_base, rank_id, n_ranks);
+    std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;
+    test_finalize(stream, device_id);
     if (::testing::Test::HasFailure()){
         exit(1);
     }
@@ -86,7 +86,7 @@ void TestShmemUBMem(int rankId, int nRanks, uint64_t localMemSize) {
 
 TEST(TestMemApi, TestShmemUBMem)
 {   
-    const int processCount = testGNpuNum;
+    const int processCount = test_gnpu_num;
     uint64_t localMemSize = 1024UL * 1024UL * 1024;
-    TestMutilTask(TestShmemUBMem, localMemSize, processCount);
+    test_mutil_task(TestShmemUBMem, localMemSize, processCount);
 }
