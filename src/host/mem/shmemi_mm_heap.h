@@ -10,42 +10,42 @@
 #include <set>
 
 namespace shm {
-struct MemoryRange {
+struct memory_range {
     const uint64_t offset;
     const uint64_t size;
 
-    MemoryRange(uint64_t o, uint64_t s) noexcept : offset{o}, size{s} {}
+    memory_range(uint64_t o, uint64_t s) noexcept : offset{o}, size{s} {}
 };
 
-struct RangeSizeFirstComparator {
-    bool operator()(const MemoryRange &mr1, const MemoryRange &mr2) const noexcept;
+struct range_size_first_comparator {
+    bool operator()(const memory_range &mr1, const memory_range &mr2) const noexcept;
 };
 
-class MemoryHeap {
+class memory_heap {
 public:
-    MemoryHeap(void *base, uint64_t size) noexcept;
-    ~MemoryHeap() noexcept;
+    memory_heap(void *base, uint64_t size) noexcept;
+    ~memory_heap() noexcept;
 
 public:
-    void *Allocate(uint64_t size) noexcept;
-    void *AlignedAllocate(uint64_t alignment, uint64_t size) noexcept;
-    bool ChangeSize(void *address, uint64_t size) noexcept;
-    int32_t Release(void *address) noexcept;
-    bool AllocatedSize(void *address, uint64_t &size) const noexcept;
+    void *allocate(uint64_t size) noexcept;
+    void *aligned_allocate(uint64_t alignment, uint64_t size) noexcept;
+    bool change_size(void *address, uint64_t size) noexcept;
+    int32_t release(void *address) noexcept;
+    bool allocated_size(void *address, uint64_t &size) const noexcept;
 
 private:
-    static uint64_t AllocateSizeAlignUp(uint64_t inputSize) noexcept;
-    static bool AlignmentMatches(const MemoryRange &mr, uint64_t alignment, uint64_t size, uint64_t &headSkip) noexcept;
-    void ReduceSizeInLock(const std::map<uint64_t, uint64_t>::iterator &pos, uint64_t newSize) noexcept;
-    bool ExpendSizeInLock(const std::map<uint64_t, uint64_t>::iterator &pos, uint64_t newSize) noexcept;
+    static uint64_t allocated_size_align_up(uint64_t input_size) noexcept;
+    static bool alignment_matches(const memory_range &mr, uint64_t alignment, uint64_t size, uint64_t &head_skip) noexcept;
+    void reduce_size_in_lock(const std::map<uint64_t, uint64_t>::iterator &pos, uint64_t new_size) noexcept;
+    bool expend_size_in_lock(const std::map<uint64_t, uint64_t>::iterator &pos, uint64_t new_size) noexcept;
 
 private:
     uint8_t *const base_;
     const uint64_t size_;
     mutable pthread_spinlock_t spinlock_{};
-    std::map<uint64_t, uint64_t> addressIdleTree_;
-    std::map<uint64_t, uint64_t> addressUsedTree_;
-    std::set<MemoryRange, RangeSizeFirstComparator> sizeIdleTree_;
+    std::map<uint64_t, uint64_t> address_idle_tree_;
+    std::map<uint64_t, uint64_t> address_used_tree_;
+    std::set<memory_range, range_size_first_comparator> size_idle_tree_;
 };
 }
 

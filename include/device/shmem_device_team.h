@@ -11,7 +11,7 @@
  */
 SHMEM_DEVICE int shmem_my_pe(void)
 {
-    return ShmemiGetState()->teamPools[SHMEM_TEAM_WORLD]->mype;
+    return shmemi_get_state()->team_pools[SHMEM_TEAM_WORLD]->mype;
 }
 
 /**
@@ -21,7 +21,7 @@ SHMEM_DEVICE int shmem_my_pe(void)
  */
 SHMEM_DEVICE int shmem_n_pes(void)
 {
-    return ShmemiGetState()->teamPools[SHMEM_TEAM_WORLD]->size;
+    return shmemi_get_state()->team_pools[SHMEM_TEAM_WORLD]->size;
 }
 
 /**
@@ -37,8 +37,8 @@ SHMEM_DEVICE int shmem_team_my_pe(shmem_team_t team)
     if (team == SHMEM_TEAM_INVALID)
         return -1;
     else {
-        ShmemiTeam *srcTeamPtr = ShmemiGetState()->teamPools[team];
-        return (srcTeamPtr != nullptr ? srcTeamPtr->mype : -1);
+        shmemi_team_t *src_team_ptr = shmemi_get_state()->team_pools[team];
+        return (src_team_ptr != nullptr ? src_team_ptr->mype : -1);
     }
 }
 
@@ -55,38 +55,38 @@ SHMEM_DEVICE int shmem_team_n_pes(shmem_team_t team)
     if (team == SHMEM_TEAM_INVALID)
         return -1;
     else {
-        ShmemiTeam *srcTeamPtr = ShmemiGetState()->teamPools[team];
-        return (srcTeamPtr != nullptr ? srcTeamPtr->size : -1);
+        shmemi_team_t *src_team_ptr = shmemi_get_state()->team_pools[team];
+        return (src_team_ptr != nullptr ? src_team_ptr->size : -1);
     }
 }
 
 /**
  * @brief Translate a given PE number in one team into the corresponding PE number in another team.
  * 
- * @param srcTeam           [in] A team handle.
- * @param srcPe             [in] The PE number in srcTeam.
- * @param destTeam          [in] A team handle.
+ * @param src_team           [in] A team handle.
+ * @param src_pe             [in] The PE number in src_team.
+ * @param dest_team          [in] A team handle.
  *
  * @return The number of PEs in the specified team. 
  *         If the team handle is NVSHMEM_TEAM_INVALID, returns -1.
  */
-SHMEM_DEVICE int shmem_team_translate_pe(shmem_team_t srcTeam, int srcPe, shmem_team_t destTeam)
+SHMEM_DEVICE int shmem_team_translate_pe(shmem_team_t src_team, int src_pe, shmem_team_t dest_team)
 {
-    if (srcTeam == SHMEM_TEAM_INVALID || destTeam == SHMEM_TEAM_INVALID) return -1;
-    __gm__ ShmemiDeviceHostState *deviceState = ShmemiGetState();
+    if (src_team == SHMEM_TEAM_INVALID || dest_team == SHMEM_TEAM_INVALID) return -1;
+    __gm__ shmemi_device_host_state_t *device_state = shmemi_get_state();
 
-    ShmemiTeam *srcTeamPtr = deviceState->teamPools[srcTeam];
-    ShmemiTeam *destTeamPtr = deviceState->teamPools[destTeam];
+    shmemi_team_t *src_team_ptr = device_state->team_pools[src_team];
+    shmemi_team_t *dest_team_ptr = device_state->team_pools[dest_team];
 
-    if (srcPe > srcTeamPtr->size) return -1;
+    if (src_pe > src_team_ptr->size) return -1;
 
-    int globalPE = srcTeamPtr->start + srcPe * srcTeamPtr->stride;
-    int peStart = destTeamPtr->start;
-    int peStride = destTeamPtr->stride;
-    int peSize = destTeamPtr->size;
+    int global_pe = src_team_ptr->start + src_pe * src_team_ptr->stride;
+    int pe_start = dest_team_ptr->start;
+    int pe_stride = dest_team_ptr->stride;
+    int pe_size = dest_team_ptr->size;
 
-    int n = (globalPE - peStart) / peStride;
-    if (globalPE < peStart || (globalPE - peStart) % peStride || n >= peSize)
+    int n = (global_pe - pe_start) / pe_stride;
+    if (global_pe < pe_start || (global_pe - pe_start) % pe_stride || n >= pe_size)
         return -1;
     
     return n;

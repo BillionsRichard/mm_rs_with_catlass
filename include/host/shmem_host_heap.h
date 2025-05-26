@@ -8,7 +8,7 @@ extern "C" {
 #endif
 
 /**
- * @brief Allocate <i>size</i> bytes and returns a pointer to the allocated memory. The memory is not initialized.
+ * @brief allocate <i>size</i> bytes and returns a pointer to the allocated memory. The memory is not initialized.
  *        If <i>size</i> is 0, then <b>shmem_malloc()</b> returns NULL.
  *
  * @param size             [in] bytes to be allocated
@@ -17,7 +17,7 @@ extern "C" {
 SHMEM_HOST_API void *shmem_malloc(size_t size);
 
 /**
- * @brief Allocate memory for an array of <i>nmemb</i> elements of <i>size</i> bytes each and returns a pointer to the
+ * @brief allocate memory for an array of <i>nmemb</i> elements of <i>size</i> bytes each and returns a pointer to the
  *        allocated memory. The memory is set to zero. If <i>nmemb</i> or <i>size</i> is 0, then <b>calloc()</b>
  *        returns either NULL.
  *
@@ -28,7 +28,7 @@ SHMEM_HOST_API void *shmem_malloc(size_t size);
 SHMEM_HOST_API void *shmem_calloc(size_t nmemb, size_t size);
 
 /**
- * @brief Allocate <i>size</i> bytes and returns a pointer to the allocated memory. The memory address will be a
+ * @brief allocate <i>size</i> bytes and returns a pointer to the allocated memory. The memory address will be a
  *        multiple of <i>alignment</i>, which must be a power of two.
  *
  * @param alignment        [in] memory address alignment

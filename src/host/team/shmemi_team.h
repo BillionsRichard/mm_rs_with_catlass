@@ -5,9 +5,9 @@
 
 namespace shm {
 
-int32_t ShmemiTeamInit(int32_t rank, int32_t size);
+int32_t shmemi_team_init(int32_t rank, int32_t size);
 
-int32_t ShmemiTeamFinalize();
+int32_t shmemi_team_finalize();
 
 }
 

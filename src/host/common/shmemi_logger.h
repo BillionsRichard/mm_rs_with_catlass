@@ -17,9 +17,9 @@
 #include <sys/syscall.h>
 
 namespace shm {
-using ExternalLog = void (*)(int32_t, const char *);
+using external_log = void (*)(int32_t, const char *);
 
-enum LogLevel : int32_t {
+enum log_level : int32_t {
     DEBUG_LEVEL = 0,
     INFO_LEVEL,
     WARN_LEVEL,
@@ -27,77 +27,77 @@ enum LogLevel : int32_t {
     BUTT_LEVEL /* no use */
 };
 
-class ShmOutLogger {
+class shm_out_logger {
 public:
-    static ShmOutLogger &Instance()
+    static shm_out_logger &Instance()
     {
-        static ShmOutLogger gLogger;
-        return gLogger;
+        static shm_out_logger g_logger;
+        return g_logger;
     }
 
-    inline void SetLogLevel(LogLevel level)
+    inline void set_log_level(log_level level)
     {
-        mLogLevel = level;
+        m_log_level = level;
     }
 
-    inline void SetExternLogFunc(ExternalLog func, bool forceUpdate = false)
+    inline void set_extern_log_func(external_log func, bool force_update = false)
     {
-        if (mLogFunc == nullptr || forceUpdate) {
-            mLogFunc = func;
+        if (m_log_func == nullptr || force_update) {
+            m_log_func = func;
         }
     }
 
-    inline void Log(int32_t level, const std::ostringstream &oss)
+    inline void log(int32_t level, const std::ostringstream &oss)
     {
-        if (mLogFunc != nullptr) {
-            mLogFunc(level, oss.str().c_str());
+        if (m_log_func != nullptr) {
+            m_log_func(level, oss.str().c_str());
             return;
         }
 
-        if (level < mLogLevel) {
+        if (level < m_log_level) {
             return;
         }
 
         struct timeval tv {};
-        char strTime[24];
+        char str_time[24];
 
         gettimeofday(&tv, nullptr);
-        time_t timeStamp = tv.tv_sec;
-        struct tm localTime {};
-        if (strftime(strTime, sizeof strTime, "%Y-%m-%d %H:%M:%S.", localtime_r(&timeStamp, &localTime)) != 0) {
-            std::cout << strTime << std::setw(6) << std::setfill('0') << tv.tv_usec << " " << LogLevelDesc(level) << " "
+        time_t time_stamp = tv.tv_sec;
+        struct tm local_time {};
+        if (strftime(str_time, sizeof str_time, "%Y-%m-%d %H:%M:%S.", localtime_r(&time_stamp, &local_time)) != 0) {
+            std::cout << str_time << std::setw(6) << std::setfill('0') << tv.tv_usec << " " << log_level_desc(level) << " "
                       << syscall(SYS_gettid) << " " << oss.str() << std::endl;
         } else {
-            std::cout << " Invalid time " << LogLevelDesc(level) << " " << syscall(SYS_gettid) << " " << oss.str()
+            std::cout << " Invalid time " << log_level_desc(level) << " " << syscall(SYS_gettid) << " " << oss.str()
                       << std::endl;
         }
     }
 
-    ShmOutLogger(const ShmOutLogger &) = delete;
-    ShmOutLogger(ShmOutLogger &&) = delete;
+    shm_out_logger(const shm_out_logger &) = delete;
+    shm_out_logger(shm_out_logger &&) = delete;
 
-    ~ShmOutLogger()
+    ~shm_out_logger()
     {
-        mLogFunc = nullptr;
+        m_log_func = nullptr;
     }
 
 private:
-    ShmOutLogger() = default;
+    shm_out_logger() = default;
 
-    inline const std::string &LogLevelDesc(int32_t level)
+    inline const std::string &log_level_desc(int32_t level)
     {
         static std::string invalid = "invalid";
         if (level < DEBUG_LEVEL || level >= BUTT_LEVEL) {
             return invalid;
         }
-        return mLogLevelDesc[level];
+        return m_log_level_desc[level];
     }
 
 private:
-    const std::string mLogLevelDesc[BUTT_LEVEL] = {"debug", "info", "warn", "error"};
+    const std::string m_log_level_desc[BUTT_LEVEL] = {"debug", "info", "warn", "error"};
 
-    LogLevel mLogLevel = INFO_LEVEL;
-    ExternalLog mLogFunc = nullptr;
+    log_level m_log_level = INFO_LEVEL;
+    external_log m_log_func = nullptr;
 };
 }  // namespace shm
 
@@ -108,7 +108,7 @@ private:
     do {                                                                               \
         std::ostringstream oss;                                                        \
         oss << "[SHMEM " << SHM_LOG_FILENAME_SHORT << ":" << __LINE__ << "] " << ARGS; \
-        shm::ShmOutLogger::Instance().Log(LEVEL, oss);                                 \
+        shm::shm_out_logger::Instance().log(LEVEL, oss);                                 \
     } while (0)
 
 #define SHM_LOG_DEBUG(ARGS) SHM_OUT_LOG(shm::DEBUG_LEVEL, ARGS)
@@ -148,10 +148,10 @@ private:
 
 #define SHMEM_CHECK_RET(x)                                       \
     do {                                                         \
-        int32_t checkRet = x;                                    \
-        if (checkRet != 0) {                                     \
-            SHM_LOG_ERROR(" return ShmemError: " << checkRet);   \
-            return checkRet;                                     \
+        int32_t check_ret = x;                                    \
+        if (check_ret != 0) {                                     \
+            SHM_LOG_ERROR(" return shmem error: " << check_ret);   \
+            return check_ret;                                     \
         }                                                        \
     } while (0);
 

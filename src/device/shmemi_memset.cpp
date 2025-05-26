@@ -5,17 +5,17 @@
 
 // kernels
 template<typename T>
-SHMEM_GLOBAL void KMemset(GM_ADDR array, int32_t len, T val) {
+SHMEM_GLOBAL void k_memset(GM_ADDR array, int32_t len, T val) {
     auto tmp = (__gm__ T *) array;
     for (int32_t i = 0; i < len; i++) {
         *tmp++ = val;
     }
 
-    DcciEntireCache();
+    dcci_entire_cache();
 } 
 
 // interfaces
-int32_t ShmemiMemset(int32_t *array, int32_t len, int32_t val) {
-    KMemset<int32_t><<<1, nullptr, nullptr>>>((uint8_t *)array, len, val);
+int32_t shmemi_memset(int32_t *array, int32_t len, int32_t val) {
+    k_memset<int32_t><<<1, nullptr, nullptr>>>((uint8_t *)array, len, val);
     return aclrtSynchronizeStream(nullptr);
 }

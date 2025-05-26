@@ -10,161 +10,161 @@
 
 namespace shm {
 /* smem functions */
-using SmemInitFunc = int32_t (*)(uint32_t);
-using SmemSetExternLoggerFunc = int32_t (*)(void (*func)(int32_t level, const char *));
-using SmemSetLogLevelFunc = int32_t (*)(int32_t);
-using SmemUnInitFunc = void (*)();
-using SmemGetLastErrMsgFunc = const char *(*)();
-using SmemGetAndClearLastErrMsgFunc = const char *(*)();
+using smem_init_func = int32_t (*)(uint32_t);
+using smem_set_extern_logger_func = int32_t (*)(void (*func)(int32_t level, const char *));
+using smem_set_log_level_func = int32_t (*)(int32_t);
+using smem_un_init_func = void (*)();
+using smem_get_last_err_msg_func = const char *(*)();
+using smem_get_and_clear_last_err_msg_func = const char *(*)();
 
 /* smem shm functions */
-using SmemShmConfigInitFunc = int32_t (*)(smem_shm_config_t *config);
-using SmemShmInitFunc = int32_t (*)(const char *, uint32_t, uint32_t, uint16_t, uint64_t, smem_shm_config_t *);
-using SmemShmUnInitFunc = void (*)(uint32_t flags);
-using SmemShmQuerySupportDataOpFunc = uint32_t (*)(void);
-using SmemShmCreateFunc = smem_shm_t (*)(uint32_t, uint32_t, uint32_t, uint64_t, smem_shm_data_op_type, uint32_t,
+using smem_shm_config_init_func = int32_t (*)(smem_shm_config_t *config);
+using smem_shm_init_func = int32_t (*)(const char *, uint32_t, uint32_t, uint16_t, uint64_t, smem_shm_config_t *);
+using smem_shm_un_init_func = void (*)(uint32_t flags);
+using smem_shm_query_support_data_op_func = uint32_t (*)(void);
+using smem_shm_create_func = smem_shm_t (*)(uint32_t, uint32_t, uint32_t, uint64_t, smem_shm_data_op_type, uint32_t,
                                          void **);
-using SmemShmDestroyFunc = int32_t (*)(smem_shm_t, uint32_t);
-using SmemShmSetExtraContextFunc = int32_t (*)(smem_shm_t, const void *, uint32_t);
-using SmemShmGetGlobalTeamFunc = smem_shm_team_t (*)(smem_shm_t);
-using SmemShmTeamGetRankFunc = uint32_t (*)(smem_shm_team_t);
-using SmemShmTeamGetSizeFunc = uint32_t (*)(smem_shm_team_t);
-using SmemShmControlBarrierFunc = int32_t (*)(smem_shm_team_t);
-using SmemShmControlAllGatherFunc = int32_t (*)(smem_shm_team_t, const char *, uint32_t, char *, uint32_t);
-using SmemShmTopoCanReachFunc = int32_t (*)(smem_shm_t, uint32_t, uint32_t *);
+using smem_shm_destroy_func = int32_t (*)(smem_shm_t, uint32_t);
+using smem_shm_set_extra_context_func = int32_t (*)(smem_shm_t, const void *, uint32_t);
+using smem_shm_get_global_team_func = smem_shm_team_t (*)(smem_shm_t);
+using smem_shm_team_get_rank_func = uint32_t (*)(smem_shm_team_t);
+using smem_shm_team_get_size_func = uint32_t (*)(smem_shm_team_t);
+using smem_shm_control_barrier_func = int32_t (*)(smem_shm_team_t);
+using smem_shm_control_all_gather_func = int32_t (*)(smem_shm_team_t, const char *, uint32_t, char *, uint32_t);
+using smem_shm_topo_can_reach_func = int32_t (*)(smem_shm_t, uint32_t, uint32_t *);
 
-class SmemApi {
+class smem_api {
 public:
-    static int32_t LoadLibrary(const std::string &libDirPath);
+    static int32_t load_library(const std::string &lib_dir_path);
 
 public:
     /* smem api */
-    static inline int32_t SmemInit(uint32_t flags)
+    static inline int32_t smem_init(uint32_t flags)
     {
-        return gSmemInit(flags);
+        return g_smem_init(flags);
     }
 
-    static inline int32_t SmemSetExternLogger(void (*func)(int32_t level, const char *msg))
+    static inline int32_t smem_set_extern_logger(void (*func)(int32_t level, const char *msg))
     {
-        return gSmemSetExternLogger(func);
+        return g_smem_set_extern_logger(func);
     }
 
-    static inline int32_t SmemSetLogLevel(int32_t level)
+    static inline int32_t smem_set_log_level(int32_t level)
     {
-        return gSmemSetLogLevel(level);
+        return g_smem_set_log_level(level);
     }
 
-    static inline void SmemUnInit()
+    static inline void smem_un_init()
     {
-        return gSmemUnInit();
+        return g_smem_un_init();
     }
 
-    static inline const char *SmemGetLastErrMsg()
+    static inline const char *smem_get_last_err_msg()
     {
-        return gSmemGetLastErrMsg();
+        return g_smem_get_last_err_msg();
     }
 
-    static inline const char *SmemGetAndClearLastErrMsg()
+    static inline const char *smem_get_and_clear_last_err_msg()
     {
-        return gSmemGetAndClearLastErrMsg();
+        return g_smem_get_and_clear_last_err_msg();
     }
 
     /* smem shm api */
-    static inline int32_t SmemShmConfigInit(smem_shm_config_t *config)
+    static inline int32_t smem_shm_config_init(smem_shm_config_t *config)
     {
-        return gSmemShmConfigInit(config);
+        return g_smem_shm_config_init(config);
     }
 
-    static inline int32_t SmemShmInit(const char *configStoreIpPort, uint32_t worldSize, uint32_t rankId,
-                                      uint16_t deviceId, uint64_t gvaSpaceSize, smem_shm_config_t *config)
+    static inline int32_t smem_shm_init(const char *config_store_ipport, uint32_t world_size, uint32_t rank_id,
+                                      uint16_t device_id, uint64_t gva_space_size, smem_shm_config_t *config)
     {
-        return gSmemShmInit(configStoreIpPort, worldSize, rankId, deviceId, gvaSpaceSize, config);
+        return g_smem_shm_init(config_store_ipport, world_size, rank_id, device_id, gva_space_size, config);
     }
 
-    static inline void SmemShmUnInit(uint32_t flags)
+    static inline void smem_shm_un_init(uint32_t flags)
     {
-        return gSmemShmUnInit(flags);
+        return g_smem_shm_un_init(flags);
     }
 
-    static inline uint32_t SmemShmQuerySupportDataOp()
+    static inline uint32_t smem_shm_query_support_data_op()
     {
-        return gSmemShmQuerySupportDataOp();
+        return g_smem_shm_query_support_data_op();
     }
 
-    static inline smem_shm_t SmemShmCreate(uint32_t id, uint32_t rankSize, uint32_t rankId, uint64_t symmetricSize,
-                                           smem_shm_data_op_type dataOpType, uint32_t flags, void **gva)
+    static inline smem_shm_t smem_shm_create(uint32_t id, uint32_t rank_size, uint32_t rank_id, uint64_t symmetric_size,
+                                           smem_shm_data_op_type data_op_type, uint32_t flags, void **gva)
     {
-        return gSmemShmCreate(id, rankSize, rankId, symmetricSize, dataOpType, flags, gva);
+        return g_smem_shm_create(id, rank_size, rank_id, symmetric_size, data_op_type, flags, gva);
     }
 
-    static inline int32_t SmemShmDestroy(smem_shm_t handle, uint32_t flags)
+    static inline int32_t smem_shm_destroy(smem_shm_t handle, uint32_t flags)
     {
-        return gSmemShmDestroy(handle, flags);
+        return g_smem_shm_destroy(handle, flags);
     }
 
-    static inline int32_t SmemShmSetExtraContext(smem_shm_t handle, const void *context, uint32_t size)
+    static inline int32_t smem_shm_set_extra_context(smem_shm_t handle, const void *context, uint32_t size)
     {
-        return gSmemShmSetExtraContext(handle, context, size);
+        return g_smem_shm_set_extra_context(handle, context, size);
     }
 
-    static inline smem_shm_team_t SmemShmGetGlobalTeam(smem_shm_t handle)
+    static inline smem_shm_team_t smem_shm_get_global_team(smem_shm_t handle)
     {
-        return gSmemShmGetGlobalTeam(handle);
+        return g_smem_shm_get_global_team(handle);
     }
 
-    static inline uint32_t SmemShmTeamGetRank(smem_shm_team_t team)
+    static inline uint32_t smem_shm_team_get_rank(smem_shm_team_t team)
     {
-        return gSmemShmTeamGetRank(team);
+        return g_smem_shm_team_get_rank(team);
     }
 
-    static inline uint32_t SmemShmTeamGetSize(smem_shm_team_t team)
+    static inline uint32_t smem_shm_team_get_size(smem_shm_team_t team)
     {
-        return gSmemShmTeamGetSize(team);
+        return g_smem_shm_team_get_size(team);
     }
 
-    static inline int32_t SmemShmControlBarrier(smem_shm_team_t team)
+    static inline int32_t smem_shm_control_barrier(smem_shm_team_t team)
     {
-        return gSmemShmControlBarrier(team);
+        return g_smem_shm_control_barrier(team);
     }
 
-    static inline int32_t SmemShmControlAllGather(smem_shm_team_t team, const char *sendBuf, uint32_t sendSize,
-                                                  char *recvBuf, uint32_t recvSize)
+    static inline int32_t smem_shm_control_all_gather(smem_shm_team_t team, const char *send_buf, uint32_t send_size,
+                                                  char *recv_buf, uint32_t recv_size)
     {
-        return gSmemShmControlAllGather(team, sendBuf, sendSize, recvBuf, recvSize);
+        return g_smem_shm_control_all_gather(team, send_buf, send_size, recv_buf, recv_size);
     }
 
-    static inline int32_t SmemShmTopoCanReach(smem_shm_t handle, uint32_t remoteRank, uint32_t *reachInfo)
+    static inline int32_t smem_shm_topo_can_reach(smem_shm_t handle, uint32_t remote_rank, uint32_t *reach_info)
     {
-        return gSmemShmTopoCanReach(handle, remoteRank, reachInfo);
+        return g_smem_shm_topo_can_reach(handle, remote_rank, reach_info);
     }
 
 private:
-    static bool gLoaded;
-    static std::mutex gMutex;
+    static bool g_loaded;
+    static std::mutex g_mutex;
 
-    static void *gSmemHandle;
-    static const char *gSmemFileName;
+    static void *g_smem_handle;
+    static const char *g_smem_file_name;
 
-    static SmemInitFunc gSmemInit;
-    static SmemSetExternLoggerFunc gSmemSetExternLogger;
-    static SmemSetLogLevelFunc gSmemSetLogLevel;
-    static SmemUnInitFunc gSmemUnInit;
-    static SmemGetLastErrMsgFunc gSmemGetLastErrMsg;
-    static SmemGetAndClearLastErrMsgFunc gSmemGetAndClearLastErrMsg;
+    static smem_init_func g_smem_init;
+    static smem_set_extern_logger_func g_smem_set_extern_logger;
+    static smem_set_log_level_func g_smem_set_log_level;
+    static smem_un_init_func g_smem_un_init;
+    static smem_get_last_err_msg_func g_smem_get_last_err_msg;
+    static smem_get_and_clear_last_err_msg_func g_smem_get_and_clear_last_err_msg;
 
-    static SmemShmConfigInitFunc gSmemShmConfigInit;
-    static SmemShmInitFunc gSmemShmInit;
-    static SmemShmUnInitFunc gSmemShmUnInit;
-    static SmemShmQuerySupportDataOpFunc gSmemShmQuerySupportDataOp;
-    static SmemShmCreateFunc gSmemShmCreate;
-    static SmemShmDestroyFunc gSmemShmDestroy;
-    static SmemShmSetExtraContextFunc gSmemShmSetExtraContext;
-    static SmemShmGetGlobalTeamFunc gSmemShmGetGlobalTeam;
-    static SmemShmTeamGetRankFunc gSmemShmTeamGetRank;
-    static SmemShmTeamGetSizeFunc gSmemShmTeamGetSize;
-    static SmemShmControlBarrierFunc gSmemShmControlBarrier;
-    static SmemShmControlAllGatherFunc gSmemShmControlAllGather;
-    static SmemShmTopoCanReachFunc gSmemShmTopoCanReach;
+    static smem_shm_config_init_func g_smem_shm_config_init;
+    static smem_shm_init_func g_smem_shm_init;
+    static smem_shm_un_init_func g_smem_shm_un_init;
+    static smem_shm_query_support_data_op_func g_smem_shm_query_support_data_op;
+    static smem_shm_create_func g_smem_shm_create;
+    static smem_shm_destroy_func g_smem_shm_destroy;
+    static smem_shm_set_extra_context_func g_smem_shm_set_extra_context;
+    static smem_shm_get_global_team_func g_smem_shm_get_global_team;
+    static smem_shm_team_get_rank_func g_smem_shm_team_get_rank;
+    static smem_shm_team_get_size_func g_smem_shm_team_get_size;
+    static smem_shm_control_barrier_func g_smem_shm_control_barrier;
+    static smem_shm_control_all_gather_func g_smem_shm_control_all_gather;
+    static smem_shm_topo_can_reach_func g_smem_shm_topo_can_reach;
 };
 }  // namespace shm
 
