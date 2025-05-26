@@ -5,6 +5,7 @@
 #include "internal/device/shmemi_device_common.h"
 #include "device/shmem_device_team.h"
 
+constexpr int ub_limit = 192 * 1024;
 
 /**
  * @brief Translate an local symmetric address to remote symmetric address on the specified PE.
@@ -424,6 +425,12 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__ubuf__ T* dst, __gm__ T* src, uint32_t
 {
     auto ptr = shmem_ptr(src, pe);
     if (ptr == nullptr) return;
+
+    // Check if Process will out of UB address.
+    int ub_offset = reinterpret_cast<uint64_t>(dst);
+    int process_num = elem_size;
+    if (ub_offset + process_num * sizeof(T) > ub_limit) return;
+
     __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
 
     smem_shm_copy_gm2ub(dst, remote_ptr, elem_size * sizeof(T));
@@ -444,6 +451,11 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::LocalTensor<T> dst, AscendC::Gl
 {
     auto ptr = shmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
     if (ptr == nullptr) return;
+
+    // Check if Process will out of UB address.
+    int ub_offset = reinterpret_cast<uint64_t>(dst.GetPhyAddr());
+    int process_num = elem_size;
+    if (ub_offset + process_num * sizeof(T) > ub_limit) return;
 
     AscendC::GlobalTensor<T> remote_buff;
     remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
@@ -468,6 +480,11 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__ubuf__ T* dst, __gm__ T* src, const no
     auto ptr = shmem_ptr(src, pe);
     if (ptr == nullptr) return;
     __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
+
+    // Check if Process will out of UB address.
+    int ub_offset = reinterpret_cast<uint64_t>(dst);
+    int process_num = (copy_params.repeat - 1) * copy_params.dst_ld + copy_params.length;
+    if (ub_offset + process_num * sizeof(T) > ub_limit) return;
 
     AscendC::GlobalTensor<T> src_tensor;
     AscendC::LocalTensor<T> ub_tensor;
@@ -503,6 +520,11 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::LocalTensor<T> dst, AscendC::Gl
     auto ptr = shmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
     if (ptr == nullptr) return;
 
+    // Check if Process will out of UB address.
+    int ub_offset = reinterpret_cast<uint64_t>(dst.GetPhyAddr());
+    int process_num = (copy_params.repeat - 1) * copy_params.dst_ld + copy_params.length;
+    if (ub_offset + process_num * sizeof(T) > ub_limit) return;
+
     AscendC::GlobalTensor<T> remote_buff;
     remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
@@ -533,6 +555,12 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __ubuf__ T* src, uint32_t
 {
     auto ptr = shmem_ptr(dst, pe);
     if (ptr == nullptr) return;
+
+    // Check if Process will out of UB address.
+    int ub_offset = reinterpret_cast<uint64_t>(src);
+    int process_num = elem_size;
+    if (ub_offset + process_num * sizeof(T) > ub_limit) return;
+
     __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
 
     smem_shm_copy_ub2gm(remote_ptr, src, elem_size * sizeof(T));
@@ -553,6 +581,12 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::L
 {
     auto ptr = shmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
     if (ptr == nullptr) return;
+
+    // Check if Process will out of UB address.
+    int ub_offset = reinterpret_cast<uint64_t>(src.GetPhyAddr());
+    int process_num = elem_size;
+    if (ub_offset + process_num * sizeof(T) > ub_limit) return;
+
     AscendC::GlobalTensor<T> remote_buff;
     remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
@@ -575,6 +609,12 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __ubuf__ T* src, const no
 {
     auto ptr = shmem_ptr(dst, pe);
     if (ptr == nullptr) return;
+
+    // Check if Process will out of UB address.
+    int ub_offset = reinterpret_cast<uint64_t>(src);
+    int process_num = (copy_params.repeat - 1) * copy_params.src_ld + copy_params.length;
+    if (ub_offset + process_num * sizeof(T) > ub_limit) return;
+
     __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
 
     AscendC::LocalTensor<T> ub_tensor;
@@ -610,6 +650,12 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::L
 {
     auto ptr = shmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
     if (ptr == nullptr) return;
+
+    // Check if Process will out of UB address.
+    int ub_offset = reinterpret_cast<uint64_t>(src.GetPhyAddr());
+    int process_num = (copy_params.repeat - 1) * copy_params.src_ld + copy_params.length;
+    if (ub_offset + process_num * sizeof(T) > ub_limit) return;
+
     AscendC::GlobalTensor<T> remote_buff;
     remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
