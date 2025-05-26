@@ -476,12 +476,11 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__ubuf__ T* dst, __gm__ T* src, const no
     srcTensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(remotePtr));
 
     uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
-    uint32_t ubStride = (copyParams.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
     AscendC::DataCopyExtParams dataCopyParamsGM2UB(
         copyParams.repeat,
         copyParams.length * sizeof(T),
         (copyParams.srcLd - copyParams.length) * sizeof(T),
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
+        (copyParams.dstLd - copyParams.length) / ELE_NUM_PER_UNIT,
         0
     );
     smem_shm_copy_gm2ub(ubTensor, srcTensor, dataCopyParamsGM2UB);
@@ -508,12 +507,11 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::LocalTensor<T> dst, AscendC::Gl
     remoteBuff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
     uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
-    uint32_t ubStride = (copyParams.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
     AscendC::DataCopyExtParams dataCopyParamsGM2UB(
         copyParams.repeat,
         copyParams.length * sizeof(T),
         (copyParams.srcLd - copyParams.length) * sizeof(T),
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
+        (copyParams.dstLd - copyParams.length) / ELE_NUM_PER_UNIT,
         0
     );
     smem_shm_copy_gm2ub(dst, remoteBuff, dataCopyParamsGM2UB);
@@ -586,11 +584,10 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __ubuf__ T* src, const no
     dstTensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(remotePtr));
 
     uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
-    uint32_t ubStride = (copyParams.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
     AscendC::DataCopyExtParams dataCopyParamsUB2GM(
         copyParams.repeat,
         copyParams.length * sizeof(T),
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
+        (copyParams.srcLd - copyParams.length) / ELE_NUM_PER_UNIT,
         (copyParams.dstLd - copyParams.length) * sizeof(T),
         0
     );
@@ -617,11 +614,10 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::L
     remoteBuff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
     uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
-    uint32_t ubStride = (copyParams.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
     AscendC::DataCopyExtParams dataCopyParamsUB2GM(
         copyParams.repeat,
         copyParams.length * sizeof(T),
-        (ubStride - copyParams.length) / ELE_NUM_PER_UNIT,
+        (copyParams.srcLd - copyParams.length) / ELE_NUM_PER_UNIT,
         (copyParams.dstLd - copyParams.length) * sizeof(T),
         0
     );
