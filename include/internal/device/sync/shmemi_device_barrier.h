@@ -21,7 +21,6 @@ SHMEM_DEVICE void shmemi_barrier_core() {
 }
 
 SHMEM_DEVICE 
-<<<<<<< HEAD
 __gm__ shmemi_sync_bit *shmemi_get_team_sync_array(shmem_team_t team_idx) {
     uint64_t addr = (uint64_t) shmemi_get_state()->sync_pool;
     addr += team_idx * SYNC_ARRAY_SIZE;
@@ -33,19 +32,6 @@ __gm__ shmemi_sync_bit *shmemi_get_team_sync_counter(shmem_team_t team_idx) {
     uint64_t addr = (uint64_t) shmemi_get_state()->sync_counter;
     addr += team_idx * SYNC_COUNTER_SIZE;
     return (__gm__ shmemi_sync_bit *) addr;
-=======
-__gm__ ShmemiSyncBit *shmemi_get_team_sync_array(shmem_team_t teamIdx) {
-    uint64_t addr = (uint64_t) shmemi_get_state()->syncPool;
-    addr += teamIdx * SYNC_ARRAY_SIZE;
-    return (__gm__ ShmemiSyncBit *) addr;
-}
-
-SHMEM_DEVICE 
-__gm__ ShmemiSyncBit *shmemi_get_team_sync_counter(shmem_team_t teamIdx) {
-    uint64_t addr = (uint64_t) shmemi_get_state()->syncCounter;
-    addr += teamIdx * SYNC_COUNTER_SIZE;
-    return (__gm__ ShmemiSyncBit *) addr;
->>>>>>> d33367b... remove redundant code
 }
 
 /* Level 2: barrier between devices (within a host)
