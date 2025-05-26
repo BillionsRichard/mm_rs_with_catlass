@@ -32,7 +32,7 @@ typedef struct {
 typedef struct {
     data_op_engine_type_t data_op_engine_type; // 数据引擎
     // timeout
-    uint32_t it_timeout;
+    uint32_t shm_init_timeout;
     uint32_t shm_create_timeout;
     uint32_t control_operation_timeout;
 } shmem_init_optional_attr_t;
