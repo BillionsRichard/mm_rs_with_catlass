@@ -32,7 +32,7 @@
  * @param tid              [in] team to do barrier
  */
 SHMEM_DEVICE void shmem_barrier(shmem_team_t tid) {
-    ShmemiBarrier<false>(tid);
+    shmemi_barrier<false>(tid);
 }
 
 /**
@@ -49,7 +49,7 @@ SHMEM_DEVICE void shmem_barrier_all() {
  * @param tid              [in] team to do barrier
  */
 SHMEM_DEVICE void shmemx_barrier_vec(shmem_team_t tid) {
-    ShmemiBarrier<true>(tid);
+    shmemi_barrier<true>(tid);
 }
 
 /**
@@ -66,7 +66,7 @@ SHMEM_DEVICE void shmemx_barrier_all_vec() {
  *           All operations of the calling thread before the primitive are completed.
  */
 SHMEM_DEVICE void shmem_quiet() {
-    ShmemiQuiet();
+    shmemi_quiet();
 }
 
 /**
@@ -75,7 +75,7 @@ SHMEM_DEVICE void shmem_quiet() {
  *       Implemented same as shmem_quiet().
  */
 SHMEM_DEVICE void shmem_fence() {
-    ShmemiQuiet();
+    shmemi_quiet();
 }
 
 #endif

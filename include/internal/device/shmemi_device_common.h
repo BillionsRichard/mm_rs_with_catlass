@@ -6,37 +6,37 @@
 
 #include "lowlevel/smem_shm_aicore_base_api.h"
 
-SHMEM_DEVICE __gm__ ShmemiDeviceHostState *ShmemiGetState() {
-    return reinterpret_cast<__gm__ ShmemiDeviceHostState *>(smem_shm_get_extra_context_addr());
+SHMEM_DEVICE __gm__ shmemi_device_host_state_t *shmemi_get_state() {
+    return reinterpret_cast<__gm__ shmemi_device_host_state_t *>(smem_shm_get_extra_context_addr());
 }
 
-SHMEM_DEVICE int ShmemiGetMyPe() {
-    return ShmemiGetState()->mype;
+SHMEM_DEVICE int shmemi_get_my_pe() {
+    return shmemi_get_state()->mype;
 }
 
-SHMEM_DEVICE int ShmemiGetTotalPe() {
-    return ShmemiGetState()->npes;
+SHMEM_DEVICE int shmemi_get_total_pe() {
+    return shmemi_get_state()->npes;
 }
 
-SHMEM_DEVICE uint64_t ShmemiGetHeapSize() {
-    return ShmemiGetState()->heapSize;
+SHMEM_DEVICE uint64_t shmemi_get_heap_size() {
+    return shmemi_get_state()->heap_size;
 }
 
 template<typename T>
-SHMEM_DEVICE void ShmemiStore(__gm__ uint8_t *addr, T val) {
+SHMEM_DEVICE void shmemi_store(__gm__ uint8_t *addr, T val) {
     *((__gm__ T *)addr) = val;
 }
 
 template<typename T>
-SHMEM_DEVICE T ShmemiLoad(__gm__ uint8_t *cache) {
+SHMEM_DEVICE T shmemi_load(__gm__ uint8_t *cache) {
     return *((__gm__ T *)cache);
 }
 
-SHMEM_DEVICE __gm__ uint8_t *ShmemiPtr(__gm__ uint8_t *local, int pe) {
-    uint64_t shmSize = ShmemiGetHeapSize();
-    int myPe = ShmemiGetMyPe();
+SHMEM_DEVICE __gm__ uint8_t *shmemi_ptr(__gm__ uint8_t *local, int pe) {
+    uint64_t shm_size = shmemi_get_heap_size();
+    int my_pe = shmemi_get_my_pe();
 
-    uint64_t remote = reinterpret_cast<uint64_t>(local) + shmSize * (pe - myPe);
+    uint64_t remote = reinterpret_cast<uint64_t>(local) + shm_size * (pe - my_pe);
     return reinterpret_cast<__gm__ uint8_t*>(remote);
 }
 #endif

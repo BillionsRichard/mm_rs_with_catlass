@@ -3,7 +3,7 @@
 
 #include "device/shmem_device_def.h"
 
-SHMEM_DEVICE void DcciCacheline(__gm__ uint8_t * addr) {
+SHMEM_DEVICE void dcci_cacheline(__gm__ uint8_t * addr) {
     using namespace AscendC;
     GlobalTensor<uint8_t> global;
     global.SetGlobalBuffer(addr);
@@ -14,7 +14,7 @@ SHMEM_DEVICE void DcciCacheline(__gm__ uint8_t * addr) {
     __asm__ __volatile__("");
 }
 
-SHMEM_DEVICE void DcciEntireCache() {
+SHMEM_DEVICE void dcci_entire_cache() {
     using namespace AscendC;
     GlobalTensor<uint8_t> global;
     

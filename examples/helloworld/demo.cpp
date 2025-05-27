@@ -14,19 +14,19 @@
 
 int main(int argc, char* argv[]) 
 {
-    int nRanks = atoi(argv[1]);
-    int rankId = atoi(argv[2]);
+    int n_ranks = atoi(argv[1]);
+    int rank_id = atoi(argv[2]);
     char* Ipport = new char[20];
     strcpy(Ipport, argv[3]);
-    uint64_t localMemSize = 1024UL * 1024UL * 1024;
-    int testGNpuNum = 8;
-    std::cout << "[TEST] input rank_size: " << nRanks << " rank_id:" << rankId << " input_ip: " << Ipport << std::endl;
-    uint32_t deviceId = rankId % testGNpuNum;
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    int test_gnpu_num = 8;
+    std::cout << "[TEST] input rank_size: " << n_ranks << " rank_id:" << rank_id << " input_ip: " << Ipport << std::endl;
+    uint32_t device_id = rank_id % test_gnpu_num;
     int status = SHMEM_SUCCESS;
     CHECK_ACL(aclInit(nullptr));
-    CHECK_ACL(aclrtSetDevice(deviceId));
+    CHECK_ACL(aclrtSetDevice(device_id));
     shmem_init_attr_t *attributes;
-    status = shmem_set_attr(rankId, nRanks, localMemSize, Ipport, &attributes);
+    status = shmem_set_attr(rank_id, n_ranks, local_mem_size, Ipport, &attributes);
     delete[] Ipport;
     if ( status != SHMEM_SUCCESS) {
         std::cout << "[ERROR] demo run failed!" << std::endl;
@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
         std::cout << "[ERROR] demo run failed!" << std::endl;
         std::exit(status);
     }
-    CHECK_ACL(aclrtResetDevice(deviceId));
+    CHECK_ACL(aclrtResetDevice(device_id));
     aclFinalize();
     std::cout << "[SUCCESS] demo run success!" << std::endl;
 }

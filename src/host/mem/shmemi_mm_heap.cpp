@@ -2,7 +2,7 @@
 #include "shmemi_mm_heap.h"
 
 namespace shm {
-bool RangeSizeFirstComparator::operator()(const MemoryRange &mr1, const MemoryRange &mr2) const noexcept
+bool range_size_first_comparator::operator()(const memory_range &mr1, const memory_range &mr2) const noexcept
 {
     if (mr1.size != mr2.size) {
         return mr1.size < mr2.size;
@@ -11,59 +11,59 @@ bool RangeSizeFirstComparator::operator()(const MemoryRange &mr1, const MemoryRa
     return mr1.offset < mr2.offset;
 }
 
-MemoryHeap::MemoryHeap(void *base, uint64_t size) noexcept : base_{reinterpret_cast<uint8_t *>(base)}, size_{size}
+memory_heap::memory_heap(void *base, uint64_t size) noexcept : base_{reinterpret_cast<uint8_t *>(base)}, size_{size}
 {
     pthread_spin_init(&spinlock_, 0);
-    addressIdleTree_[0] = size;
-    sizeIdleTree_.insert({0, size});
+    address_idle_tree_[0] = size;
+    size_idle_tree_.insert({0, size});
 }
 
-MemoryHeap::~MemoryHeap() noexcept
+memory_heap::~memory_heap() noexcept
 {
     pthread_spin_destroy(&spinlock_);
 }
 
-void *MemoryHeap::Allocate(uint64_t size) noexcept
+void *memory_heap::allocate(uint64_t size) noexcept
 {
     if (size == 0) {
         SHM_LOG_ERROR("cannot allocate with size 0.");
         return nullptr;
     }
 
-    auto alignedSize = AllocateSizeAlignUp(size);
-    MemoryRange anchor{0, alignedSize};
+    auto aligned_size = allocated_size_align_up(size);
+    memory_range anchor{0, aligned_size};
 
     pthread_spin_lock(&spinlock_);
-    auto sizePos = sizeIdleTree_.lower_bound(anchor);
-    if (sizePos == sizeIdleTree_.end()) {
+    auto size_pos = size_idle_tree_.lower_bound(anchor);
+    if (size_pos == size_idle_tree_.end()) {
         pthread_spin_unlock(&spinlock_);
         SHM_LOG_ERROR("cannot allocate with size: " << size);
         return nullptr;
     }
 
-    auto targetOffset = sizePos->offset;
-    auto targetSize = sizePos->size;
-    auto addrPos = addressIdleTree_.find(targetOffset);
-    if (addrPos == addressIdleTree_.end()) {
+    auto target_offset = size_pos->offset;
+    auto target_size = size_pos->size;
+    auto addr_pos = address_idle_tree_.find(target_offset);
+    if (addr_pos == address_idle_tree_.end()) {
         pthread_spin_unlock(&spinlock_);
-        SHM_LOG_ERROR("offset(" << targetOffset << ") size(" << targetSize << ") in size tree, not in address tree.");
+        SHM_LOG_ERROR("offset(" << target_offset << ") size(" << target_size << ") in size tree, not in address tree.");
         return nullptr;
     }
 
-    sizeIdleTree_.erase(sizePos);
-    addressIdleTree_.erase(addrPos);
-    addressUsedTree_.emplace(targetOffset, alignedSize);
-    if (targetSize > alignedSize) {
-        MemoryRange left{targetOffset + alignedSize, targetSize - alignedSize};
-        addressIdleTree_.emplace(left.offset, left.size);
-        sizeIdleTree_.emplace(left);
+    size_idle_tree_.erase(size_pos);
+    address_idle_tree_.erase(addr_pos);
+    address_used_tree_.emplace(target_offset, aligned_size);
+    if (target_size > aligned_size) {
+        memory_range left{target_offset + aligned_size, target_size - aligned_size};
+        address_idle_tree_.emplace(left.offset, left.size);
+        size_idle_tree_.emplace(left);
     }
     pthread_spin_unlock(&spinlock_);
 
-    return base_ + targetOffset;
+    return base_ + target_offset;
 }
 
-void *MemoryHeap::AlignedAllocate(uint64_t alignment, uint64_t size) noexcept
+void *memory_heap::aligned_allocate(uint64_t alignment, uint64_t size) noexcept
 {
     if (size == 0 || alignment == 0) {
         SHM_LOG_ERROR("alignment and size should not be zero.");
@@ -75,45 +75,45 @@ void *MemoryHeap::AlignedAllocate(uint64_t alignment, uint64_t size) noexcept
         return nullptr;
     }
 
-    uint64_t headSkip = 0;
-    auto alignedSize = AllocateSizeAlignUp(size);
-    MemoryRange anchor{0, alignedSize};
+    uint64_t head_skip = 0;
+    auto aligned_size = allocated_size_align_up(size);
+    memory_range anchor{0, aligned_size};
 
     pthread_spin_lock(&spinlock_);
-    auto sizePos = sizeIdleTree_.lower_bound(anchor);
-    while (sizePos != sizeIdleTree_.end() && !AlignmentMatches(*sizePos, alignment, alignedSize, headSkip)) {
-        ++sizePos;
+    auto size_pos = size_idle_tree_.lower_bound(anchor);
+    while (size_pos != size_idle_tree_.end() && !alignment_matches(*size_pos, alignment, aligned_size, head_skip)) {
+        ++size_pos;
     }
 
-    if (sizePos == sizeIdleTree_.end()) {
+    if (size_pos == size_idle_tree_.end()) {
         pthread_spin_unlock(&spinlock_);
         SHM_LOG_ERROR("cannot allocate with size: " << size << ", alignment: " << alignment);
         return nullptr;
     }
 
-    auto targetOffset = sizePos->offset;
-    auto targetSize = sizePos->size;
-    MemoryRange resultRange{sizePos->offset + headSkip, alignedSize};
-    sizeIdleTree_.erase(sizePos);
+    auto target_offset = size_pos->offset;
+    auto target_size = size_pos->size;
+    memory_range result_range{size_pos->offset + head_skip, aligned_size};
+    size_idle_tree_.erase(size_pos);
 
-    if (headSkip > 0) {
-        sizeIdleTree_.emplace(MemoryRange{targetOffset, headSkip});
-        addressIdleTree_.emplace(targetOffset, headSkip);
+    if (head_skip > 0) {
+        size_idle_tree_.emplace(memory_range{target_offset, head_skip});
+        address_idle_tree_.emplace(target_offset, head_skip);
     }
 
-    if (headSkip + alignedSize < targetSize) {
-        MemoryRange leftMR{targetOffset + headSkip + alignedSize, targetSize - headSkip - alignedSize};
-        sizeIdleTree_.emplace(leftMR);
-        addressIdleTree_.emplace(leftMR.offset, leftMR.size);
+    if (head_skip + aligned_size < target_size) {
+        memory_range leftMR{target_offset + head_skip + aligned_size, target_size - head_skip - aligned_size};
+        size_idle_tree_.emplace(leftMR);
+        address_idle_tree_.emplace(leftMR.offset, leftMR.size);
     }
 
-    addressUsedTree_.emplace(resultRange.offset, resultRange.size);
+    address_used_tree_.emplace(result_range.offset, result_range.size);
     pthread_spin_unlock(&spinlock_);
 
-    return base_ + resultRange.offset;
+    return base_ + result_range.offset;
 }
 
-bool MemoryHeap::ChangeSize(void *address, uint64_t size) noexcept
+bool memory_heap::change_size(void *address, uint64_t size) noexcept
 {
     auto u8a = reinterpret_cast<uint8_t *>(address);
     if (u8a < base_ || u8a >= base_ + size_) {
@@ -122,14 +122,14 @@ bool MemoryHeap::ChangeSize(void *address, uint64_t size) noexcept
     }
 
     if (size == 0) {
-        Release(address);
+        release(address);
         return true;
     }
 
     auto offset = u8a - base_;
     pthread_spin_lock(&spinlock_);
-    auto pos = addressUsedTree_.find(offset);
-    if (pos == addressUsedTree_.end()) {
+    auto pos = address_used_tree_.find(offset);
+    if (pos == address_used_tree_.end()) {
         pthread_spin_unlock(&spinlock_);
         SHM_LOG_ERROR("change size for address " << address << " not allocated.");
         return false;
@@ -143,19 +143,19 @@ bool MemoryHeap::ChangeSize(void *address, uint64_t size) noexcept
 
     // 缩小size
     if (pos->second > size) {
-        ReduceSizeInLock(pos, size);
+        reduce_size_in_lock(pos, size);
         pthread_spin_unlock(&spinlock_);
         return true;
     }
 
     // 扩大size
-    auto success = ExpendSizeInLock(pos, size);
+    auto success = expend_size_in_lock(pos, size);
     pthread_spin_unlock(&spinlock_);
 
     return success;
 }
 
-int32_t MemoryHeap::Release(void *address) noexcept
+int32_t memory_heap::release(void *address) noexcept
 {
     auto u8a = reinterpret_cast<uint8_t *>(address);
     if (u8a < base_ || u8a >= base_ + size_) {
@@ -165,44 +165,44 @@ int32_t MemoryHeap::Release(void *address) noexcept
 
     auto offset = u8a - base_;
     pthread_spin_lock(&spinlock_);
-    auto pos = addressUsedTree_.find(offset);
-    if (pos == addressUsedTree_.end()) {
+    auto pos = address_used_tree_.find(offset);
+    if (pos == address_used_tree_.end()) {
         pthread_spin_unlock(&spinlock_);
         SHM_LOG_ERROR("release address " << address << " not allocated.");
         return -1;
     }
 
     auto size = pos->second;
-    uint64_t finalOffset = offset;
-    uint64_t finalSize = size;
-    addressUsedTree_.erase(pos);
+    uint64_t final_offset = offset;
+    uint64_t final_size = size;
+    address_used_tree_.erase(pos);
 
-    auto prevAddrPos = addressIdleTree_.lower_bound(offset);
-    if (prevAddrPos != addressIdleTree_.begin()) {
-        --prevAddrPos;
-        if (prevAddrPos != addressIdleTree_.end() && prevAddrPos->first + prevAddrPos->second == offset) {
+    auto prev_addr_pos = address_idle_tree_.lower_bound(offset);
+    if (prev_addr_pos != address_idle_tree_.begin()) {
+        --prev_addr_pos;
+        if (prev_addr_pos != address_idle_tree_.end() && prev_addr_pos->first + prev_addr_pos->second == offset) {
             // 合并前一个range
-            finalOffset = prevAddrPos->first;
-            finalSize += prevAddrPos->second;
-            addressIdleTree_.erase(prevAddrPos);
-            sizeIdleTree_.erase(MemoryRange{prevAddrPos->first, prevAddrPos->second});
+            final_offset = prev_addr_pos->first;
+            final_size += prev_addr_pos->second;
+            address_idle_tree_.erase(prev_addr_pos);
+            size_idle_tree_.erase(memory_range{prev_addr_pos->first, prev_addr_pos->second});
         }
     }
 
-    auto nextAddrPos = addressIdleTree_.find(offset + size);
-    if (nextAddrPos != addressIdleTree_.end()) {  // 合并后一个range
-        finalSize += nextAddrPos->second;
-        addressIdleTree_.erase(nextAddrPos);
-        sizeIdleTree_.erase(MemoryRange{nextAddrPos->first, nextAddrPos->second});
+    auto next_addr_pos = address_idle_tree_.find(offset + size);
+    if (next_addr_pos != address_idle_tree_.end()) {  // 合并后一个range
+        final_size += next_addr_pos->second;
+        address_idle_tree_.erase(next_addr_pos);
+        size_idle_tree_.erase(memory_range{next_addr_pos->first, next_addr_pos->second});
     }
-    addressIdleTree_.emplace(finalOffset, finalSize);
-    sizeIdleTree_.emplace(MemoryRange{finalOffset, finalSize});
+    address_idle_tree_.emplace(final_offset, final_size);
+    size_idle_tree_.emplace(memory_range{final_offset, final_size});
     pthread_spin_unlock(&spinlock_);
 
     return 0;
 }
 
-bool MemoryHeap::AllocatedSize(void *address, uint64_t &size) const noexcept
+bool memory_heap::allocated_size(void *address, uint64_t &size) const noexcept
 {
     auto u8a = reinterpret_cast<uint8_t *>(address);
     if (u8a < base_ || u8a >= base_ + size_) {
@@ -213,8 +213,8 @@ bool MemoryHeap::AllocatedSize(void *address, uint64_t &size) const noexcept
     auto offset = u8a - base_;
     bool exist = false;
     pthread_spin_lock(&spinlock_);
-    auto pos = addressUsedTree_.find(offset);
-    if (pos != addressUsedTree_.end()) {
+    auto pos = address_used_tree_.find(offset);
+    if (pos != address_used_tree_.end()) {
         exist = true;
         size = pos->second;
     }
@@ -223,66 +223,66 @@ bool MemoryHeap::AllocatedSize(void *address, uint64_t &size) const noexcept
     return exist;
 }
 
-uint64_t MemoryHeap::AllocateSizeAlignUp(uint64_t inputSize) noexcept
+uint64_t memory_heap::allocated_size_align_up(uint64_t input_size) noexcept
 {
-    constexpr uint64_t alignSize = 16UL;
-    constexpr uint64_t alignSizeMask = ~(alignSize - 1UL);
-    return (inputSize + alignSize - 1UL) & alignSizeMask;
+    constexpr uint64_t align_size = 16UL;
+    constexpr uint64_t align_size_mask = ~(align_size - 1UL);
+    return (input_size + align_size - 1UL) & align_size_mask;
 }
 
-bool MemoryHeap::AlignmentMatches(const MemoryRange &mr, uint64_t alignment, uint64_t size, uint64_t &headSkip) noexcept
+bool memory_heap::alignment_matches(const memory_range &mr, uint64_t alignment, uint64_t size, uint64_t &head_skip) noexcept
 {
     if (mr.size < size) {
         return false;
     }
 
     if ((mr.offset & (alignment - 1UL)) == 0UL) {
-        headSkip = 0;
+        head_skip = 0;
         return true;
     }
 
-    auto alignedOffset = ((mr.offset + alignment - 1UL) & (~(alignment - 1UL)));
-    headSkip = alignedOffset - mr.offset;
-    return mr.size >= size + headSkip;
+    auto aligned_offset = ((mr.offset + alignment - 1UL) & (~(alignment - 1UL)));
+    head_skip = aligned_offset - mr.offset;
+    return mr.size >= size + head_skip;
 }
 
-void MemoryHeap::ReduceSizeInLock(const std::map<uint64_t, uint64_t>::iterator &pos, uint64_t newSize) noexcept
+void memory_heap::reduce_size_in_lock(const std::map<uint64_t, uint64_t>::iterator &pos, uint64_t new_size) noexcept
 {
     auto offset = pos->first;
-    auto oldSize = pos->second;
-    pos->second = newSize;
-    auto nextAddrPos = addressIdleTree_.find(offset + oldSize);
-    if (nextAddrPos == addressIdleTree_.end()) {
-        addressIdleTree_.emplace(offset + newSize, oldSize - newSize);
-        sizeIdleTree_.emplace(MemoryRange{offset + newSize, oldSize - newSize});
+    auto old_size = pos->second;
+    pos->second = new_size;
+    auto next_addr_pos = address_idle_tree_.find(offset + old_size);
+    if (next_addr_pos == address_idle_tree_.end()) {
+        address_idle_tree_.emplace(offset + new_size, old_size - new_size);
+        size_idle_tree_.emplace(memory_range{offset + new_size, old_size - new_size});
     } else {
-        auto nextSizePos = sizeIdleTree_.find(MemoryRange{nextAddrPos->first, nextAddrPos->second});
-        sizeIdleTree_.erase(nextSizePos);
-        nextAddrPos->second += (oldSize - newSize);
-        sizeIdleTree_.emplace(MemoryRange{nextAddrPos->first, nextAddrPos->second});
+        auto next_size_pos = size_idle_tree_.find(memory_range{next_addr_pos->first, next_addr_pos->second});
+        size_idle_tree_.erase(next_size_pos);
+        next_addr_pos->second += (old_size - new_size);
+        size_idle_tree_.emplace(memory_range{next_addr_pos->first, next_addr_pos->second});
     }
 }
 
-bool MemoryHeap::ExpendSizeInLock(const std::map<uint64_t, uint64_t>::iterator &pos, uint64_t newSize) noexcept
+bool memory_heap::expend_size_in_lock(const std::map<uint64_t, uint64_t>::iterator &pos, uint64_t new_size) noexcept
 {
     auto offset = pos->first;
-    auto oldSize = pos->second;
-    auto delta = newSize - oldSize;
+    auto old_size = pos->second;
+    auto delta = new_size - old_size;
 
-    auto nextAddrPos = addressIdleTree_.find(offset + oldSize);
-    if (nextAddrPos == addressIdleTree_.end() || nextAddrPos->second < delta) {
+    auto next_addr_pos = address_idle_tree_.find(offset + old_size);
+    if (next_addr_pos == address_idle_tree_.end() || next_addr_pos->second < delta) {
         return false;
     }
 
-    pos->second = newSize;
-    auto nextSizePos = sizeIdleTree_.find(MemoryRange{nextAddrPos->first, nextAddrPos->second});
-    if (nextAddrPos->second == delta) {
-        sizeIdleTree_.erase(nextSizePos);
-        addressIdleTree_.erase(nextAddrPos);
+    pos->second = new_size;
+    auto next_size_pos = size_idle_tree_.find(memory_range{next_addr_pos->first, next_addr_pos->second});
+    if (next_addr_pos->second == delta) {
+        size_idle_tree_.erase(next_size_pos);
+        address_idle_tree_.erase(next_addr_pos);
     } else {
-        sizeIdleTree_.erase(nextSizePos);
-        nextAddrPos->second -= delta;
-        sizeIdleTree_.emplace(MemoryRange{nextAddrPos->first, nextAddrPos->second});
+        size_idle_tree_.erase(next_size_pos);
+        next_addr_pos->second -= delta;
+        size_idle_tree_.emplace(memory_range{next_addr_pos->first, next_addr_pos->second});
     }
 
     return true;

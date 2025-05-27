@@ -55,35 +55,35 @@ enum shmem_init_status_t{
  * @brief Optional parameter for the attributes used for initialization.
  *
  * - int version: version
- * - data_op_engine_type_t dataOpEngineType: dataOpEngineType
- * - uint32_t shmInitTimeout: shmInitTimeout
- * - uint32_t shmCreateTimeout: shmCreateTimeout
- * - uint32_t controlOperationTimeout: controlOperationTimeout
+ * - data_op_engine_type_t data_op_engine_type: data_op_engine_type
+ * - uint32_t shm_init_timeout: shm_init_timeout
+ * - uint32_t shm_create_timeout: shm_create_timeout
+ * - uint32_t control_operation_timeout: control_operation_timeout
 */
 typedef struct {
     int version;
-    data_op_engine_type_t dataOpEngineType;
-    uint32_t shmInitTimeout;
-    uint32_t shmCreateTimeout;
-    uint32_t controlOperationTimeout;
+    data_op_engine_type_t data_op_engine_type;
+    uint32_t shm_init_timeout;
+    uint32_t shm_create_timeout;
+    uint32_t control_operation_timeout;
 } shmem_init_optional_attr_t;
 
 /**
  * @struct shmem_init_attr_t
  * @brief Mandatory parameter for attributes used for initialization.
  *
- * - int myRank: The rank of the current process.
- * - int nRanks: The total rank number of all processes.
- * - const char* ipPort: The ip and port of the communication server. The port must not conflict with other modules and processes.
- * - uint64_t localMemSize: The size of shared memory currently occupied by current rank.
- * - shmem_init_optional_attr_t optionAttr: Optional Parameters.
+ * - int my_rank: The rank of the current process.
+ * - int n_ranks: The total rank number of all processes.
+ * - const char* ip_port: The ip and port of the communication server. The port must not conflict with other modules and processes.
+ * - uint64_t local_mem_size: The size of shared memory currently occupied by current rank.
+ * - shmem_init_optional_attr_t option_attr: Optional Parameters.
 */
 typedef struct {
-    int myRank;      
-    int nRanks;  
-    const char* ipPort; 
-    uint64_t localMemSize; 
-    shmem_init_optional_attr_t optionAttr;  
+    int my_rank;      
+    int n_ranks;  
+    const char* ip_port; 
+    uint64_t local_mem_size; 
+    shmem_init_optional_attr_t option_attr;  
 } shmem_init_attr_t;
 
 /**@} */ // end of group_structs

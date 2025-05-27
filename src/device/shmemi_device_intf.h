@@ -5,8 +5,8 @@
 #include "host_device/shmem_types.h"
 
 // internal kernels
-int32_t ShmemiMemset(int32_t *array, int32_t len, int32_t val);
+int32_t shmemi_memset(int32_t *array, int32_t len, int32_t val);
 
-int32_t ShmemiBarrierOnStream(shmem_team_t tid, void *stream);
+int32_t shmemi_barrier_on_stream(shmem_team_t tid, void *stream);
 
 #endif
