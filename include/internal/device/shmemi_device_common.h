@@ -32,11 +32,12 @@ SHMEM_DEVICE T shmemi_load(__gm__ uint8_t *cache) {
     return *((__gm__ T *)cache);
 }
 
-SHMEM_DEVICE __gm__ uint8_t *shmemi_ptr(__gm__ uint8_t *local, int pe) {
+template<typename T>
+SHMEM_DEVICE __gm__ T *shmemi_ptr(__gm__ T *local, int pe) {
     uint64_t shm_size = shmemi_get_heap_size();
     int my_pe = shmemi_get_my_pe();
 
     uint64_t remote = reinterpret_cast<uint64_t>(local) + shm_size * (pe - my_pe);
-    return reinterpret_cast<__gm__ uint8_t*>(remote);
+    return reinterpret_cast<__gm__ T*>(remote);
 }
 #endif
