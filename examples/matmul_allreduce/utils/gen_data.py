@@ -2,7 +2,7 @@ import numpy as np
 import os
 
 def gen_random_data(size, dtype):
-    if dtype == torch.float16 or dtype == torch.float32:
+    if dtype == np.float16 or dtype == np.float32:
         return np.random.uniform(size=size).astype(dtype)
     else:
         print(f"Invalid dtype: {dtype}.")
