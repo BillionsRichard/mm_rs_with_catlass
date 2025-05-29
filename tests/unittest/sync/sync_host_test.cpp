@@ -113,7 +113,7 @@ static void test_barrier_black_box(int32_t rank_id, int32_t n_ranks, uint64_t lo
 
 static void test_p2p(int rank_id, int rank_size, uint64_t local_mem_size) {
     aclrtStream stream;
-    TestInit(rank_id, rank_size, local_mem_size, &stream);
+    test_init(rank_id, rank_size, local_mem_size, &stream);
 
     int32_t *addr_dev = (int32_t *)shmem_malloc(sizeof(int32_t));
     ASSERT_EQ(aclrtMemset(addr_dev, sizeof(int32_t), 0, sizeof(int32_t)), 0);
