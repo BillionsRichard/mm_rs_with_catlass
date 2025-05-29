@@ -54,7 +54,7 @@ GLIBC >= 2.28
     ```
     出现提示`xxx install success!`则安装成功
 
-## 执行样例 matmul_allreduce算子。 
+## 执行样例 matmul_allreduce算子
 1.在3rdparty目录下, clone AscendC Templates代码仓：
 
 ```sh
