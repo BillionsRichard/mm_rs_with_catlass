@@ -1,13 +1,9 @@
-import torch
-import torch_npu
 import numpy as np
 import os
 
 def gen_random_data(size, dtype):
     if dtype == torch.float16 or dtype == torch.float32:
-        return torch.randn(size=size, dtype=dtype, device='cpu')
-    elif dtype == torch.int8:
-        return torch.randint(-16, 16, size=size, dtype=dtype, device='cpu')
+        return np.random.uniform(size=size).astype(dtype)
     else:
         print(f"Invalid dtype: {dtype}.")
         exit(1)
@@ -25,16 +21,16 @@ def gen_golden_data():
     args = parser.parse_args()
     M, N, K = args.m, args.n, args.k
 
-    out_data_type = torch.float32 if args.out_data_type == 0 else torch.float16
+    out_data_type = np.float32 if args.out_data_type == 0 else np.float16
 
-    a_gm = gen_random_data([M, K], torch.float16)
-    b_gm = gen_random_data([K, N], torch.float16)
-    c_gm = torch.zeros(size=[M, N], dtype=torch.float16, device='cpu')
+    a_gm = gen_random_data((M, K), np.float16)
+    b_gm = gen_random_data((K, N), np.float16)
+    c_gm = np.zeros(size=(M, N), dtype=np.float16)
 
-    l0c_dtype = torch.float32
-    matrix_c = torch.matmul(a_gm.to(l0c_dtype), b_gm.to(l0c_dtype)).to(out_data_type)
+    l0c_dtype = np.float32
+    matrix_c = np.matmul(a_gm.astype(l0c_dtype), b_gm.astype(l0c_dtype)).astype(out_data_type)
 
-    golden = torch.zeros_like(matrix_c)
+    golden = np.zeros_like(matrix_c)
     for _ in range(args.rank_size):
         golden += matrix_c
 
@@ -43,10 +39,10 @@ def gen_golden_data():
     if args.transB:
         b_gm = b_gm.transpose(0, 1).contiguous()
 
-    a_gm.numpy().tofile("./out/a_gm.bin")
-    b_gm.numpy().tofile("./out/b_gm.bin")
-    c_gm.numpy().tofile("./out/c_gm.bin")
-    golden.numpy().tofile("./out/golden.bin")
+    a_gm.tofile("./out/a_gm.bin")
+    b_gm.tofile("./out/b_gm.bin")
+    c_gm.tofile("./out/c_gm.bin")
+    golden.tofile("./out/golden.bin")
 
 if __name__ == '__main__':
     gen_golden_data()

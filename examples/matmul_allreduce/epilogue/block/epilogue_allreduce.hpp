@@ -193,10 +193,12 @@ public:
                 uint32_t processLoop = processCount.row() * processCount.column();
 
                 // [ReduceScatter] 1. Alloc TmpUB
+                int tmpBufferLen = 32 * 1024;   // 32 KB
                 AscendC::LocalTensor<half> tmpBuffer1 = resource.ubBuf.template GetBufferByByte<ElementC>(0);
-                tmpBuffer1.SetBufferLen(32 * 1024);
+                tmpBuffer1.SetBufferLen(tmpBufferLen);
+                int tmpBufferOffset = 96 * 1024; // half of UB
                 AscendC::LocalTensor<half> tmpBuffer2 = resource.ubBuf.template GetBufferByByte<ElementC>(96 * 1024);
-                tmpBuffer2.SetBufferLen(32 * 1024);
+                tmpBuffer2.SetBufferLen(tmpBufferLen);
 
                 // [ReduceScatter] 2. Pre Interface Sync
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
@@ -231,7 +233,7 @@ public:
 
                     // [ReduceScatter] 3. Start shmem_mte_get_mem_nbi
                     shmem_mte_get_mem_nbi(peerMem[outputElemOffset], peerMem[inputElemOffset], buf, copySize, mRankIdx % rankSize, EVENT_ID);
-                    
+
                     // [ReduceScatter] 4. Post Interface Sync
                     AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
                     pingpongId = (pingpongId + 1) % BufferNum;
@@ -268,10 +270,12 @@ public:
                 uint32_t processLoop = processCount.row() * processCount.column();
 
                 // [AllGather] 1. Alloc TmpUB
+                int tmpBufferLen = 32 * 1024;   // 32 KB
                 AscendC::LocalTensor<half> tmpBuffer1 = resource.ubBuf.template GetBufferByByte<ElementC>(0);
-                tmpBuffer1.SetBufferLen(32 * 1024);
+                tmpBuffer1.SetBufferLen(tmpBufferLen);
+                int tmpBufferOffset = 96 * 1024; // half of UB
                 AscendC::LocalTensor<half> tmpBuffer2 = resource.ubBuf.template GetBufferByByte<ElementC>(96 * 1024);
-                tmpBuffer2.SetBufferLen(32 * 1024);
+                tmpBuffer2.SetBufferLen(tmpBufferLen);
 
                 // [AllGather] 2. Pre Interface Sync
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
