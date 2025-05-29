@@ -46,13 +46,13 @@ int32_t version_compatible()
     return status;
 }
 
-int32_t shmem_options_init()
+int32_t shmemi_options_init()
 {
     int32_t status = SHMEM_SUCCESS;
     return status;
 }
 
-int32_t shmem_state_init_attr(shmem_init_attr_t *attributes)
+int32_t shmemi_state_init_attr(shmem_init_attr_t *attributes)
 {
     int32_t status = SHMEM_SUCCESS;
     g_state.mype = attributes->my_rank;
@@ -61,7 +61,7 @@ int32_t shmem_state_init_attr(shmem_init_attr_t *attributes)
     return status;
 }
 
-int32_t shmem_heap_init(shmem_init_attr_t *attributes)
+int32_t shmemi_heap_init(shmem_init_attr_t *attributes)
 {
     void *gva = nullptr;
     int32_t status = SHMEM_SUCCESS;
@@ -220,11 +220,11 @@ int32_t shmem_init_attr(shmem_init_attr_t *attributes)
     SHM_ASSERT_RETURN(attributes != nullptr, SHMEM_INVALID_PARAM);
     SHMEM_CHECK_RET(shm::check_attr(attributes));
     SHMEM_CHECK_RET(shm::version_compatible());
-    SHMEM_CHECK_RET(shm::shmem_options_init());
+    SHMEM_CHECK_RET(shm::shmemi_options_init());
 
-    SHMEM_CHECK_RET(shm::shmem_state_init_attr(attributes));
+    SHMEM_CHECK_RET(shm::shmemi_state_init_attr(attributes));
     SHMEM_CHECK_RET(shm::shmemi_load_lib());
-    SHMEM_CHECK_RET(shm::shmem_heap_init(attributes));
+    SHMEM_CHECK_RET(shm::shmemi_heap_init(attributes));
     SHMEM_CHECK_RET(shm::update_device_state());
 
     SHMEM_CHECK_RET(shm::memory_manager_initialize(shm::g_state.heap_base, shm::g_state.heap_size));
