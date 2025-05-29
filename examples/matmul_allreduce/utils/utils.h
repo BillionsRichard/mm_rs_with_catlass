@@ -56,26 +56,26 @@ inline bool WriteFile(const std::string &filePath, const void *buffer, size_t si
         return false;
     }
 
-    // 尝试获取写锁tB =
+    // lock
     if (flock(fd, LOCK_EX) == -1) {
         std::cerr << "Failed to acquire lock: " << strerror(errno) << std::endl;
         close(fd);
         return false;
     }
 
-    // 将文件指针定位到指定的偏移量
+    // move ptr to specified offset
     if (lseek(fd, offset, SEEK_SET) == -1) {
         std::cerr << "Failed to seek in file: " << strerror(errno) << std::endl;
         close(fd);
         return false;
     }
 
-    // 写入数据
+    // write data
     if (write(fd, static_cast<const char *>(buffer), size) != static_cast<ssize_t>(size)) {
         std::cerr << "Failed to write to file: " << strerror(errno) << std::endl;
     }
 
-    // 释放锁
+    // unlock
     flock(fd, LOCK_UN);
 
     close(fd);

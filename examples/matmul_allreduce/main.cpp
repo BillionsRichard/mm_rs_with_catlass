@@ -22,24 +22,24 @@
 #include <errno.h>
 
 
-// from ascendc-templates
-#include "act/act.hpp"
-#include "act/arch/arch.hpp"
-#include "act/epilogue/dispatch_policy.hpp"
-#include "act/epilogue/block/block_epilogue.hpp"
-#include "act/epilogue/tile/tile_copy.hpp"
-#include "act/epilogue/tile/tile_elemwise_add.hpp"
-#include "act/gemm/block/block_mmad.hpp"
-#include "act/gemm/block/block_swizzle.hpp"
-#include "act/gemm/dispatch_policy.hpp"
-#include "act/gemm/kernel/matmul_epilogue.hpp"
-#include "act/gemm/gemm_type.hpp"
-#include "act/layout/layout.hpp"
+// from catlass
+#include "catlass/catlass.hpp"
+#include "catlass/arch/arch.hpp"
+#include "catlass/epilogue/dispatch_policy.hpp"
+#include "catlass/epilogue/block/block_epilogue.hpp"
+#include "catlass/epilogue/tile/tile_copy.hpp"
+#include "catlass/epilogue/tile/tile_elemwise_add.hpp"
+#include "catlass/gemm/block/block_mmad.hpp"
+#include "catlass/gemm/block/block_swizzle.hpp"
+#include "catlass/gemm/dispatch_policy.hpp"
+#include "catlass/gemm/kernel/matmul_epilogue.hpp"
+#include "catlass/gemm/gemm_type.hpp"
+#include "catlass/layout/layout.hpp"
 
 // from shmem-templates
-#include "shmem-templates/epilogue/block/epilogue_allreduce.hpp"
-#include "shmem-templates/epilogue/block/block_swizzle_dynamic.hpp"
-#include "shmem-templates/gemm/kernel/matmul_epilogue_comm.hpp"
+#include "epilogue/block/epilogue_allreduce.hpp"
+#include "epilogue/block/block_swizzle_dynamic.hpp"
+#include "kernel/matmul_epilogue_comm.hpp"
 
 // shmem_host
 #include "host/shmem_host_def.h"
@@ -57,10 +57,11 @@
 // utils
 #include "utils/utils.h"
 
+static uint32_t gNpuNum = 8;
 static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 1024;
 
 using namespace AscendC;
-using namespace Act;
+using namespace Catlass;
 using fp16_t = op::fp16_t;
 
 
@@ -87,7 +88,7 @@ using LayoutA = layout::RowMajor;
 using LayoutB = layout::RowMajor;
 using LayoutC = layout::RowMajor;
 
-ACT_GLOBAL
+CATLASS_GLOBAL
 void ShmemMatmulAllReduce(
     uint64_t fftsAddr, GemmCoord problemShape, GM_ADDR a, GM_ADDR b, GM_ADDR c, GM_ADDR symmetricPtr, CoCTiling cocTiling)
 {
@@ -134,10 +135,9 @@ void ShmemMatmulAllReduce(
     using CType = Gemm::GemmType<half, LayoutC>;
     using BlockMmad = Gemm::Block::BlockMmad<MmadDispatchPolicy, L1TileShape, L0TileShape, AType, BType, CType>;
 
-    // TODO Block level, define BlockEpilogue
     using ElementStore = half;
 
-    using BlockScheduler = typename Gemm::Block::GemmIdentityBlockSwizzle<7, 1>;        // TODO Need Set Manually
+    using BlockScheduler = typename Gemm::Block::GemmIdentityBlockSwizzle<7, 1>;
     using CommBlockSwizzle = Gemm::Block::CommBlockSwizzleDynamic;
 
     // Block level, define BlockAllReduceEpilogue(ReduceScatter + AllGather)
@@ -174,7 +174,7 @@ void ShmemMatmulAllReduce(
         symmetricPtr,
         epilogueCommParams};
 
-    // call kernel
+    // Call kernel
     MatmulAllReduceKernel matmulCommKernel;
     matmulCommKernel(params);
 }
@@ -249,19 +249,13 @@ int main(int argc, char **argv)
 {
     int status = SHMEM_SUCCESS;
     int rankSize = atoi(argv[1]);
-    int nRankId = atoi(argv[2]);
+    int rankId = atoi(argv[2]);
     std::string ipport = argv[3];
-
-    static uint32_t  gNpuNum = atoi(argv[4]);
-    int firstRank = atoi(argv[5]);
-    int firstNpu = atoi(argv[6]);
-
-    int rankId = nRankId + firstRank;
 
     std::cout << "[TEST] input rank_size: " << rankSize << " rank_id:" << rankId << " input_ip: " << ipport << std::endl;
 
     ACL_CHECK(aclInit(nullptr));
-    int32_t deviceId = rankId % gNpuNum + firstNpu;
+    int32_t deviceId = rankId % gNpuNum;
     ACL_CHECK(aclrtSetDevice(deviceId));
     aclrtStream stream = nullptr;
     ACL_CHECK(aclrtCreateStream(&stream));
@@ -276,9 +270,9 @@ int main(int argc, char **argv)
     RT_CHECK(rtGetC2cCtrlAddr(&fftsAddr, &fftsLen));
 
     Options options;
-    uint32_t m = 1024;
-    uint32_t k = 16;
-    uint32_t n = 1024;
+    uint32_t m = atoi(argv[4]);
+    uint32_t k = atoi(argv[5]);
+    uint32_t n = atoi(argv[6]);
     uint32_t m0 = 128;
     uint32_t k0 = 256;
     uint32_t n0 = 256;
@@ -319,7 +313,7 @@ int main(int argc, char **argv)
     ReadFile("./out/c_gm.bin", cHost, cSize);
     ACL_CHECK(aclrtMemcpy(cDevice, cSize, cHost, cSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
-    void *symmPtr = shmem_malloc((1024 * 1024) * sizeof(__fp16));
+    void *symmPtr = shmem_malloc((204 * 1024 * 1024) * sizeof(__fp16));
     uint8_t *symmetricPtr = (uint8_t *)symmPtr;
 
     CoCTiling cocTiling;

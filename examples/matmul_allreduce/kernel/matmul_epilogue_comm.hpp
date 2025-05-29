@@ -1,18 +1,18 @@
-#ifndef ACT_GEMM_KERNEL_MATMUL_EPILOGUE_COMM_HPP
-#define ACT_GEMM_KERNEL_MATMUL_EPILOGUE_COMM_HPP
+#ifndef CATLASS_GEMM_KERNEL_MATMUL_EPILOGUE_COMM_HPP
+#define CATLASS_GEMM_KERNEL_MATMUL_EPILOGUE_COMM_HPP
 
-// from ascendc-templates
-#include "act/act.hpp"
-#include "act/arch/resource.hpp"
-#include "act/arch/cross_core_sync.hpp"
-#include "act/gemm_coord.hpp"
-#include "act/matrix_coord.hpp"
+// from catlass
+#include "catlass/catlass.hpp"
+#include "catlass/arch/resource.hpp"
+#include "catlass/arch/cross_core_sync.hpp"
+#include "catlass/gemm_coord.hpp"
+#include "catlass/matrix_coord.hpp"
 
-// from shmem-templates
-#include "shmem-templates/epilogue/block/epilogue_allreduce.hpp"
-#include "shmem-templates/epilogue/block/block_swizzle_dynamic.hpp"
+// from kernel
+#include "epilogue/block/epilogue_allreduce.hpp"
+#include "epilogue/block/block_swizzle_dynamic.hpp"
 
-namespace Act::Gemm::Kernel {
+namespace Catlass::Gemm::Kernel {
 template <
     class BlockMmad_,
     class BlockEpilogue_,
@@ -54,10 +54,10 @@ public:
         EpilogueParams epilogueParams;
 
         // Methods
-        ACT_DEVICE
+        CATLASS_DEVICE
         Params() {}
 
-        ACT_DEVICE
+        CATLASS_DEVICE
         Params(
             GemmCoord const &problemShape_,
             GemmCoord const &blockShape_,
@@ -73,15 +73,21 @@ public:
     };
 
     // Methods
-    ACT_DEVICE
-    MatmulEpilogueComm() {}
+    CATLASS_DEVICE
+    MatmulEpilogueComm()
+    {
+        for (uint32_t i = 0; i < BufferNum; ++i) {
+            flagAicFinishStore[i] = Arch::CrossCoreFlag(i);
+            flagAivFinishCompute[i] = Arch::CrossCoreFlag(i);
+        }
+    }
 
     template <int32_t CORE_TYPE = g_coreType>
-    ACT_DEVICE
+    CATLASS_DEVICE
     void operator()(Params &params);
 
     template <>
-    ACT_DEVICE
+    CATLASS_DEVICE
     void operator()<AscendC::AIC>(Params &params)
     {
         BlockScheduler matmulBlockScheduler(params.problemShape, MakeCoord(L1TileShape::M, L1TileShape::N));
@@ -94,19 +100,33 @@ public:
         gmA.SetGlobalBuffer((__gm__ ElementA *)params.ptrA);
         AscendC::GlobalTensor<ElementB> gmB;
         gmB.SetGlobalBuffer((__gm__ ElementB *)params.ptrB);
-        AscendC::GlobalTensor<ElementC> gmC;
-        gmC.SetGlobalBuffer((__gm__ ElementC *)params.ptrWorkspace);
-        layout::RowMajor layoutC(params.problemShape.m(), params.problemShape.n());
 
         // Comm need repeat
         uint32_t aicoreIndex = AscendC::GetBlockIdx();
         uint32_t aicoreNum = AscendC::GetBlockNum();
-        auto commRepeat = aicoreNum * params.pValue;
-        uint32_t commCoreLoops = CeilDiv(coreLoops, commRepeat) * commRepeat;
+
+        AscendC::GlobalTensor<ElementC> gmC;
+        gmC.SetGlobalBuffer((__gm__ ElementC *)params.ptrWorkspace);
+
+        auto blockPerComm = aicoreNum * params.pValue;
+        uint32_t commCoreLoops = CeilDiv(coreLoops, blockPerComm) * blockPerComm;
+
+        auto layoutC = layout::RowMajor{
+            params.blockShape.m() * blockPerComm * BufferNum,
+            params.blockShape.n(),
+            params.blockShape.n()
+        };
 
         for (uint32_t loopIdx = aicoreIndex; loopIdx < commCoreLoops; loopIdx += AscendC::GetBlockNum()) {
+            uint32_t commIdx = loopIdx / blockPerComm;
             uint32_t blockLoopIdx = loopIdx / aicoreNum;
+            uint32_t bufferIdx = commIdx % BufferNum;
             uint32_t pIdx = blockLoopIdx % params.pValue;
+
+            if (pIdx == 0 && commIdx >= BufferNum) {
+                Arch::CrossCoreWaitFlag(flagAivFinishCompute[bufferIdx]);
+            }
+
             if (loopIdx < coreLoops) {
                 // Compute block location
                 GemmCoord blockCoord = matmulBlockScheduler.GetBlockCoord(loopIdx);
@@ -115,7 +135,7 @@ public:
                 // Compute initial location in logical coordinates
                 MatrixCoord offsetA{blockCoord.m() * L1TileShape::M, blockCoord.k() * L1TileShape::K};
                 MatrixCoord offsetB{blockCoord.k() * L1TileShape::K, blockCoord.n() * L1TileShape::N};
-                MatrixCoord offsetC{blockCoord.m() * L1TileShape::M, blockCoord.n() * L1TileShape::N};
+                MatrixCoord offsetC{loopIdx % (blockPerComm * BufferNum) * L1TileShape::M, 0};
                 int64_t gmOffsetA = params.layoutA.GetOffset(offsetA);
                 int64_t gmOffsetB = params.layoutB.GetOffset(offsetB);
                 int64_t gmOffsetC = layoutC.GetOffset(offsetC);
@@ -128,14 +148,14 @@ public:
                     actualBlockShape);
             }
             if (pIdx == params.pValue - 1) {
-                Arch::CrossCoreSetFlagWithReverse<0x2, PIPE_FIX>(flagAicFinishStore);
+                Arch::CrossCoreSetFlag<0x2, PIPE_FIX>(flagAicFinishStore[bufferIdx]);
             }
         }
         AscendC::PipeBarrier<PIPE_ALL>();
     }
 
     template <>
-    ACT_DEVICE
+    CATLASS_DEVICE
     void operator()<AscendC::AIV>(Params &params)
     {
         BlockEpilogue blockAllReduceEpilogue(resource, params.epilogueParams, params.blockShape);
@@ -150,7 +170,6 @@ public:
 
         MatrixCoord blockShape{params.blockShape.m(), params.blockShape.n()};
 
-        uint32_t BufferNum = 2;
         for (uint32_t calIdx = 0; calIdx < commLoops.row() * commLoops.column(); ++calIdx) {
             uint32_t flagIdx = calIdx % BufferNum;
             MatrixCoord commLoopsCoord{calIdx, 0};
@@ -162,21 +181,25 @@ public:
             );
 
             // wait aic
-            Arch::CrossCoreWaitFlagWithReverse<0x2, PIPE_MTE3>(flagAicFinishStore);
+            Arch::CrossCoreWaitFlag(flagAicFinishStore[flagIdx]);
 
-            blockAllReduceEpilogue(blockShape, actualCommBlockCount, commBlockCount, calIdx, params.rankIdx, params.rankSize, params.pValue);
+            blockAllReduceEpilogue(blockShape, commBlockCount, actualCommBlockCount, calIdx, params.rankIdx, params.rankSize, params.pValue);
+
+            // set aic
+            Arch::CrossCoreSetFlag<0x2, PIPE_MTE3>(flagAivFinishCompute[flagIdx]);
         }
 
     }
 
 private:
+    const static uint32_t BufferNum = 2;
+
     // ID used for inter-core synchronization
-    static constexpr Arch::FlagID FLAG_AIC_FINISH_STORE = 0;
-    static constexpr Arch::FlagID RV_FLAG_AIC_FINISH_STORE = 1;
-    Arch::CrossCoreFlagWithReverse<> flagAicFinishStore{FLAG_AIC_FINISH_STORE, RV_FLAG_AIC_FINISH_STORE};
+    Arch::CrossCoreFlag flagAicFinishStore[BufferNum];
+    Arch::CrossCoreFlag flagAivFinishCompute[BufferNum];
     Arch::Resource<ArchTag> resource;
 };
 
-} // namespace Act::Gemm::Kernel
+} // namespace Catlass::Gemm::Kernel
 
-#endif // ACT_GEMM_KERNEL_MATMUL_EPILOGUE_COMM_HPP
+#endif // CATLASS_GEMM_KERNEL_MATMUL_EPILOGUE_COMM_HPP

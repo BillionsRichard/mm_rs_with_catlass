@@ -1,22 +1,23 @@
 #ifndef _EPILOGUE_ALLREDUCE_HPP
 #define _EPILOGUE_ALLREDUCE_HPP
-// from ascendc-templates
-#include "act/act.hpp"
-#include "act/arch/resource.hpp"
-#include "act/epilogue/dispatch_policy.hpp"
-#include "act/gemm_coord.hpp"
-#include "act/matrix_coord.hpp"
-#include "act/layout/layout.hpp"
 
-// from shmem-templates
-#include "shmem-templates/epilogue/block/block_swizzle_dynamic.hpp"
+// from catlass
+#include "catlass/catlass.hpp"
+#include "catlass/arch/resource.hpp"
+#include "catlass/epilogue/dispatch_policy.hpp"
+#include "catlass/gemm_coord.hpp"
+#include "catlass/matrix_coord.hpp"
+#include "catlass/layout/layout.hpp"
+
+// from kernel
+#include "epilogue/block/block_swizzle_dynamic.hpp"
 
 // from shmem-device
 #include "shmem_api.h"
 
-using namespace Act;
+using namespace Catlass;
 
-ACT_DEVICE
+CATLASS_DEVICE
 MatrixCoord GetActualShape(
     const MatrixCoord &blockCount,
     const MatrixCoord &blockCoord,
@@ -42,7 +43,7 @@ MatrixCoord GetActualShape(
     return c;
 }
 
-namespace Act::Epilogue::Block {
+namespace Catlass::Epilogue::Block {
 template <
     class... Args
 >
@@ -91,10 +92,10 @@ public:
         MatrixCoord blockShape;
         MatrixCoord processShape;
 
-        ACT_DEVICE
+        CATLASS_DEVICE
         Params() = default;
 
-        ACT_DEVICE
+        CATLASS_DEVICE
         Params(
             AscendC::GlobalTensor<ElementDestination> destination,
             const LayoutDestination &layoutDestination,
@@ -116,7 +117,7 @@ public:
         {}
     };
 
-    ACT_DEVICE
+    CATLASS_DEVICE
     EpilogueAllReduce(
         Arch::Resource<ArchTag> &resource,
         Params const &params,
@@ -125,10 +126,10 @@ public:
         params(params),
         gemmBlockShape(blockGemmShape.m(), blockGemmShape.n()) {}
 
-    ACT_DEVICE
+    CATLASS_DEVICE
     ~EpilogueAllReduce() {}
 
-    ACT_DEVICE
+    CATLASS_DEVICE
     void operator() (
         MatrixCoord const &blockShape,
         MatrixCoord const &commBlockCount,
@@ -144,14 +145,13 @@ public:
         int32_t aivIndex = AscendC::GetSubBlockIdx();
         auto loopNumPerComm = aicoreNum * pValue;
 
-        uint32_t BufferNum = 2;
         auto layoutPeerMemStore = layout::RowMajor(
             blockShape.row() * loopNumPerComm * BufferNum,
             blockShape.column(),
             blockShape.column()
         );
 
-        //数据打平，重新按照通信进行切分block
+        // re-sliced Block by comm cores
         uint32_t flagIdx = calIdx % BufferNum;
         MatrixCoord actualCommBlockShape = blockShape * actualCommBlockCount;
         MatrixCoord outputBlockOffset = blockShape * MatrixCoord{calIdx * loopNumPerComm, 0};
@@ -168,13 +168,13 @@ public:
         AscendC::GlobalTensor<ElementC> peerMem;
         peerMem.SetGlobalBuffer(params.symmetricPtr);
 
-        // 卡内matmul结果准备就绪软同步
+        // Local matmul is completed, waiting until tasks on all devices are complete.
         shmemx_barrier_all_vec();
 
         AscendC::SetAtomicAdd<ElementC>();
         AscendC::PipeBarrier<PIPE_ALL>();
 
-        if (aivIndex == 0 && aicoreIndex < realAicoreNum) {                 // 只启用一个aiv核
+        if (aivIndex == 0 && aicoreIndex < realAicoreNum) {                 // only use one AIV core
             for (uint32_t idx = aicoreIndex; idx < commCoreLoops; idx += realAicoreNum) {
                 MatrixCoord idxTile = params.commSwizzle.GetBlockIdx(idx);
                 MatrixCoord actualCommSubBlockShape = params.commSwizzle.template GetBlockSize<ScheduleTypeOp1>(idxTile);
@@ -193,12 +193,23 @@ public:
                 uint32_t processLoop = processCount.row() * processCount.column();
 
                 // [ReduceScatter] 1. Alloc TmpUB
-                AscendC::LocalTensor<half> inputBuffer = resource.ubBuf.template GetBufferByByte<ElementC>(0);
+                int tmpBufferLen = 32 * 1024;   // 32 KB
+                AscendC::LocalTensor<half> tmpBuffer1 = resource.ubBuf.template GetBufferByByte<ElementC>(0);
+                tmpBuffer1.SetBufferLen(tmpBufferLen);
+                int tmpBufferOffset = 96 * 1024; // half of UB
+                AscendC::LocalTensor<half> tmpBuffer2 = resource.ubBuf.template GetBufferByByte<ElementC>(96 * 1024);
+                tmpBuffer2.SetBufferLen(tmpBufferLen);
 
                 // [ReduceScatter] 2. Pre Interface Sync
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+                AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID1);
+                int pingpongId = 0;
 
                 for (uint32_t processIndex = 0; processIndex < processLoop; ++processIndex) {
+
+                    AscendC::TEventID EVENT_ID = pingpongId == 0 ? EVENT_ID0 : EVENT_ID1;
+                    AscendC::LocalTensor<ElementC> buf = pingpongId == 0 ? tmpBuffer1 : tmpBuffer2;
+
                     MatrixCoord processCoord{processIndex / processCount.column(), processIndex % processCount.column()};
                     auto actualProcessShape = GetActualShape(
                         processCount,
@@ -218,25 +229,27 @@ public:
                     int64_t outputElemOffset = layoutPeerMemStore.GetOffset(outputOffset);
 
                     // [ReduceScatter] 2. Pre Interface Sync
-                    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+                    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
 
                     // [ReduceScatter] 3. Start shmem_mte_get_mem_nbi
-                    shmem_mte_get_mem_nbi(peerMem[outputElemOffset], peerMem[inputElemOffset], inputBuffer, copySize, mRankIdx % rankSize, EVENT_ID0);
-                    
+                    shmem_mte_get_mem_nbi(peerMem[outputElemOffset], peerMem[inputElemOffset], buf, copySize, mRankIdx % rankSize, EVENT_ID);
+
                     // [ReduceScatter] 4. Post Interface Sync
-                    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+                    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+                    pingpongId = (pingpongId + 1) % BufferNum;
                 }
                 // [ReduceScatter] 4. Post Interface Sync
                 AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+                AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID1);
             }
         }
 
-        AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0); // Scalar等MTE3
+        AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0); // To SetAtomic, Scalar wait MTE3
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0);
         AscendC::SetAtomicNone();
         AscendC::PipeBarrier<PIPE_ALL>();
 
-        // 第一部分通信完成软同步
+        // ReduceScatter is completed, waiting until tasks on all devices are complete.
         shmemx_barrier_all_vec();
 
         if (aivIndex == 0 && aicoreIndex < realAicoreNum) {
@@ -257,10 +270,17 @@ public:
                 uint32_t processLoop = processCount.row() * processCount.column();
 
                 // [AllGather] 1. Alloc TmpUB
-                AscendC::LocalTensor<half> inputBuffer = resource.ubBuf.template GetBufferByByte<ElementC>(0);
+                int tmpBufferLen = 32 * 1024;   // 32 KB
+                AscendC::LocalTensor<half> tmpBuffer1 = resource.ubBuf.template GetBufferByByte<ElementC>(0);
+                tmpBuffer1.SetBufferLen(tmpBufferLen);
+                int tmpBufferOffset = 96 * 1024; // half of UB
+                AscendC::LocalTensor<half> tmpBuffer2 = resource.ubBuf.template GetBufferByByte<ElementC>(96 * 1024);
+                tmpBuffer2.SetBufferLen(tmpBufferLen);
 
                 // [AllGather] 2. Pre Interface Sync
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+                AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID1);
+                int pingpongId = 0;
 
                 for (uint32_t processIndex = 0; processIndex < processLoop; ++processIndex) {
                     MatrixCoord processCoord{processIndex / processCount.column(), processIndex % processCount.column()};
@@ -275,38 +295,71 @@ public:
 
                     uint32_t residueM = actualProcessShape.row();
 
-                    auto inputOffset = offsetIn + subBlockOffset + processOffset;
-                    auto outputOffset = offsetOut + subBlockOffset + processOffset;
+                    while (residueM > 0) {
+                        MatrixCoord outputLoopOffset = (offsetOut + processOffset + subBlockOffset) / gemmBlockShape;
+                        MatrixCoord residueOutputOffset = (offsetOut + processOffset + subBlockOffset) % gemmBlockShape;
 
-                    uint32_t copySize = actualProcessShape.row() * actualProcessShape.column();
+                        auto loopIdx = outputLoopOffset.row();
+                        GemmCoord outputBlockGemmTileOffset = params.gemmSwizzle.GetBlockCoord(loopIdx);
+                        GemmCoord outputBlockGemmActualSize = params.gemmSwizzle.GetActualBlockShape(outputBlockGemmTileOffset);
+                        MatrixCoord outputBlockTileOffset{ outputBlockGemmTileOffset.m(), outputBlockGemmTileOffset.n() };
 
-                    int64_t inputElemOffset = layoutPeerMemStore.GetOffset(inputOffset);
-                    int64_t outputElemOffset = layoutPeerMemStore.GetOffset(outputOffset);
+                        uint32_t actualMoveM = min(gemmBlockShape.row() - residueOutputOffset.row(), residueM);
+                        if (residueOutputOffset.row() < outputBlockGemmActualSize.m()) {
+                            actualMoveM = min(outputBlockGemmActualSize.m() - residueOutputOffset.row(), residueM);
 
-                    // [AllGather] 2. Pre Interface Sync
-                    AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+                            auto inputOffset = offsetIn + subBlockOffset + processOffset;
+                            auto outputOffset = outputBlockTileOffset * gemmBlockShape + residueOutputOffset;
 
-                    // [AllGather] 3. Start shmem_mte_get_mem_nbi
-                    shmem_mte_get_mem_nbi(params.destination[outputElemOffset], peerMem[inputElemOffset], inputBuffer, copySize, mRankIdx % rankSize, EVENT_ID0);
+                            auto actualMoveShape = MatrixCoord{actualMoveM, outputBlockGemmActualSize.n()};
+                            layout::RowMajor layoutInput = layoutPeerMemStore.GetTileLayout(actualMoveShape);
+                            layout::RowMajor layoutOutput = params.layoutDestination.GetTileLayout(actualMoveShape);
+                            int64_t inputElemOffset = layoutInput.GetOffset(inputOffset);
+                            int64_t outputElemOffset = layoutOutput.GetOffset(outputOffset);
 
-                    // [AllGather] 4. Post Interface Sync
-                    AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+                            uint32_t copySize = actualMoveShape.row() * actualMoveShape.column();
+
+                            AscendC::TEventID EVENT_ID = pingpongId == 0 ? EVENT_ID0 : EVENT_ID1;
+                            AscendC::LocalTensor<ElementC> buf = pingpongId == 0 ? tmpBuffer1 : tmpBuffer2;
+
+                            // [AllGather] 2. Pre Interface Sync
+                            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+
+                            non_contiguous_copy_param copyParams;
+                            copyParams.repeat = actualMoveShape.row();
+                            copyParams.length = actualMoveShape.column();
+                            copyParams.src_ld = layoutInput.stride(0);
+                            copyParams.dst_ld = layoutOutput.stride(0);
+
+                            // [AllGather] 3. Start shmem_mte_get_mem_nbi non-contiguous version
+                            shmem_mte_get_mem_nbi(params.destination[outputElemOffset], peerMem[inputElemOffset], buf, copyParams, mRankIdx % rankSize, EVENT_ID);
+
+                            // [AllGather] 4. Post Interface Sync
+                            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
+                            pingpongId = (pingpongId + 1) % BufferNum;
+                        }
+                        residueM -= actualMoveM;
+                        processOffset += MatrixCoord{actualMoveM, 0};
+                    }
                 }
                 // [AllGather] 4. Post Interface Sync
                 AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
+                AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID1);
             }
         }
 
-        // 第二部分通信完成软同步
+        // AllGather is completed, waiting until tasks on all devices are complete.
         shmemx_barrier_all_vec();
     }
 
 private:
+    const static uint32_t BufferNum = 2;
+
     MatrixCoord gemmBlockShape;
     Arch::Resource<ArchTag> &resource;
     Params params;
 };
 
-}  // namespace Act::Epilogue::Block
+}  // namespace Catlass::Epilogue::Block
 
 #endif  // _EPILOGUE_ALLREDUCE_HPP
