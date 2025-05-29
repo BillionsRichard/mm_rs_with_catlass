@@ -25,7 +25,7 @@ def gen_golden_data():
 
     a_gm = gen_random_data((M, K), np.float16)
     b_gm = gen_random_data((K, N), np.float16)
-    c_gm = np.zeros(size=(M, N), dtype=np.float16)
+    c_gm = np.zeros((M, N), dtype=np.float16)
 
     l0c_dtype = np.float32
     matrix_c = np.matmul(a_gm.astype(l0c_dtype), b_gm.astype(l0c_dtype)).astype(out_data_type)
@@ -33,11 +33,6 @@ def gen_golden_data():
     golden = np.zeros_like(matrix_c)
     for _ in range(args.rank_size):
         golden += matrix_c
-
-    if args.transA:
-        a_gm = a_gm.transpose(0, 1).contiguous()
-    if args.transB:
-        b_gm = b_gm.transpose(0, 1).contiguous()
 
     a_gm.tofile("./out/a_gm.bin")
     b_gm.tofile("./out/b_gm.bin")
