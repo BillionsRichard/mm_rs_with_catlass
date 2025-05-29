@@ -328,8 +328,8 @@ public:
                             non_contiguous_copy_param copyParams;
                             copyParams.repeat = actualMoveShape.row();
                             copyParams.length = actualMoveShape.column();
-                            copyParams.srcLd = layoutInput.stride(0);
-                            copyParams.dstLd = layoutOutput.stride(0);
+                            copyParams.src_ld = layoutInput.stride(0);
+                            copyParams.dst_ld = layoutOutput.stride(0);
 
                             // [AllGather] 3. Start shmem_mte_get_mem_nbi non-contiguous version
                             shmem_mte_get_mem_nbi(params.destination[outputElemOffset], peerMem[inputElemOffset], buf, copyParams, mRankIdx % rankSize, EVENT_ID);
