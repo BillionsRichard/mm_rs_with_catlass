@@ -48,12 +48,6 @@
 #include "host/shmem_host_rma.h"
 #include "host/shmem_host_team.h"
 
-// shmem_device
-#include "device/shmem_device_def.h"
-#include "device/shmem_device_rma.h"
-#include "device/shmem_device_sync.h"
-#include "device/shmem_device_team.h"
-
 // utils
 #include "utils/utils.h"
 
