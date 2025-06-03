@@ -55,12 +55,13 @@ file(GLOB_RECURSE KERNEL_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*_kernel.cpp")
 ascendc_library(allgather_kernel SHARED ${KERNEL_FILES})
 ascendc_include_directories(allgather_kernel
     PUBLIC
-    ${PROJECT_SOURCE_DIR}/include/
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/device/
+    ${CMAKE_SOURCE_DIR}/../../include/
+    ${CMAKE_SOURCE_DIR}/../../3rdparty/memfabric_hybrid/include/smem/device/
 )
 
 ascendc_compile_definitions(allgather_kernel PRIVATE
     -DASCENDC_DUMP=1
 )
-
-target_link_libraries(allgather PRIVATE ascendcl shmem_host shmem_device mf_smem mf_hybm_core allgather_kernel)
+target_include_directories(allgather PRIVATE ${CMAKE_SOURCE_DIR}/../../3rdparty/googletest/include)
+target_link_directories(allgather PRIVATE ${CMAKE_SOURCE_DIR}/../../3rdparty/googletest/lib)
+target_link_libraries(allgather PRIVATE ascendcl shmem_host shmem_device mf_smem mf_hybm_core allgather_kernel gtest gtest_main)

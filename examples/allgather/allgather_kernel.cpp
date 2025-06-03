@@ -16,7 +16,7 @@ extern "C" __global__ __aicore__ void device_all_gather_test(GM_ADDR gva)
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
     }
-    shmemi_barrier_all();
+    shmem_barrier_all();
 }
 
 void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva)

@@ -1,16 +1,17 @@
 #include <iostream>
 #include <cstdlib>
 #include <string>
+#include <vector>
 #include <gtest/gtest.h>
 
 #include "acl/acl.h"
 #include "shmem_api.h"
 
 int g_npus = 8;
-std::string ipport;
+const char* ipport;
 int f_rank = 0;
 int f_npu = 0;
-extern void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva;
+extern void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva);
 
 void test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size) {
     int32_t device_id = rank_id % g_npus + f_npu;
@@ -55,7 +56,7 @@ void test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_siz
     EXPECT_EQ(aclrtFreeHost(y_host), 0);
     
     shmem_free(ptr);
-    int status = shmem_finalize();
+    status = shmem_finalize();
     EXPECT_EQ(status, 0);
     EXPECT_EQ(aclrtDestroyStream(stream), 0);
     EXPECT_EQ(aclrtResetDevice(device_id), 0);
@@ -71,9 +72,10 @@ int main(int argc, char* argv[])
     g_npus = atoi(argv[4]);
     f_rank = atoi(argv[5]);
     f_npu = atoi(argv[6]);
-
-    test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size);
+    uint64_t local_mem_size = 1024UL * 1024UL *1024;
+    test_shmem_team_all_gather(rank_id, n_ranks, local_mem_size);
 
 
     std::cout << "[SUCCESS] demo run success!" << std::endl;
+    return 0;
 }

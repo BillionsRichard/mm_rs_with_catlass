@@ -72,7 +72,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 for (( idx =0; idx < ${GNPU_NUM}; idx = idx + 1 )); do
-    ./out/matmul_allreduce "$RANK_SIZE" "$idx" "$IPPORT" "$GNPU_NUM" "$FIRST_RANK" "$FIRST_NPU" &
+    ./build/bin/allgather "$RANK_SIZE" "$idx" "$IPPORT" "$GNPU_NUM" "$FIRST_RANK" "$FIRST_NPU" &
 done
 
 cd ${CURRENT_DIR}
