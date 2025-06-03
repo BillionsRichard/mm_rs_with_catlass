@@ -2,10 +2,18 @@
 #include <cstdlib>
 #include <string>
 #include <vector>
-#include <gtest/gtest.h>
 
 #include "acl/acl.h"
 #include "shmem_api.h"
+
+#define EXPECT_SUCCESS(status, exp)                                 \
+    do {                                                            \
+        if ((status) != 0) {                                        \
+            std::cerr  << "Return err code: "  << status << ", at " \
+            << __FILE__  << ":" << __LINE__ << std::endl;           \
+            std::exit(EXIT_FAILURE);                                \
+        }                                                           \
+    } while (0)
 
 int g_npus = 8;
 const char* ipport;
@@ -13,20 +21,18 @@ int f_rank = 0;
 int f_npu = 0;
 extern void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva);
 
-void test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size) {
+int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size) {
     int32_t device_id = rank_id % g_npus + f_npu;
     int status = 0;
     aclrtStream stream = nullptr;
-    EXPECT_EQ(status, 0);
-    EXPECT_EQ(aclInit(nullptr), 0);
-    EXPECT_EQ(status = aclrtSetDevice(device_id), 0);
-    EXPECT_EQ(status = aclrtCreateStream(&stream), 0);
+    
+    EXPECT_SUCCESS(aclInit(nullptr), ACL_SUCCESS);
+    EXPECT_SUCCESS(aclrtSetDevice(device_id), ACL_SUCCESS);
+    EXPECT_SUCCESS(aclrtCreateStream(&stream), ACL_SUCCESS);
 
     shmem_init_attr_t* attributes;
-    shmem_set_attr(rank_id, n_ranks, local_mem_size, ipport, &attributes);
-    status = shmem_init_attr(attributes);
-    EXPECT_EQ(status, 0);
-    ASSERT_NE(stream, nullptr);
+    EXPECT_SUCCESS(shmem_set_attr(rank_id, n_ranks, local_mem_size, ipport, &attributes), SHMEM_SUCCESS);
+    EXPECT_SUCCESS(shmem_init_attr(attributes), SHMEM_SUCCESS);
 
     void *ptr = shmem_malloc(1024);
 
@@ -37,31 +43,35 @@ void test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_siz
         input[i] = (rank_id + 10);
     }
 
-    ASSERT_EQ(aclrtMemcpy(ptr + shmem_my_pe() * trans_size * sizeof(int32_t), trans_size * sizeof(int32_t), 
+    EXPECT_SUCCESS(aclrtMemcpy(ptr + shmem_my_pe() * trans_size * sizeof(int32_t), trans_size * sizeof(int32_t), 
                           input.data(), trans_size * sizeof(int32_t), ACL_MEMCPY_HOST_TO_DEVICE), 0);
 
     // Execute AllGather
     allgather_demo(1, stream, (uint8_t *)ptr);
-    EXPECT_EQ(aclrtSynchronizeStream(stream), 0);
+    EXPECT_SUCCESS(aclrtSynchronizeStream(stream), ACL_SUCCESS);
 
     // Check results
     int32_t *y_host;
     size_t input_size = n_ranks * trans_size * sizeof(int32_t);
-    EXPECT_EQ(aclrtMallocHost((void **) (&y_host), input_size), 0);
-    EXPECT_EQ(aclrtMemcpy(y_host, input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    EXPECT_SUCCESS(aclrtMallocHost((void **) (&y_host), input_size), ACL_SUCCESS);
+    EXPECT_SUCCESS(aclrtMemcpy(y_host, input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), ACL_SUCCESS);
     
     for (int i = 0; i < n_ranks; i++) {
-        EXPECT_EQ(y_host[trans_size * i], 10 + i);
+        EXPECT_SUCCESS(y_host[trans_size * i], 10 + i);
+        std::cout << "rank: " << rank_id << " [";
+        for (int j = 0; j < trans_size * n_ranks; j++) {
+            std::cout << y_host[trans_size * i + j];
+        }
+        std::cout << "]" << std::endl;
     }
-    
-    EXPECT_EQ(aclrtFreeHost(y_host), 0);
-    
+
+    EXPECT_SUCCESS(aclrtFreeHost(y_host), SHMEM_SUCCESS);
     shmem_free(ptr);
-    status = shmem_finalize();
-    EXPECT_EQ(status, 0);
-    EXPECT_EQ(aclrtDestroyStream(stream), 0);
-    EXPECT_EQ(aclrtResetDevice(device_id), 0);
-    EXPECT_EQ(aclFinalize(), 0);
+    EXPECT_SUCCESS(shmem_finalize(), SHMEM_SUCCESS);
+    EXPECT_SUCCESS(aclrtDestroyStream(stream), ACL_SUCCESS);
+    EXPECT_SUCCESS(aclrtResetDevice(device_id), ACL_SUCCESS);
+    EXPECT_SUCCESS(aclFinalize(), ACL_SUCCESS);
+    return 0
 
 }
 
@@ -74,9 +84,13 @@ int main(int argc, char* argv[])
     f_rank = atoi(argv[5]);
     f_npu = atoi(argv[6]);
     uint64_t local_mem_size = 1024UL * 1024UL *1024;
-    test_shmem_team_all_gather(rank_id, n_ranks, local_mem_size);
+    EXPECT_SUCCESS(test_shmem_team_all_gather(rank_id, n_ranks, local_mem_size));
 
-
-    std::cout << "[SUCCESS] demo run success!" << std::endl;
+    if (status == 0) {
+        std::cout << "[SUCCESS] demo run success in rank " << rank_id << std::endl;
+    } else {
+        std::cout << "[SUCCESS] demo run failed in rank " << rank_id << std::endl;
+    }
+    
     return 0;
 }

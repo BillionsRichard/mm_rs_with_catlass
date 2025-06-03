@@ -50,6 +50,4 @@ void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva)
     device_all_gather_test<<<block_dim, nullptr, stream>>>(gva);
 }
 
-
-
 #endif  // _KERNEL_ALLGATHER_HPP
