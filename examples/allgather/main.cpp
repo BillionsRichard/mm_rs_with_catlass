@@ -71,7 +71,7 @@ int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size
     EXPECT_SUCCESS(aclrtDestroyStream(stream), ACL_SUCCESS);
     EXPECT_SUCCESS(aclrtResetDevice(device_id), ACL_SUCCESS);
     EXPECT_SUCCESS(aclFinalize(), ACL_SUCCESS);
-    return 0
+    return 0;
 
 }
 
@@ -84,13 +84,8 @@ int main(int argc, char* argv[])
     f_rank = atoi(argv[5]);
     f_npu = atoi(argv[6]);
     uint64_t local_mem_size = 1024UL * 1024UL *1024;
-    EXPECT_SUCCESS(test_shmem_team_all_gather(rank_id, n_ranks, local_mem_size));
-
-    if (status == 0) {
-        std::cout << "[SUCCESS] demo run success in rank " << rank_id << std::endl;
-    } else {
-        std::cout << "[SUCCESS] demo run failed in rank " << rank_id << std::endl;
-    }
+    EXPECT_SUCCESS(test_shmem_team_all_gather(rank_id, n_ranks, local_mem_size), SHMEM_SUCCESS);
+    std::cout << "[SUCCESS] demo run success in rank " << rank_id << std::endl;
     
     return 0;
 }
