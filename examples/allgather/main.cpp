@@ -37,7 +37,8 @@ void test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_siz
         input[i] = (rank_id + 10);
     }
 
-    ASSERT_EQ(aclrtMemcpy(ptr + shmem_my_pe() * trans_size * sizeof(int32_t), trans_size, input.data(), trans_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+    ASSERT_EQ(aclrtMemcpy(ptr + shmem_my_pe() * trans_size * sizeof(int32_t), trans_size * sizeof(int32_t), 
+                          input.data(), trans_size * sizeof(int32_t), ACL_MEMCPY_HOST_TO_DEVICE), 0);
 
     // Execute AllGather
     allgather_demo(1, stream, (uint8_t *)ptr);
