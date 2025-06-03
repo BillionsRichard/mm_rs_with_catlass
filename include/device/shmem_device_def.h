@@ -3,19 +3,14 @@
 
 #include "kernel_operator.h"
 #include "host_device/shmem_types.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 /**
  * @addtogroup group_macros
  * @{
 */
-
-/**
- * @private 
-*/
-#define SHMEM_GLOBAL __global__ __aicore__
-
-/// \def SHMEM_DEVICE
-/// \brief A macro that identifies a function on the device side.
-#define SHMEM_DEVICE __attribute__((always_inline)) __aicore__ __inline__
 
 // Non-Contiguous Datacopy Param
 struct non_contiguous_copy_param
@@ -27,4 +22,9 @@ struct non_contiguous_copy_param
 };
 
 /**@} */ // end of group_macros
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif

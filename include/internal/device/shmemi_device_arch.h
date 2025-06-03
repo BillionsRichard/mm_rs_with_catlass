@@ -24,4 +24,19 @@ SHMEM_DEVICE void dcci_entire_cache() {
     __asm__ __volatile__("");
 }
 
+SHMEM_DEVICE void dcci_atomic() {
+    using namespace AscendC;
+    GlobalTensor<uint8_t> global;
+
+    __asm__ __volatile__("");
+    DataCacheCleanAndInvalid<uint8_t, CacheLine::ENTIRE_DATA_CACHE, DcciDst::CACHELINE_ATOMIC>(global);
+    __asm__ __volatile__("");
+}
+
+SHMEM_DEVICE void dsb_all() {
+    using namespace AscendC;
+    
+    DataSyncBarrier<MemDsbT::ALL>();
+}
+
 #endif

@@ -1,0 +1,141 @@
+#include "kernel_operator.h"
+#include "lowlevel/smem_shm_aicore_base_api.h"
+
+#include "shmem_api.h"
+
+class KernelUBPutNumNonContiguous {
+public:
+    __aicore__ inline KernelUBPutNumNonContiguous() {}
+    __aicore__ inline void Init(GM_ADDR gva, GM_ADDR dev)
+    {
+        gva_gm = (__gm__ float *)gva;
+        dev_gm = (__gm__ float *)dev;
+
+        rank = smem_shm_get_global_rank();
+        rank_size = smem_shm_get_global_rank_size();
+
+        // set GM Buffer
+        src_gm.SetGlobalBuffer(dev_gm);
+        dst_gm.SetGlobalBuffer(gva_gm);
+
+        // 1x512 Bytes Buffer
+        pipe.InitBuffer(buf_queue, 1, 512);
+    }
+    __aicore__ inline void Process()
+    {
+        int row = 16;
+        int col = 32;
+        int total_size = row * col;
+
+        AscendC::LocalTensor<float> buf_tensor = buf_queue.AllocTensor<float>();
+        __ubuf__ float *buf = (__ubuf__ float *)buf_tensor.address_.bufferAddr;
+        AscendC::DataCopy(buf_tensor, src_gm, total_size);
+
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);
+
+        non_contiguous_copy_param copy_params;
+        copy_params.repeat = row / 2;
+        copy_params.length = col / 2;
+        copy_params.src_ld = col;
+        copy_params.dst_ld = col / 2;
+
+        shmem_mte_put_mem_nbi(dst_gm, buf_tensor, copy_params, (rank + 1) % rank_size, EVENT_ID0);
+        shmem_mte_put_mem_nbi(gva_gm + row * col / 4, buf + row * col / 2, copy_params, (rank + 1) % rank_size, EVENT_ID0);
+
+        shmem_put_float_mem_nbi(dst_gm[row * col / 2], buf_tensor[col / 2], copy_params, (rank + 1) % rank_size);
+        shmem_put_float_mem_nbi(gva_gm + row * col / 2 + row * col / 4, buf + row * col / 2 + col / 2, copy_params, (rank + 1) % rank_size);
+
+        buf_queue.FreeTensor(buf_tensor);
+    }
+private:
+    AscendC::TPipe pipe;
+    AscendC::TQue<AscendC::TPosition::VECIN, 2> buf_queue;
+
+    AscendC::GlobalTensor<float> src_gm, dst_gm;
+    __gm__ float *gva_gm;
+    __gm__ float *dev_gm;
+
+    int64_t rank;
+    int64_t rank_size;
+};
+
+extern "C" __global__ __aicore__ void UBPutNumNonContiguousTest(GM_ADDR gva, GM_ADDR dev)
+{
+    KernelUBPutNumNonContiguous op;
+    op.Init(gva, dev);
+    op.Process();
+}
+
+void TestUBNonContiguousPut(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev)
+{
+    UBPutNumNonContiguousTest<<<block_dim, nullptr, stream>>>(gva, dev);
+}
+
+class kernel_ub_get_num_non_contiguous {
+public:
+    __aicore__ inline kernel_ub_get_num_non_contiguous() {}
+    __aicore__ inline void Init(GM_ADDR gva, GM_ADDR dev)
+    {
+        gva_gm = (__gm__ float *)gva;
+        dev_gm = (__gm__ float *)dev;
+
+        rank = smem_shm_get_global_rank();
+        rank_size = smem_shm_get_global_rank_size();
+
+        // set GM Buffer
+        src_gm.SetGlobalBuffer(gva_gm);
+        dst_gm.SetGlobalBuffer(dev_gm);
+
+        // 1x512 Bytes Buffer
+        pipe.InitBuffer(buf_queue, 1, 512);
+    }
+    __aicore__ inline void Process()
+    {
+        int row = 16;
+        int col = 32;
+        int total_size = row * col;
+
+        AscendC::LocalTensor<float> buf_tensor = buf_queue.AllocTensor<float>();
+        __ubuf__ float *buf = (__ubuf__ float *)buf_tensor.address_.bufferAddr;
+
+        non_contiguous_copy_param copy_params;
+        copy_params.repeat = row / 2;
+        copy_params.length = col / 2;
+        copy_params.src_ld = col / 2;
+        copy_params.dst_ld = col;
+
+        shmem_mte_get_mem_nbi(buf, gva_gm, copy_params, (rank + 1) % rank_size, EVENT_ID0);
+        shmem_mte_get_mem_nbi(buf_tensor[col / 2], src_gm[row * col / 2], copy_params, (rank + 1) % rank_size, EVENT_ID0);
+
+        shmem_get_float_mem_nbi(buf + row * col / 2, gva_gm + row * col / 4, copy_params, (rank + 1) % rank_size);
+        shmem_get_float_mem_nbi(buf_tensor[row * col / 2 + col / 2], src_gm[row * col / 2 + row * col / 4], copy_params, (rank + 1) % rank_size);
+
+        AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);
+        AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);
+
+        AscendC::DataCopy(dst_gm, buf_tensor, total_size);
+        buf_queue.FreeTensor(buf_tensor);
+    }
+private:
+    AscendC::TPipe pipe;
+    AscendC::TQue<AscendC::TPosition::VECIN, 2> buf_queue;
+    AscendC::GlobalTensor<float> src_gm, dst_gm;
+    __gm__ float *gva_gm;
+    __gm__ float *dev_gm;
+
+    int64_t rank;
+    int64_t rank_size;
+};
+
+extern "C" __global__ __aicore__ void ub_get_non_contuguous_num_test(GM_ADDR gva, GM_ADDR dev)
+{
+    kernel_ub_get_num_non_contiguous op;
+    op.Init(gva, dev);
+    op.Process();
+}
+
+void test_ub_non_contiguous_get(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev)
+{
+    ub_get_non_contuguous_num_test<<<block_dim, nullptr, stream>>>(gva, dev);
+}
