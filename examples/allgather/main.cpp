@@ -57,13 +57,16 @@ int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size
     EXPECT_SUCCESS(aclrtMemcpy(y_host, input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), ACL_SUCCESS);
     
     for (int i = 0; i < n_ranks; i++) {
-        std::cout << "rank: " << rank_id << " [";
-        for (int j = 0; j < trans_size * n_ranks; j++) {
-            std::cout << y_host[trans_size * i + j];
+        if (y_host[trans_size * i] != 10 + i) {
+            std::cout << y_host[trans_size * i] << " != " << 10 + i << std::endl;
+            std::exit(EXIT_FAILURE);
         }
-        std::cout << "]" << std::endl;
-        EXPECT_SUCCESS(y_host[trans_size * i], 10 + i);
     }
+    std::cout << "rank: " << rank_id << " [";
+    for (int j = 0; j < trans_size * n_ranks; j++) {
+        std::cout << y_host[j] << ", ";
+    }
+    std::cout << "]" << std::endl;
 
     EXPECT_SUCCESS(aclrtFreeHost(y_host), SHMEM_SUCCESS);
     shmem_free(ptr);
