@@ -193,12 +193,12 @@ public:
                 uint32_t processLoop = processCount.row() * processCount.column();
 
                 // [ReduceScatter] 1. Alloc TmpUB
-                int tmpBufferLen = 32 * 1024;   // 32 KB
+                int tmpBufferSize = 32 * 1024 / sizeof(ElementC);   // 32 KB
                 AscendC::LocalTensor<half> tmpBuffer1 = resource.ubBuf.template GetBufferByByte<ElementC>(0);
-                tmpBuffer1.SetBufferLen(tmpBufferLen);
+                tmpBuffer1.SetSize(tmpBufferSize);
                 int tmpBufferOffset = 96 * 1024; // half of UB
-                AscendC::LocalTensor<half> tmpBuffer2 = resource.ubBuf.template GetBufferByByte<ElementC>(96 * 1024);
-                tmpBuffer2.SetBufferLen(tmpBufferLen);
+                AscendC::LocalTensor<half> tmpBuffer2 = resource.ubBuf.template GetBufferByByte<ElementC>(tmpBufferOffset);
+                tmpBuffer2.SetSize(tmpBufferSize);
 
                 // [ReduceScatter] 2. Pre Interface Sync
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
@@ -270,12 +270,12 @@ public:
                 uint32_t processLoop = processCount.row() * processCount.column();
 
                 // [AllGather] 1. Alloc TmpUB
-                int tmpBufferLen = 32 * 1024;   // 32 KB
+                int tmpBufferSize = 32 * 1024 / sizeof(ElementC);   // 32 KB
                 AscendC::LocalTensor<half> tmpBuffer1 = resource.ubBuf.template GetBufferByByte<ElementC>(0);
-                tmpBuffer1.SetBufferLen(tmpBufferLen);
+                tmpBuffer1.SetSize(tmpBufferSize);
                 int tmpBufferOffset = 96 * 1024; // half of UB
-                AscendC::LocalTensor<half> tmpBuffer2 = resource.ubBuf.template GetBufferByByte<ElementC>(96 * 1024);
-                tmpBuffer2.SetBufferLen(tmpBufferLen);
+                AscendC::LocalTensor<half> tmpBuffer2 = resource.ubBuf.template GetBufferByByte<ElementC>(tmpBufferOffset);
+                tmpBuffer2.SetSize(tmpBufferSize);
 
                 // [AllGather] 2. Pre Interface Sync
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);

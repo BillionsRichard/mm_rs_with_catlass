@@ -155,7 +155,7 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
     remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
     // block_size: dataMove Unit
-    uint32_t block_size = buf.GetSize() / sizeof(T) * sizeof(T);
+    uint32_t block_size = buf.GetSize() * sizeof(T);
     uint32_t remain = (elem_size * sizeof(T)) % block_size;
 
     int repeat_times = (elem_size * sizeof(T)) / block_size;
@@ -341,7 +341,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
     remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
     // block_size: dataMove Unit
-    uint32_t block_size = buf.GetSize() / sizeof(T) * sizeof(T);
+    uint32_t block_size = buf.GetSize() * sizeof(T);
     uint32_t remain = (elem_size * sizeof(T)) % block_size;
 
     int repeat_times = (elem_size * sizeof(T)) / block_size;

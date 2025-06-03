@@ -37,8 +37,6 @@
 #include "catlass/layout/layout.hpp"
 
 // from shmem-templates
-#include "epilogue/block/epilogue_allreduce.hpp"
-#include "epilogue/block/block_swizzle_dynamic.hpp"
 #include "kernel/matmul_epilogue_comm.hpp"
 
 // shmem_host
@@ -84,10 +82,10 @@ using LayoutC = layout::RowMajor;
 
 CATLASS_GLOBAL
 void ShmemMatmulAllReduce(
-    uint64_t fftsAddr, GemmCoord problemShape, GM_ADDR a, GM_ADDR b, GM_ADDR c, GM_ADDR symmetricPtr, CoCTiling cocTiling)
+    GM_ADDR fftsAddr, GemmCoord problemShape, GM_ADDR a, GM_ADDR b, GM_ADDR c, GM_ADDR symmetricPtr, CoCTiling cocTiling)
 {
     // Set FFTS address
-    AscendC::SetSyncBaseAddr(fftsAddr);
+    AscendC::SetSyncBaseAddr(reinterpret_cast<uint64_t>(fftsAddr));
 
     // Define ArchTag
     using ArchTag = Arch::AtlasA2;
@@ -249,7 +247,7 @@ int main(int argc, char **argv)
     std::cout << "[TEST] input rank_size: " << rankSize << " rank_id:" << rankId << " input_ip: " << ipport << std::endl;
 
     ACL_CHECK(aclInit(nullptr));
-    int32_t deviceId = rankId % gNpuNum;
+    int32_t deviceId = atoi(argv[4]) + rankId % gNpuNum;
     ACL_CHECK(aclrtSetDevice(deviceId));
     aclrtStream stream = nullptr;
     ACL_CHECK(aclrtCreateStream(&stream));
@@ -259,14 +257,13 @@ int main(int argc, char **argv)
     status = shmem_init_status();
 
     // Prepare FFTS address
-    uint64_t fftsAddr{0};
-    uint32_t fftsLen{0};
-    RT_CHECK(rtGetC2cCtrlAddr(&fftsAddr, &fftsLen));
+    uint8_t *fftsAddr{ nullptr };
+    ACL_CHECK(GetAscendCoreSyncAddr(reinterpret_cast<void **>(&fftsAddr)));
 
     Options options;
-    uint32_t m = atoi(argv[4]);
-    uint32_t k = atoi(argv[5]);
-    uint32_t n = atoi(argv[6]);
+    uint32_t m = atoi(argv[5]);
+    uint32_t k = atoi(argv[6]);
+    uint32_t n = atoi(argv[7]);
     uint32_t m0 = 128;
     uint32_t k0 = 256;
     uint32_t n0 = 256;
