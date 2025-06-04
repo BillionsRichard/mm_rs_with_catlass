@@ -5,6 +5,7 @@
 
 #include "acl/acl.h"
 #include "shmem_api.h"
+#include "allgather_kernel.cpp"
 
 #define CHECK_SUCCESS(status, exp)                                 \
     do {                                                            \
@@ -19,9 +20,9 @@ int g_npus = 8;
 const char* ipport;
 int f_rank = 0;
 int f_npu = 0;
-extern void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva, int elements);
 
-int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size) {
+int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size) 
+{
     // 初始化ACL和SHMEM
     int32_t device_id = rank_id % g_npus + f_npu;
     int status = 0;
@@ -86,7 +87,7 @@ int main(int argc, char* argv[])
     g_npus = atoi(argv[4]);
     f_rank = atoi(argv[5]);
     f_npu = atoi(argv[6]);
-    uint64_t local_mem_size = 1024UL * 1024UL *1024;
+    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     CHECK_SUCCESS(test_shmem_team_all_gather(rank_id, n_ranks, local_mem_size), SHMEM_SUCCESS);
     std::cout << "[SUCCESS] demo run success in rank " << rank_id << std::endl;
     

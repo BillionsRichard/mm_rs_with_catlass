@@ -5,14 +5,15 @@
 
 ## 核函数实现
 ```c++
-#ifndef _KERNEL_ALLGATHER_HPP
-#define _KERNEL_ALLGATHER_HPP
+#ifndef _KERNEL_ALLGATHER
+#define _KERNEL_ALLGATHER
 
 #include "kernel_operator.h"
 #include "shmem_api.h"
 
 // 纯vec不能全核同步，需添加cube逻辑
-SHMEM_DEVICE void cube_guard() {
+SHMEM_DEVICE void cube_guard() 
+{
     using namespace AscendC;
 
 #ifdef __DAV_C220_CUBE__
@@ -72,8 +73,9 @@ void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva, int elements
 
 #include "acl/acl.h"
 #include "shmem_api.h"
+#include "allgather_kernel.cpp"
 
-#define CHECK_SUCCESS(status, exp)                                 \
+#define CHECK_SUCCESS(status, exp)                                  \
     do {                                                            \
         if ((status) != 0) {                                        \
             std::cerr  << "Return err code: "  << status << ", at " \
@@ -86,9 +88,9 @@ int g_npus = 8;
 const char* ipport;
 int f_rank = 0;
 int f_npu = 0;
-extern void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva, int elements);
 
-int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size) {
+int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size) 
+{
     // 初始化ACL和SHMEM
     int32_t device_id = rank_id % g_npus + f_npu;
     int status = 0;

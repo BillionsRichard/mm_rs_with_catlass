@@ -1,11 +1,12 @@
-#ifndef _KERNEL_ALLGATHER_HPP
-#define _KERNEL_ALLGATHER_HPP
+#ifndef _KERNEL_ALLGATHER
+#define _KERNEL_ALLGATHER
 
 #include "kernel_operator.h"
 #include "shmem_api.h"
 
 // 纯vec不能全核同步，需添加cube逻辑
-SHMEM_DEVICE void cube_guard() {
+SHMEM_DEVICE void cube_guard() 
+{
     using namespace AscendC;
 
 #ifdef __DAV_C220_CUBE__
