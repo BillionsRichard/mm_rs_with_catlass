@@ -73,7 +73,6 @@ void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva, int elements
 
 #include "acl/acl.h"
 #include "shmem_api.h"
-#include "allgather_kernel.cpp"
 
 #define CHECK_SUCCESS(status, exp)                                  \
     do {                                                            \
@@ -88,6 +87,7 @@ int g_npus = 8;
 const char* ipport;
 int f_rank = 0;
 int f_npu = 0;
+extern void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva, int elements);
 
 int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size) 
 {
