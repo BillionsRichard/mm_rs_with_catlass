@@ -9,7 +9,7 @@ export LD_LIBRARY_PATH=${SCRIPT_DIR}/build/lib:${PROJECT_ROOT}/install/shmem/lib
 
 RANK_SIZE="2"
 IPPORT="tcp://127.0.0.1:8766"
-GNPU_NUM="2"
+GNPU_NUM="8"
 FIRST_NPU="0"
 FIRST_RANK="0"
 

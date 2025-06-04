@@ -4,6 +4,7 @@
 #include "kernel_operator.h"
 #include "shmem_api.h"
 
+// 纯vec不能全核同步，需添加cube逻辑
 SHMEM_DEVICE void cube_guard() {
     using namespace AscendC;
 
@@ -29,7 +30,8 @@ SHMEM_DEVICE void cube_guard() {
 #endif
 }
 
-extern "C" __global__ __aicore__ void device_all_gather_test(GM_ADDR gva)
+// all_gather简易实现
+extern "C" __global__ __aicore__ void device_all_gather_test(GM_ADDR gva, int elements)
 {
     int64_t my_rank = shmem_my_pe();
     int64_t pe_size = shmem_n_pes();
@@ -38,16 +40,16 @@ extern "C" __global__ __aicore__ void device_all_gather_test(GM_ADDR gva)
     cube_guard();
     // All Gather
     for (int i = 0; i < pe_size; i++) {
-        shmem_put_int32_mem_nbi(gva_gm + 16 * my_rank, gva_gm + 16 * my_rank, 16, i);
+        shmem_put_int32_mem_nbi(gva_gm + elements * my_rank, gva_gm + elements * my_rank, elements, i);
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
     }
     shmem_barrier_all();
 }
 
-void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva)
+void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva, int elements)
 {
-    device_all_gather_test<<<block_dim, nullptr, stream>>>(gva);
+    device_all_gather_test<<<block_dim, nullptr, stream>>>(gva, elements);
 }
 
 #endif  // _KERNEL_ALLGATHER_HPP
