@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
     f_rank = atoi(argv[5]);
     f_npu = atoi(argv[6]);
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
-    status = test_shmem_team_all_gather(rank_id, n_ranks, local_mem_size), SHMEM_SUCCESS);
+    status = test_shmem_team_all_gather(rank_id, n_ranks, local_mem_size);
     std::cout << "[SUCCESS] demo run success in rank " << rank_id << std::endl;
     
     return 0;
