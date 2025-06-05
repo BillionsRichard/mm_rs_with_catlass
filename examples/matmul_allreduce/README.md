@@ -6,6 +6,6 @@
     bash scripts/build.sh
 
 3.在example/matmul_allreduce目录执行demo:
-    # RANK、M、K、N可自行输入
-    # 完成RANK卡下的matmul_allreduce, matmul部分完成(M, K) @ (K, N)的矩阵乘
-    bash scripts/run.sh $RANK $M $K $N
+    # RANK、M、K、N等参数可自行输入
+    # 从0卡开始，完成2卡的matmul_allreduce, matmul部分完成(M, K) @ (K, N)的矩阵乘
+    bash scripts/run.sh -ranks 2 -M 1024 -K 2048 -N 8192

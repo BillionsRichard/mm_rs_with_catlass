@@ -42,6 +42,7 @@ bisheng -O2 -std=c++17 -xcce --cce-aicore-arch=dav-c220             \
     -Wno-macro-redefined -Wno-ignored-attributes                    \
     -lruntime -lstdc++ -lascendcl -lm -ltiling_api                  \
     -lplatform -lc_sec -ldl -lnnopbase                              \
+    -lascendc_runtime -lerror_manager -lprofapi -lmmpa -lascendalog \
     ${PROJECT_ROOT}/examples/matmul_allreduce/main.cpp -o out/matmul_allreduce
 
 cd ${CURRENT_DIR}
