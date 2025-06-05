@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025.
  * This file is a part of the CANN Open Software.
  * Licensed under CANN Open Software License Agreement Version 1.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
@@ -7,7 +7,7 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
- 
+
 #include <iostream>
 #include <cstdlib>
 #include <string>
@@ -16,33 +16,32 @@
 #include "acl/acl.h"
 #include "shmem_api.h"
 
-#define CHECK_SUCCESS(status, exp)                                 \
-    do {                                                            \
-        if ((status) != 0) {                                        \
-            std::cerr  << "Return err code: "  << status << ", at " \
-            << __FILE__  << ":" << __LINE__ << std::endl;           \
-            std::exit(EXIT_FAILURE);                                \
-        }                                                           \
+#define CHECK_SUCCESS(status, exp)                                                                                \
+    do {                                                                                                          \
+        if ((status) != 0) {                                                                                      \
+            std::cerr  << "Return err code: "  << status << ", at " << __FILE__  << ":" << __LINE__ << std::endl; \
+            std::exit(EXIT_FAILURE);                                                                              \
+        }                                                                                                         \
     } while (0)
 
 int g_npus = 8;
-const char* ipport;
+const char *ipport;
 int f_rank = 0;
 int f_npu = 0;
 extern void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva, int elements);
 
-int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size) 
+int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size)
 {
     // 初始化ACL和SHMEM
     int32_t device_id = rank_id % g_npus + f_npu;
     int status = 0;
     aclrtStream stream = nullptr;
-    
+
     CHECK_SUCCESS(aclInit(nullptr), ACL_SUCCESS);
     CHECK_SUCCESS(aclrtSetDevice(device_id), ACL_SUCCESS);
     CHECK_SUCCESS(aclrtCreateStream(&stream), ACL_SUCCESS);
 
-    shmem_init_attr_t* attributes;
+    shmem_init_attr_t *attributes;
     CHECK_SUCCESS(shmem_set_attr(rank_id, n_ranks, local_mem_size, ipport, &attributes), SHMEM_SUCCESS);
     CHECK_SUCCESS(shmem_init_attr(attributes), SHMEM_SUCCESS);
 
@@ -56,7 +55,7 @@ int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size
     }
 
     CHECK_SUCCESS(aclrtMemcpy(ptr + shmem_my_pe() * trans_size * sizeof(int32_t), trans_size * sizeof(int32_t), 
-                          input.data(), trans_size * sizeof(int32_t), ACL_MEMCPY_HOST_TO_DEVICE), 0);
+                  input.data(), trans_size * sizeof(int32_t), ACL_MEMCPY_HOST_TO_DEVICE), 0);
 
     // AllGather
     allgather_demo(1, stream, (uint8_t *)ptr, trans_size);
@@ -65,7 +64,7 @@ int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size
     // 结果校验打印
     int32_t *y_host;
     size_t input_size = n_ranks * trans_size * sizeof(int32_t);
-    CHECK_SUCCESS(aclrtMallocHost((void **) (&y_host), input_size), ACL_SUCCESS);
+    CHECK_SUCCESS(aclrtMallocHost(reinterpret_cast<void**>(&y_host), input_size), ACL_SUCCESS);
     CHECK_SUCCESS(aclrtMemcpy(y_host, input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), ACL_SUCCESS);
     
     for (int i = 0; i < n_ranks; i++) {
@@ -89,7 +88,7 @@ int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size
     return 0;
 }
 
-int main(int argc, char* argv[]) 
+int main(int argc, char *argv[])
 {
     int n_ranks = atoi(argv[1]);
     int rank_id = atoi(argv[2]);

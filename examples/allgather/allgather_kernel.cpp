@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025.
  * This file is a part of the CANN Open Software.
  * Licensed under CANN Open Software License Agreement Version 1.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
@@ -7,9 +7,9 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
- 
-#ifndef _KERNEL_ALLGATHER
-#define _KERNEL_ALLGATHER
+
+#ifndef _KERNEL_ALLGATHER_
+#define _KERNEL_ALLGATHER_
 
 #include "kernel_operator.h"
 #include "shmem_api.h"
@@ -63,4 +63,4 @@ void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva, int elements
     device_all_gather_test<<<block_dim, nullptr, stream>>>(gva, elements);
 }
 
-#endif  // _KERNEL_ALLGATHER_HPP
+#endif  // _KERNEL_ALLGATHER_
