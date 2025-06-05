@@ -74,9 +74,9 @@ SHMEM_DEVICE int32_t shmemi_signal_wait_until_gt(__gm__ int32_t *sig_addr, int32
     int32_t ret;
     while ((ret = *sig_addr) <= cmp_val) {
         dcci_cacheline((__gm__ uint8_t *)sig_addr);
+    }
 
     return ret;
-    }
 }
 
 SHMEM_DEVICE int32_t shmemi_signal_wait_until_ge(__gm__ int32_t *sig_addr, int32_t cmp_val) {

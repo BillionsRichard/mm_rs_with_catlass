@@ -72,7 +72,7 @@ bash scripts/build.sh
 3.在example/matmul_allreduce目录执行demo:
 
 ```sh
-bash scripts/run.sh $RANK $M $K $N
+bash scripts/run.sh -ranks 2 -M 1024 -K 2048 -N 8192
 ```
 
 ## 功能自测用例
