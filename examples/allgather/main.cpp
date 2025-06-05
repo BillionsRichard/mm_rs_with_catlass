@@ -81,7 +81,7 @@ int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size
 }
 
 int main(int argc, char *argv[])
-{   
+{
     int status = 0;
     int n_ranks = atoi(argv[1]);
     int rank_id = atoi(argv[2]);
