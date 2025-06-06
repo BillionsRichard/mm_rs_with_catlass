@@ -37,7 +37,7 @@ static int32_t test_get_device_state(aclrtStream stream, uint8_t *gva, uint32_t 
         EXPECT_EQ(y_host[1], rank_id);
         EXPECT_EQ(y_host[2], rank_id / stride);
         EXPECT_EQ(y_host[3], rank_size / stride);
-        EXPECT_EQ(y_host[4], stride + rank_id % stride);
+        EXPECT_EQ(y_host[4], (y_host[3] - 1) * stride + rank_id % stride);
     }
 
     EXPECT_EQ(aclrtFreeHost(y_host), 0);
