@@ -45,7 +45,6 @@ SHMEM_DEVICE void shmem_barrier(shmem_team_t tid) {
  * @fn SHMEM_DEVICE void shmem_barrier_all()
  * @brief shmem_barrier of all PEs.
  *
- * @return void
  */
 SHMEM_DEVICE void shmem_barrier_all() {
     shmem_barrier(SHMEM_TEAM_WORLD);
@@ -74,7 +73,6 @@ SHMEM_DEVICE void shmemx_barrier_all_vec() {
  *        On systems with only scale-up network (HCCS), updates are globally visible, whereas on systems with both scale-up network HCCS and scale-out network (RDMA), SHMEM only guarantees that updates to the memory of a given PE are visible to that PE.
  *        Quiet operations issued on the CPU and the NPU only complete communication operations that were issued from the CPU and the NPU, respectively. To ensure completion of GPU-side operations from the CPU, using aclrtSynchronizeStream/aclrtDeviceSynchronize or stream-based API.
  *
- * @return void
  */
 SHMEM_DEVICE void shmem_quiet() {
     shmemi_quiet();
@@ -85,7 +83,6 @@ SHMEM_DEVICE void shmem_quiet() {
  *        However, due to hardware capabilities, we implemented shmem_fence same as shmem_quiet, ensuring both ordering and completion.
  *        Fence operations issued on the CPU and the NPU only order communication operations that were issued from the CPU and the NPU, respectively. To ensure completion of GPU-side operations from the CPU, using aclrtSynchronizeStream/aclrtDeviceSynchronize or stream-based API.
  *
- * @return void
  */
 SHMEM_DEVICE void shmem_fence() {
     shmemi_quiet();
@@ -99,7 +96,6 @@ SHMEM_DEVICE void shmem_fence() {
  * @param signal                [in] The value used to update sig_addr.
  * @param sig_op                [in] Operation used to update sig_addr with signal. Supported operations: SHMEM_SIGNAL_SET/SHMEM_SIGNAL_ADD
  * @param pe                    [in] PE number of the remote PE.
- * @return void
  */
 SHMEM_DEVICE void shmemx_signal_op(__gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe) {
     shmemix_signal_op(sig_addr, signal, sig_op, pe);
