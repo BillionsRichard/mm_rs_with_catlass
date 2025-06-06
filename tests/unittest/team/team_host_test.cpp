@@ -53,7 +53,7 @@ void test_shmem_team(int rank_id, int n_ranks, uint64_t local_mem_size) {
     shmem_team_t team_odd;
     int start = 1;
     int stride = 2;
-    int team_size = 4;
+    int team_size = n_ranks / 2;
     shmem_team_split_strided(SHMEM_TEAM_WORLD, start, stride, team_size, &team_odd);
 
     // #################### host侧取值测试 ##############################
