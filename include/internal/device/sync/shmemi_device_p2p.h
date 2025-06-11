@@ -2,7 +2,7 @@
 #define SHEMEI_P2P_H
 
 #include "internal/device/shmemi_device_common.h"
-#include "smem/device/lowlevel/smem_shm_aicore_base_copy.h"
+#include "lowlevel/smem_shm_aicore_base_copy.h"
 
 template<typename T>
 SHMEM_DEVICE void shmemi_signal(__gm__ uint8_t *addr, T val) {

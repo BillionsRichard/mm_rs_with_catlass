@@ -24,6 +24,7 @@ target_include_directories(shmem_host
     ${CMAKE_CURRENT_SOURCE_DIR}/team
     ${CMAKE_CURRENT_SOURCE_DIR}/../device
     ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/host/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/device/
     ${ASCEND_DRIVER_PATH}/kernel/inc
     ${ASCEND_HOME_PATH}/${ARCH}-linux/include/
     ${ASCEND_HOME_PATH}/${ARCH}-linux/include/hccl/

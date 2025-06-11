@@ -154,12 +154,12 @@ SHMEM_DEVICE void shmemi_barrier_npu_v2(shmemi_team_t *team) {
     auto sync_counter = shmemi_get_team_sync_counter(team->team_idx);
 
     int shift = 1;
-    int k = SHMEM_BARRIER_TG_DISSEM_KVAL;
+    int k = size < SHMEM_BARRIER_TG_DISSEM_KVAL ? size : SHMEM_BARRIER_TG_DISSEM_KVAL;
     int my_pe_in_team = (my_pe - start) / stride;
     int32_t count = shmemi_load<int32_t>((__gm__ uint8_t *)sync_counter);
 
     while (shift < size) {
-        for (int i = vec_id + 1; i < k - 1; i += vec_size) {
+        for (int i = vec_id + 1; i < k; i += vec_size) {
             int next_pe_in_team = (my_pe_in_team + i * shift) % size;
             int next_pe = start + next_pe_in_team * stride;
 
@@ -167,7 +167,7 @@ SHMEM_DEVICE void shmemi_barrier_npu_v2(shmemi_team_t *team) {
             shmemi_signal<int32_t>((__gm__ uint8_t *)(sync_array + my_pe), next_pe, count);
         }
 
-        for (int i = vec_id + 1; i < k - 1; i += vec_size) {
+        for (int i = vec_id + 1; i < k; i += vec_size) {
             int pre_pe_in_team = (my_pe_in_team - i * shift + size) % size;
             int pre_pe = start + pre_pe_in_team * stride;
 
@@ -175,7 +175,7 @@ SHMEM_DEVICE void shmemi_barrier_npu_v2(shmemi_team_t *team) {
             shmemi_wait<int32_t>((__gm__ uint8_t *)(sync_array + pre_pe), count);
         }
         
-        shift *= 8;
+        shift *= k;
     } 
 
     shmemi_store<int32_t>((__gm__ uint8_t *)sync_counter, count + 1);
@@ -188,9 +188,9 @@ SHMEM_DEVICE void shmemi_barrier_npu_v3(shmemi_team_t *team) {
 
     __gm__ shmemi_device_host_state_t *device_state = shmemi_get_state();
     /* CopyUB Config Set */
-    uint64_t copy_ub = device_state->mte_config.shmem_ub;
-    uint32_t copy_ub_size = device_state->mte_config.ub_size;
-    AscendC::TEventID copy_event_id = (AscendC::TEventID)device_state->mte_config.event_id;
+    uint64_t copy_ub = 0;
+    uint32_t copy_ub_size = 32;
+    AscendC::TEventID copy_event_id = (AscendC::TEventID)0;
 
     int my_pe = shmemi_get_state()->team_pools[SHMEM_TEAM_WORLD]->mype;
     int start = team->start;
@@ -200,28 +200,28 @@ SHMEM_DEVICE void shmemi_barrier_npu_v3(shmemi_team_t *team) {
     auto sync_counter = shmemi_get_team_sync_counter(team->team_idx);
 
     int shift = 1;
-    int k = SHMEM_BARRIER_TG_DISSEM_KVAL;
+    int k = size < SHMEM_BARRIER_TG_DISSEM_KVAL ? size : SHMEM_BARRIER_TG_DISSEM_KVAL;
     int my_pe_in_team = (my_pe - start) / stride;
     int32_t count = shmemi_load<int32_t>((__gm__ uint8_t *)sync_counter);
 
     while (shift < size) {
-        for (int i = vec_id + 1; i < k - 1; i += vec_size) {
+        for (int i = vec_id + 1; i < k; i += vec_size) {
             int next_pe_in_team = (my_pe_in_team + i * shift) % size;
             int next_pe = start + next_pe_in_team * stride;
 
             // signal next pe
-            shmemi_signal_v2((__gm__ uint32_t *)(sync_array + my_pe), next_pe, count, (__gm__ uint32_t *)copy_ub, copy_event_id);
+            shmemi_signal_v2((__gm__ uint32_t *)(sync_array + my_pe), next_pe, count, (__ubuf__ uint32_t *)copy_ub, copy_event_id);
         }
 
-        for (int i = vec_id + 1; i < k - 1; i += vec_size) {
+        for (int i = vec_id + 1; i < k; i += vec_size) {
             int pre_pe_in_team = (my_pe_in_team - i * shift + size) % size;
             int pre_pe = start + pre_pe_in_team * stride;
 
             // wait pre pe
-            shmemi_wait_v2((__gm__ uint32_t *)(sync_array + pre_pe), count, (__gm__ uint32_t *)copy_ub, copy_event_id);
+            shmemi_wait_v2((__gm__ uint32_t *)(sync_array + pre_pe), count, (__ubuf__ uint32_t *)copy_ub, copy_event_id);
         }
         
-        shift *= 8;
+        shift *= k;
     }
 
     shmemi_store<int32_t>((__gm__ uint8_t *)sync_counter, count + 1);
@@ -247,9 +247,9 @@ SHMEM_DEVICE void shmemi_barrier(shmem_team_t tid) {
     shmemi_barrier_core<isAIVOnly>();
 
     if ASCEND_IS_AIV {
-          // shmemi_barrier_npu(team);
-          shmemi_barrier_npu_v2(team);
-          // shmemi_barrier_npu_v3(team);
+        // shmemi_barrier_npu(team);
+        shmemi_barrier_npu_v2(team);
+        // shmemi_barrier_npu_v3(team);
     }
 
     shmemi_barrier_core<isAIVOnly>();
