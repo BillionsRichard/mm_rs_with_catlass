@@ -22,21 +22,15 @@ void p2p_chain_do(void *stream, uint8_t *addr, int rank_id, int rank_size);
 constexpr int32_t SHMEM_BARRIER_TEST_NUM = 3;
 
 static void fetch_flags(uint32_t rank_id, int32_t t, void *sync_array, void *sync_counter) {
-    static int32_t tmp[SHMEMI_SYNCBIT_SIZE / sizeof(int32_t) * 8];
+    void* tmp;
+    ASSERT_EQ(aclrtMallocHost(&tmp, SHMEMI_SYNCBIT_SIZE * test_gnpu_num), 0);
 
     EXPECT_EQ(aclrtMemcpy(tmp, SHMEMI_SYNCBIT_SIZE, sync_counter, SHMEMI_SYNCBIT_SIZE, ACL_MEMCPY_DEVICE_TO_HOST), 0);
-    EXPECT_EQ(tmp[0], t + 1);
+    EXPECT_EQ(((int32_t*)tmp)[0], t + 1);
 
-    EXPECT_EQ(aclrtMemcpy(tmp, SHMEMI_SYNCBIT_SIZE * 8, sync_array, SHMEMI_SYNCBIT_SIZE * 8, ACL_MEMCPY_DEVICE_TO_HOST), 0);
-    for (int32_t i = 0; i < test_gnpu_num; i++) {
-        int32_t val = 0;
-        for (int32_t k = 0; k < 3; k++) {
-            if (rank_id == (i + (1 << k)) % test_gnpu_num) {
-                val = t;
-            }
-        }
-
-        EXPECT_EQ(tmp[i * SHMEMI_SYNCBIT_SIZE / sizeof(int32_t)], val);
+    EXPECT_EQ(aclrtMemcpy(tmp, SHMEMI_SYNCBIT_SIZE * test_gnpu_num, sync_array, SHMEMI_SYNCBIT_SIZE * test_gnpu_num, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+    for (int32_t i = 1; i < test_gnpu_num; i = i * 2) {
+        EXPECT_EQ(((int32_t*)tmp)[((rank_id + test_gnpu_num - i) % test_gnpu_num) * SHMEMI_SYNCBIT_SIZE / sizeof(int32_t)], t);
     }
 }
 
@@ -73,6 +67,7 @@ static void test_barrier_white_box(int32_t rank_id, int32_t n_ranks, uint64_t lo
     for (int32_t i = 1; i <= SHMEM_BARRIER_TEST_NUM; i++) {
         barrier_do(stream, nullptr);
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
+        shm::shmemi_control_barrier_all();
         fetch_flags(rank_id, i, sync_array, sync_counter);
         shm::shmemi_control_barrier_all();
     }
