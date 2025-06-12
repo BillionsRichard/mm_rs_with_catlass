@@ -143,7 +143,7 @@ SHMEM_DEVICE void shmemi_barrier_npu_v1(shmemi_team_t *team) {
 
 /** Group Dissemination Barrier. 
  *   
- *  An optimized version of shmemi_barrier_npu_v1, with temporal complexity reduced to O(lg(N/K)).
+ *  An optimized version of shmemi_barrier_npu_v1, with temporal complexity reduced to O(log_{k}^{N}).
  */
 SHMEM_DEVICE void shmemi_barrier_npu_v2(shmemi_team_t *team) {
     int vec_id = AscendC::GetBlockIdx();
