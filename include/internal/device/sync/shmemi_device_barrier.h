@@ -227,6 +227,36 @@ SHMEM_DEVICE void shmemi_barrier_npu_v3(shmemi_team_t *team) {
     shmemi_store<int32_t>((__gm__ uint8_t *)sync_counter, count + 1);
 }
 
+// v4 -- use multi vector cores - 1 local write + (rank_size-1) remote read
+SHMEM_DEVICE void shmemi_barrier_npu_v4(shmemi_team_t *team) {
+    int vec_id = AscendC::GetBlockIdx();
+    int vec_size = AscendC::GetBlockNum() * AscendC::GetTaskRation();
+
+    int my_pe = shmemi_get_state()->team_pools[SHMEM_TEAM_WORLD]->mype;
+    int start = team->start;
+    int stride = team->stride;
+    int size = team->size;
+    auto sync_array = shmemi_get_team_sync_array(team->team_idx);
+    auto sync_counter = shmemi_get_team_sync_counter(team->team_idx);
+
+    int k = size < SHMEM_BARRIER_TG_DISSEM_KVAL ? size : SHMEM_BARRIER_TG_DISSEM_KVAL;
+    int my_pe_in_team = (my_pe - start) / stride;
+    int32_t count = shmemi_load<int32_t>((__gm__ uint8_t *)sync_counter);
+
+    for (int i = vec_id; i < size; i += k) {
+        if (i == my_pe_in_team) {
+            // write local
+            shmemi_signal<int32_t>((__gm__ uint8_t *)sync_array, count);
+        } else {
+            // read remote
+            int remote_pe = start + i * stride;
+            shmemi_wait<int32_t>((__gm__ uint8_t *)shmemi_ptr(sync_array, remote_pe), count);
+        }
+    }
+
+    shmemi_store<int32_t>((__gm__ uint8_t *)sync_counter, count + 1);
+}
+
 /* Level 3: barrier between hosts, TO BE IMPLEMENTED.*/ 
 SHMEM_DEVICE void shmemi_barrier_sys() {}
 
@@ -248,8 +278,9 @@ SHMEM_DEVICE void shmemi_barrier(shmem_team_t tid) {
 
     if ASCEND_IS_AIV {
         // shmemi_barrier_npu(team);
-        shmemi_barrier_npu_v2(team);
+        // shmemi_barrier_npu_v2(team);
         // shmemi_barrier_npu_v3(team);
+        shmemi_barrier_npu_v4(team);
     }
 
     shmemi_barrier_core<isAIVOnly>();
