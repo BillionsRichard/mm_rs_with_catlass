@@ -52,18 +52,6 @@ SHMEM_DEVICE void CVGuard() {
     vec_guard();
 }
 
-extern "C" SHMEM_GLOBAL void fetch_addr(GM_ADDR sync_array, GM_ADDR sync_counter) {
-    shmemi_team_t *team = shmemi_get_state()->team_pools[0];
-    *((__gm__ uint64_t*) sync_array) = (uint64_t) shmemi_get_team_sync_array(team->team_idx);
-    *((__gm__ uint64_t*) sync_counter) = (uint64_t) shmemi_get_team_sync_counter(team->team_idx);
-}
-
-extern "C" SHMEM_GLOBAL void barrier(GM_ADDR stub) {
-    cube_guard();
-    shmem_barrier_all();
-    vec_guard();
-}
-
 extern "C" SHMEM_GLOBAL void increase(GM_ADDR addr, int rank_id, int rank_size) {
     CVGuard();
     
@@ -114,14 +102,6 @@ extern "C" SHMEM_GLOBAL void p2p_chain(GM_ADDR addr, int rank_id, int rank_size)
 #endif
 
     shmem_barrier_all();
-}
-
-void fetch_addr_do(void* stream, uint8_t* sync_array, uint8_t* sync_counter) {
-    fetch_addr<<<1, nullptr, stream>>>(sync_array, sync_counter);
-}
-
-void barrier_do(void* stream, uint8_t *stub) {
-    barrier<<<16, nullptr, stream>>>(stub);
 }
 
 void increase_do(void* stream, uint8_t *addr, int rank_id, int rank_size) {
