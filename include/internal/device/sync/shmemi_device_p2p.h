@@ -2,7 +2,6 @@
 #define SHEMEI_P2P_H
 
 #include "internal/device/shmemi_device_common.h"
-#include "lowlevel/smem_shm_aicore_base_copy.h"
 
 template<typename T>
 SHMEM_DEVICE void shmemi_signal(__gm__ uint8_t *addr, T val) {
@@ -23,28 +22,6 @@ SHMEM_DEVICE void shmemi_wait(__gm__ uint8_t *addr, T val) {
     while (shmemi_load<T>(addr) != val) {
         // always flush data cache to avoid reading staled data
         dcci_cacheline(addr);
-    }
-}
-
-SHMEM_DEVICE void shmemi_signal_v2(__gm__ uint32_t *addr, int pe, uint32_t val, __ubuf__ uint32_t *buff, AscendC::TEventID event_id) {
-    *buff = val;
-    AscendC::SetFlag<AscendC::HardEvent::S_MTE3>(event_id);
-    AscendC::WaitFlag<AscendC::HardEvent::S_MTE3>(event_id);
-    smem_shm_copy_ub2gm(shmemi_ptr(addr, pe), buff, 1);
-    AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(event_id);
-    AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(event_id);
-}
-
-SHMEM_DEVICE void shmemi_wait_v2(__gm__ uint32_t *addr, uint32_t val, __ubuf__ uint32_t *buff, AscendC::TEventID event_id) {
-    while (true) {
-        AscendC::SetFlag<AscendC::HardEvent::S_MTE2>(event_id);
-        AscendC::WaitFlag<AscendC::HardEvent::S_MTE2>(event_id);
-        smem_shm_copy_gm2ub(buff, addr, 1);
-        AscendC::SetFlag<AscendC::HardEvent::MTE2_S>(event_id);
-        AscendC::WaitFlag<AscendC::HardEvent::MTE2_S>(event_id);
-        if (*buff == val) {
-            return;
-        }
     }
 }
 
