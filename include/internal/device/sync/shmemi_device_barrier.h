@@ -107,7 +107,10 @@ The temporal and spatial complexity of this implementation are O(logN) and O(N),
   c. Optimize spatial complexity to O(logN).
 */
 
-SHMEM_DEVICE void shmemi_barrier_npu(shmemi_team_t *team) {
+SHMEM_DEVICE void shmemi_barrier_npu_v1(shmemi_team_t *team) {
+    if (AscendC::GetBlockIdx() != 0)
+        return;
+
     int my_pe = shmemi_get_state()->team_pools[SHMEM_TEAM_WORLD]->mype;
     int start = team->start;
     int stride = team->stride;
@@ -138,6 +141,87 @@ SHMEM_DEVICE void shmemi_barrier_npu(shmemi_team_t *team) {
     shmemi_store<int32_t>((__gm__ uint8_t *)sync_counter, count + 1);
 }
 
+/** Group Dissemination Barrier. 
+ *   
+ *  An optimized version of shmemi_barrier_npu_v1, with temporal complexity reduced to O(log_{k}^{N}).
+ */
+SHMEM_DEVICE void shmemi_barrier_npu_v2(shmemi_team_t *team) {
+    int vec_id = AscendC::GetBlockIdx();
+    int vec_size = AscendC::GetBlockNum() * AscendC::GetTaskRation();
+
+    int my_pe = shmemi_get_state()->team_pools[SHMEM_TEAM_WORLD]->mype;
+    int start = team->start;
+    int stride = team->stride;
+    int size = team->size;
+    auto sync_array = shmemi_get_team_sync_array(team->team_idx);
+    auto sync_counter = shmemi_get_team_sync_counter(team->team_idx);
+
+    int shift = 1;
+    int k = SHMEM_BARRIER_TG_DISSEM_KVAL;
+    k = k < size ? k : size;
+    k = k < vec_size ? k : vec_size;
+    int my_pe_in_team = (my_pe - start) / stride;
+    int32_t count = shmemi_load<int32_t>((__gm__ uint8_t *)sync_counter);
+
+    while (shift < size) {
+        for (int i = vec_id + 1; i < k; i += vec_size) {
+            int next_pe_in_team = (my_pe_in_team + i * shift) % size;
+            int next_pe = start + next_pe_in_team * stride;
+
+            // signal next pe
+            shmemi_signal<int32_t>((__gm__ uint8_t *)(sync_array + my_pe), next_pe, count);
+        }
+
+        for (int i = vec_id + 1; i < k; i += vec_size) {
+            int pre_pe_in_team = (my_pe_in_team - i * shift + size) % size;
+            int pre_pe = start + pre_pe_in_team * stride;
+
+            // wait pre pe
+            shmemi_wait<int32_t>((__gm__ uint8_t *)(sync_array + pre_pe), count);
+        }
+        
+        shift *= k;
+    } 
+
+    shmemi_store<int32_t>((__gm__ uint8_t *)sync_counter, count + 1);
+}
+
+/** Centralized Barrier (pull mode). 
+ *  
+ *  The temporal and spatial complexity of this implementation are O(N/K) and O(1), respectively. 
+ *  Performs better than Group Dissemination Barrier at small scale (eg. 8 ranks).
+ */
+SHMEM_DEVICE void shmemi_barrier_npu_v3(shmemi_team_t *team) {
+    int vec_id = AscendC::GetBlockIdx();
+    int vec_size = AscendC::GetBlockNum() * AscendC::GetTaskRation();
+
+    int my_pe = shmemi_get_state()->team_pools[SHMEM_TEAM_WORLD]->mype;
+    int start = team->start;
+    int stride = team->stride;
+    int size = team->size;
+    auto sync_array = shmemi_get_team_sync_array(team->team_idx);
+    auto sync_counter = shmemi_get_team_sync_counter(team->team_idx);
+
+    int k = SHMEM_BARRIER_TG_DISSEM_KVAL;
+    k = k < size ? k : size;
+    k = k < vec_size ? k : vec_size;
+    int my_pe_in_team = (my_pe - start) / stride;
+    int32_t count = shmemi_load<int32_t>((__gm__ uint8_t *)sync_counter);
+
+    for (int i = vec_id; i < size; i += k) {
+        if (i == my_pe_in_team) {
+            // write local
+            shmemi_signal<int32_t>((__gm__ uint8_t *)sync_array, count);
+        } else {
+            // read remote
+            int remote_pe = start + i * stride;
+            shmemi_wait<int32_t>((__gm__ uint8_t *)shmemi_ptr(sync_array, remote_pe), count);
+        }
+    }
+
+    shmemi_store<int32_t>((__gm__ uint8_t *)sync_counter, count + 1);
+}
+
 /* Level 3: barrier between hosts, TO BE IMPLEMENTED.*/ 
 SHMEM_DEVICE void shmemi_barrier_sys() {}
 
@@ -158,8 +242,7 @@ SHMEM_DEVICE void shmemi_barrier(shmem_team_t tid) {
     shmemi_barrier_core<isAIVOnly>();
 
     if ASCEND_IS_AIV {
-        if (AscendC::GetBlockIdx() == 0)
-          shmemi_barrier_npu(team);
+        shmemi_barrier_npu_v3(team);
     }
 
     shmemi_barrier_core<isAIVOnly>();
