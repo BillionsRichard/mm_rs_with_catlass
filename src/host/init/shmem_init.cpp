@@ -19,8 +19,8 @@ namespace shm {
 #define SHMEM_DEVICE_HOST_STATE_INITALIZER                                            \
     {                                                                                 \
         (1 << 16) + sizeof(shmemi_device_host_state_t),  /* version */                     \
-            DEFAULT_MY_PE,                           /* mype */                       \
-            DEFAULT_N_PES,                           /* npes */                       \
+            (DEFAULT_MY_PE),                           /* mype */                       \
+            (DEFAULT_N_PES),                           /* npes */                       \
             NULL,                                    /* heap_base */                   \
             {NULL},                                  /* p2p_heap_base */                \
             {NULL},                                  /* sdma_heap_base */               \

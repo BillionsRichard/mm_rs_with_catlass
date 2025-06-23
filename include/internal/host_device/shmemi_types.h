@@ -16,7 +16,7 @@ extern "C" {
 
 #define SHMEM_PAGE_SIZE (1024UL * 1024UL * 2)
 
-#define ALIGH_TO(size, page) ((size + page - 1) / page * page)
+#define ALIGH_TO(size, page) (((size) + (page) - 1) / (page) * (page))
 
 /* synchonization related */ 
 #define SHMEMI_SYNCBIT_SIZE SCALAR_DATA_CACHELINE_SIZE
