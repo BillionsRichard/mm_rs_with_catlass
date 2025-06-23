@@ -100,7 +100,7 @@ int32_t shmemi_team_init(int32_t rank, int32_t size)
         SHM_LOG_ERROR("malloc sync counter failed.");
         return SHMEM_INNER_ERROR;
     }
-    ret = shmemi_memset((int32_t *) g_state.sync_counter, SYNC_COUNTERS_SIZE / sizeof(int32_t), 1);
+    ret = shmemi_memset((int32_t *) g_state.sync_counter, SYNC_COUNTERS_SIZE / sizeof(int32_t), 1, SYNC_COUNTERS_SIZE / sizeof(int32_t));
     if (ret != 0) {
         shmemi_team_finalize();
         SHM_LOG_ERROR("memset sync counter failed.");
