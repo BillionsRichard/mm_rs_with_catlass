@@ -107,7 +107,7 @@ private:
 #define SHM_OUT_LOG(LEVEL, ARGS)                                                           \
     do {                                                                                   \
         std::ostringstream oss;                                                            \
-        oss << "[SHMEM " << (SHM_LOG_FILENAME_SHORT) << ":" << __LINE__ << "] " << (ARGS); \
+        oss << "[SHMEM " << SHM_LOG_FILENAME_SHORT << ":" << __LINE__ << "] " << (ARGS); \
         shm::shm_out_logger::Instance().log(LEVEL, oss);                                   \
     } while (0)
 
