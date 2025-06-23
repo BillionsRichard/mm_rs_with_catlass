@@ -5,11 +5,11 @@
 #include <vector>
 #include <iostream>
 
-using namespace std;
 
 #include "acl/acl.h"
 #include "shmemi_host_common.h"
 #include "shmemi_device_intf.h"
+using namespace std;
 
 namespace shm {
 uint64_t g_team_mask = 0;
