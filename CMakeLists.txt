@@ -45,7 +45,7 @@ set(ASCENDC_CMAKE_DIR ${ASCEND_HOME_PATH}/compiler/tikcpp/ascendc_kernel_cmake)
 
 include(${ASCENDC_CMAKE_DIR}/ascendc.cmake)
 set(SHMEM_SOURCE_ROOT ${PROJECT_SOURCE_DIR})
-
+add_link_options(-Wl,-z,relro,-z,now)
 # 添加子目录
 add_subdirectory(src/host)
 add_subdirectory(src/device)

@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <cstring>
 #include <vector>
 #include "acl/acl.h"
 #include "shmemi_host_common.h"
