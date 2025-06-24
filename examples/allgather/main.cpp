@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
     f_npu = atoi(argv[6]);
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     status = test_shmem_team_all_gather(rank_id, n_ranks, local_mem_size);
-    if (status) { 
+    if (status) {
         std::exit(EXIT_FAILURE);
     }
     
