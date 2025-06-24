@@ -18,11 +18,7 @@ int main(int argc, char* argv[])
     int rank_id = atoi(argv[2]);
     size_t ip_len = strlen(argv[3]);
     char* Ipport = new char[ip_len + 1];
-    error_t ret = strcpy_s(Ipport, ip_len + 1, argv[3]);
-    if (ret != 0) {
-        std::cout << "[ERROR] demo run failed!" << std::endl;
-        std::exit(1);
-    }
+    std::copy(argv[3], argv[3] + ip_len + 1, Ipport);
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     int test_gnpu_num = 8;
     std::cout << "[TEST] input rank_size: " << n_ranks << " rank_id:" << rank_id << " input_ip: " << Ipport << std::endl;

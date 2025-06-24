@@ -190,8 +190,8 @@ int32_t shmem_set_attr(int32_t my_rank, int32_t n_ranks, uint64_t local_mem_size
     *attributes = &shm::g_attr;
     size_t ip_len = strlen(ip_port);
     shm::g_ipport = new char[ip_len + 1];
-    error_t ret = strcpy_s(shm::g_ipport, ip_len + 1, ip_port);
-    if (ret != 0 || shm::g_ipport == nullptr) {
+    std::copy(ip_port, ip_port + ip_len + 1, shm::g_ipport);
+    if (shm::g_ipport == nullptr) {
         SHM_LOG_ERROR("my_rank:" << my_rank << " shm::g_ipport is nullptr!");
         return SHMEM_INVALID_VALUE;
     }
