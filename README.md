@@ -63,13 +63,13 @@ GLIBC >= 2.28
 git clone https://gitee.com/ascend/catlass.git
 ```
 
-2.在example/matmul_allreduce目录下进行demo编译:
+2.在shmem/examples/matmul_allreduce目录下进行demo编译:
 
 ```sh
 bash scripts/build.sh
 ```
 
-3.在example/matmul_allreduce目录执行demo:
+3.在shmem/examples/matmul_allreduce目录执行demo:
 
 ```sh
 bash scripts/run.sh -ranks 2 -M 1024 -K 2048 -N 8192
