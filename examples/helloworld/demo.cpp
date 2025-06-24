@@ -10,7 +10,7 @@
         if (__ret != ACL_ERROR_NONE) {                                                      \
             std::cerr << "[ERROR]" << __FILE__ << ":" << __LINE__ << " aclError:" << __ret << std::endl; \
         }                                                                                   \
-    } while (0);
+    } while (0)
 
 int main(int argc, char* argv[]) 
 {

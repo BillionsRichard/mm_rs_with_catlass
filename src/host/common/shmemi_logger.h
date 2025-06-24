@@ -153,7 +153,7 @@ private:
             SHM_LOG_ERROR(" return shmem error: " << check_ret);   \
             return check_ret;                                     \
         }                                                        \
-    } while (0);
+    } while (0)
 
 
 #endif  //SHMEM_SHM_OUT_LOGGER_H
