@@ -92,6 +92,9 @@ run.sh脚本提供-ranks -ipport -test_filter等参数自定义执行用例的�
 bash scripts/run.sh -ranks 8 -ipport tcp://127.0.0.1:8666 -test_filter Init
 ```
 
+## 安全声明
+[安全声明](docs/security.md)
+
 ## 合作贡献者
 待补充
 
