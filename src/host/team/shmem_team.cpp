@@ -124,7 +124,7 @@ int32_t first_free_idx_fetch()
 
 int32_t shmemi_team_finalize()
 {
-    /* Destroy all undestroyed teams*/
+    /* Destroy all undestroyed teams */
     int32_t shmem_max_teams = SHMEM_MAX_TEAMS;
     for (int32_t i = 0; i < shmem_max_teams; i++) {
         if (is_valid_team(i)) shmem_team_destroy(i);
