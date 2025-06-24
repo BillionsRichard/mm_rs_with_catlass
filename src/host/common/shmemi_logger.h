@@ -104,11 +104,11 @@ private:
 #ifndef SHM_LOG_FILENAME_SHORT
 #define SHM_LOG_FILENAME_SHORT (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #endif
-#define SHM_OUT_LOG(LEVEL, ARGS)                                                           \
-    do {                                                                                   \
-        std::ostringstream oss;                                                            \
-        oss << "[SHMEM " << SHM_LOG_FILENAME_SHORT << ":" << __LINE__ << "] " << (ARGS); \
-        shm::shm_out_logger::Instance().log(LEVEL, oss);                                   \
+#define SHM_OUT_LOG(LEVEL, ARGS)                                                         \
+    do {                                                                                 \
+        std::ostringstream oss;                                                          \
+        oss << "[SHMEM " << SHM_LOG_FILENAME_SHORT << ":" << __LINE__ << "] " << ARGS;   \
+        shm::shm_out_logger::Instance().log(LEVEL, oss);                                 \
     } while (0)
 
 #define SHM_LOG_DEBUG(ARGS) SHM_OUT_LOG(shm::DEBUG_LEVEL, ARGS)
