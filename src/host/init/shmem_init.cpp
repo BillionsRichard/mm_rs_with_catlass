@@ -118,8 +118,8 @@ int32_t shmemi_heap_init(shmem_init_attr_t *attributes)
         delete[] shm::g_ipport;
         attributes->ip_port = nullptr;
     } else {
-         SHM_LOG_WARN("my_rank:" << attributes->my_rank << " shm::g_ipport is released in advance!");
-         attributes->ip_port = nullptr;
+        SHM_LOG_WARN("my_rank:" << attributes->my_rank << " shm::g_ipport is released in advance!");
+        attributes->ip_port = nullptr;
     }
     g_state.is_shmem_created = true;
     return status;
