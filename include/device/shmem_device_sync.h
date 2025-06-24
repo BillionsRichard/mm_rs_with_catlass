@@ -44,7 +44,6 @@ SHMEM_DEVICE void shmem_barrier(shmem_team_t tid) {
 /**
  * @fn SHMEM_DEVICE void shmem_barrier_all()
  * @brief shmem_barrier of all PEs.
- *
  */
 SHMEM_DEVICE void shmem_barrier_all() {
     shmem_barrier(SHMEM_TEAM_WORLD);

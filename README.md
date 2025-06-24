@@ -63,13 +63,13 @@ GLIBC >= 2.28
 git clone https://gitee.com/ascend/catlass.git
 ```
 
-2.在example/matmul_allreduce目录下进行demo编译:
+2.在shmem/examples/matmul_allreduce目录下进行demo编译:
 
 ```sh
 bash scripts/build.sh
 ```
 
-3.在example/matmul_allreduce目录执行demo:
+3.在shmem/examples/matmul_allreduce目录执行demo:
 
 ```sh
 bash scripts/run.sh -ranks 2 -M 1024 -K 2048 -N 8192
@@ -91,6 +91,9 @@ run.sh脚本提供-ranks -ipport -test_filter等参数自定义执行用例的�
 # 8卡，ip:port 127.0.0.1:8666，运行所有*Init*用例
 bash scripts/run.sh -ranks 8 -ipport tcp://127.0.0.1:8666 -test_filter Init
 ```
+
+## 安全声明
+[安全声明](docs/security.md)
 
 ## 合作贡献者
 待补充
