@@ -16,8 +16,9 @@ int main(int argc, char* argv[])
 {
     int n_ranks = atoi(argv[1]);
     int rank_id = atoi(argv[2]);
-    char* Ipport = new char[20];
-    strcpy(Ipport, argv[3]);
+    size_t ip_len = strlen(argv[3]);
+    char* Ipport = new char[ip_len + 1];
+    std::copy(argv[3], argv[3] + ip_len + 1, Ipport);
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     int test_gnpu_num = 8;
     std::cout << "[TEST] input rank_size: " << n_ranks << " rank_id:" << rank_id << " input_ip: " << Ipport << std::endl;

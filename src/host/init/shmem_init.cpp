@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <cstring>
 #include <vector>
 #include "acl/acl.h"
 #include "shmemi_host_common.h"
@@ -19,8 +19,8 @@ namespace shm {
 #define SHMEM_DEVICE_HOST_STATE_INITALIZER                                            \
     {                                                                                 \
         (1 << 16) + sizeof(shmemi_device_host_state_t),  /* version */                     \
-            DEFAULT_MY_PE,                           /* mype */                       \
-            DEFAULT_N_PES,                           /* npes */                       \
+            (DEFAULT_MY_PE),                           /* mype */                       \
+            (DEFAULT_N_PES),                           /* npes */                       \
             NULL,                                    /* heap_base */                   \
             {NULL},                                  /* p2p_heap_base */                \
             {NULL},                                  /* sdma_heap_base */               \
@@ -190,7 +190,7 @@ int32_t shmem_set_attr(int32_t my_rank, int32_t n_ranks, uint64_t local_mem_size
     *attributes = &shm::g_attr;
     size_t ip_len = strlen(ip_port);
     shm::g_ipport = new char[ip_len + 1];
-    strcpy(shm::g_ipport, ip_port);
+    std::copy(ip_port, ip_port + ip_len + 1, shm::g_ipport);
     if (shm::g_ipport == nullptr) {
         SHM_LOG_ERROR("my_rank:" << my_rank << " shm::g_ipport is nullptr!");
         return SHMEM_INVALID_VALUE;

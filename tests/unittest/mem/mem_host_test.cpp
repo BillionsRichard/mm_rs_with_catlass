@@ -1,13 +1,13 @@
 #include <iostream>
 #include <string>
 #include <vector>
-using namespace std;
 
 #include "acl/acl.h"
 #include "shmem_api.h"
 #include "shmemi_host_common.h"
 
 #include <gtest/gtest.h>
+using namespace std;
 extern int test_gnpu_num;
 extern int test_first_npu;
 extern void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64_t local_mem_size, int process_count);
