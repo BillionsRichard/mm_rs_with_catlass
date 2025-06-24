@@ -18,8 +18,8 @@ int main(int argc, char* argv[])
     int rank_id = atoi(argv[2]);
     size_t ip_len = strlen(argv[3]);
     char* Ipport = new char[ip_len + 1];
-    errno_t ret = strcpy_s(Ipport, ip_len + 1, argv[3]);
-    if (ret != EOK) {
+    error_t ret = strcpy_s(Ipport, ip_len + 1, argv[3]);
+    if (ret != 0) {
         std::cout << "[ERROR] demo run failed!" << std::endl;
         std::exit(1);
     }
