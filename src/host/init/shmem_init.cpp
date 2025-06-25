@@ -9,8 +9,8 @@ using namespace std;
 
 namespace shm {
 
-#define DEFAULT_MY_PE -1
-#define DEFAULT_N_PES -1
+#define DEFAULT_MY_PE (-1)
+#define DEFAULT_N_PES (-1)
 #define DEFAULT_FLAG 0
 #define DEFAULT_ID 0
 #define DEFAULT_TIMEOUT 120
