@@ -1,13 +1,11 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <gtest/gtest.h>
 
 #include "acl/acl.h"
-#include "shmem_api.h"
 #include "shmemi_host_common.h"
 
-#include <gtest/gtest.h>
-using namespace std;
 extern int test_gnpu_num;
 extern int test_first_npu;
 extern void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64_t local_mem_size, int processCount);
@@ -40,7 +38,7 @@ static void test_ub_put_get(aclrtStream stream, uint8_t *gva, uint32_t rank_id, 
 
     ASSERT_EQ(aclrtMemcpy(input.data(), input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);
 
-    string p_name = "[Process " + to_string(rank_id) + "] ";
+    std::string p_name = "[Process " + std::to_string(rank_id) + "] ";
     std::cout << p_name;
     for (int i = 0; i < total_size; i++) {
         std::cout << input[i] << " ";

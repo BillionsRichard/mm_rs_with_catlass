@@ -227,6 +227,7 @@ int32_t shmem_init_attr(shmem_init_attr_t *attributes)
     SHMEM_CHECK_RET(shm::memory_manager_initialize(shm::g_state.heap_base, shm::g_state.heap_size));
     SHMEM_CHECK_RET(shm::shmemi_team_init(shm::g_state.mype, shm::g_state.npes));
     SHMEM_CHECK_RET(shm::update_device_state());
+    SHMEM_CHECK_RET(shm::shmemi_sync_init());
     shm::g_state.is_shmem_initialized = true;
     SHMEM_CHECK_RET(shm::shmemi_control_barrier_all());
     return SHMEM_SUCCESS;
