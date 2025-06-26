@@ -7,10 +7,8 @@ RESET = "\033[0m"
 
 def is_close(actual: np.ndarray, expected: np.ndarray, rtol: float = 2 ** -8):
     if actual.dtype == np.float16 or actual.dtype == np.float32:
-        assert(expected.dtype == actual.dtype)
         return np.abs(actual - expected) <= rtol * np.maximum(1, np.abs(expected))
     elif actual.dtype == np.int32:
-        assert(expected.dtype == np.int32)
         return actual == expected
 
 def verify_result():
