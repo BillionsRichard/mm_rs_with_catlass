@@ -23,7 +23,7 @@ target_include_directories(shmem_host
     ${CMAKE_CURRENT_SOURCE_DIR}/mem
     ${CMAKE_CURRENT_SOURCE_DIR}/team
     ${CMAKE_CURRENT_SOURCE_DIR}/../device
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/host/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include/smem/host/
     ${ASCEND_DRIVER_PATH}/kernel/inc
     ${ASCEND_HOME_PATH}/${ARCH}-linux/include/
     ${ASCEND_HOME_PATH}/${ARCH}-linux/include/hccl/
@@ -35,7 +35,8 @@ target_include_directories(shmem_host
 target_link_directories(shmem_host
     PUBLIC
     ${ASCEND_DRIVER_PATH}/lib64/driver
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/lib
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/lib64
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/hybm/lib
     ${ASCEND_HOME_PATH}/${ARCH}-linux/lib64/
 )
 

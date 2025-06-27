@@ -83,7 +83,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-export LD_LIBRARY_PATH=$(pwd)/install/shmem/lib:${ASCEND_HOME_PATH}/lib64:$(pwd)/install/memfabric_hybrid/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$(pwd)/install/shmem/lib:${ASCEND_HOME_PATH}/lib64:$(pwd)/install/output/memfabric_hybrid/lib:$LD_LIBRARY_PATH
 ./build/bin/shmem_unittest "$RANK_SIZE" "$IPPORT" "$GNPU_NUM" "$FIRST_RANK" "$FIRST_NPU"  --gtest_output=xml:test_detail.xml --gtest_filter=${TEST_FILTER}
 
 cd ${CURRENT_DIR}

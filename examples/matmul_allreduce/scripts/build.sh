@@ -5,15 +5,15 @@ PROJECT_ROOT=$( dirname $( dirname $(dirname "$SCRIPT_DIR")))
 
 echo ${PROJECT_ROOT}
 
-MEMFABRIC_INCLUDE_PATH=$PROJECT_ROOT/3rdparty/memfabric_hybrid/include/smem/
-MEMFABRIC_LIB_PATH=$PROJECT_ROOT/3rdparty/memfabric_hybrid/lib/
+MEMFABRIC_INCLUDE_PATH=$PROJECT_ROOT/install/output/memfabric_hybrid/include/smem/
+MEMFABRIC_LIB_PATH=$PROJECT_ROOT/install/output/memfabric_hybrid/lib/
 
-SHMEM_INCLUDE_PATH=$PROJECT_ROOT/install/shmem/include/
-SHMEM_LIB_PATH=$PROJECT_ROOT/install/shmem/lib/
+SHMEM_INCLUDE_PATH=$PROJECT_ROOT/install/output/shmem/include/
+SHMEM_LIB_PATH=$PROJECT_ROOT/install/output/shmem/lib/
 
 cd ${PROJECT_ROOT}/examples/matmul_allreduce/
 
-export LD_LIBRARY_PATH=${PROJECT_ROOT}/install/shmem/lib:${ASCEND_HOME_PATH}/lib64:${PROJECT_ROOT}/install/memfabric_hybrid/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=${PROJECT_ROOT}/install/output/shmem/lib:${ASCEND_HOME_PATH}/lib64:${PROJECT_ROOT}/install/output/memfabric_hybrid/lib:$LD_LIBRARY_PATH
 
 mkdir -p out
 bisheng -O2 -std=c++17 -xcce --cce-aicore-arch=dav-c220             \

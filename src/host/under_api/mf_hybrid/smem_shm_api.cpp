@@ -28,9 +28,6 @@ smem_shm_query_support_data_op_func smem_api::g_smem_shm_query_support_data_op =
 smem_shm_create_func smem_api::g_smem_shm_create = nullptr;
 smem_shm_destroy_func smem_api::g_smem_shm_destroy = nullptr;
 smem_shm_set_extra_context_func smem_api::g_smem_shm_set_extra_context = nullptr;
-smem_shm_get_global_team_func smem_api::g_smem_shm_get_global_team = nullptr;
-smem_shm_team_get_rank_func smem_api::g_smem_shm_team_get_rank = nullptr;
-smem_shm_team_get_size_func smem_api::g_smem_shm_team_get_size = nullptr;
 smem_shm_control_barrier_func smem_api::g_smem_shm_control_barrier = nullptr;
 smem_shm_control_all_gather_func smem_api::g_smem_shm_control_all_gather = nullptr;
 smem_shm_topo_can_reach_func smem_api::g_smem_shm_topo_can_reach = nullptr;
@@ -78,9 +75,6 @@ int32_t smem_api::load_library(const std::string &lib_dir_path)
     DL_LOAD_SYM(g_smem_shm_create, smem_shm_create_func, g_smem_handle, "smem_shm_create");
     DL_LOAD_SYM(g_smem_shm_destroy, smem_shm_destroy_func, g_smem_handle, "smem_shm_destroy");
     DL_LOAD_SYM(g_smem_shm_set_extra_context, smem_shm_set_extra_context_func, g_smem_handle, "smem_shm_set_extra_context");
-    DL_LOAD_SYM(g_smem_shm_get_global_team, smem_shm_get_global_team_func, g_smem_handle, "smem_shm_get_global_team");
-    DL_LOAD_SYM(g_smem_shm_team_get_rank, smem_shm_team_get_rank_func, g_smem_handle, "smem_shm_team_get_rank");
-    DL_LOAD_SYM(g_smem_shm_team_get_size, smem_shm_team_get_size_func, g_smem_handle, "smem_shm_team_get_size");
     DL_LOAD_SYM(g_smem_shm_control_barrier, smem_shm_control_barrier_func, g_smem_handle, "smem_shm_control_barrier");
     DL_LOAD_SYM(g_smem_shm_control_all_gather, smem_shm_control_all_gather_func, g_smem_handle, "smem_shm_control_allgather");
     DL_LOAD_SYM(g_smem_shm_topo_can_reach, smem_shm_topo_can_reach_func, g_smem_handle, "smem_shm_topology_can_reach");

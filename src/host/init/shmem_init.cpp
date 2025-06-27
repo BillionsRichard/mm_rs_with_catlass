@@ -65,7 +65,6 @@ int32_t shmemi_heap_init(shmem_init_attr_t *attributes)
 {
     void *gva = nullptr;
     int32_t status = SHMEM_SUCCESS;
-    uint64_t smem_global_size = g_state.heap_size * g_state.npes;
     int32_t device_id;
     SHMEM_CHECK_RET(aclrtGetDevice(&device_id));
 
@@ -76,7 +75,7 @@ int32_t shmemi_heap_init(shmem_init_attr_t *attributes)
     }
     smem_shm_config_t config;
     (void) smem_api::smem_shm_config_init(&config);
-    status = smem_api::smem_shm_init(attributes->ip_port, attributes->n_ranks, attributes->my_rank, device_id, smem_global_size,
+    status = smem_api::smem_shm_init(attributes->ip_port, attributes->n_ranks, attributes->my_rank, device_id,
              &config);
     if (status != SHMEM_SUCCESS) {
         SHM_LOG_ERROR("smem_init Failed");
@@ -128,9 +127,7 @@ int32_t shmemi_heap_init(shmem_init_attr_t *attributes)
 int32_t shmemi_control_barrier_all()
 {
     SHM_ASSERT_RETURN(g_smem_handle != nullptr, SHMEM_INVALID_PARAM);
-    smem_shm_team_t obj = smem_api::smem_shm_get_global_team(g_smem_handle);
-    SHM_ASSERT_RETURN(obj != nullptr, SHMEM_INVALID_PARAM);
-    return smem_api::smem_shm_control_barrier(obj);
+    return smem_api::smem_shm_control_barrier(g_smem_handle);
 }
 
 int32_t update_device_state()

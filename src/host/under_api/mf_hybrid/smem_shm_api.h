@@ -6,7 +6,7 @@
 
 #include <string>
 #include <mutex>
-#include "smem_shm_def.h"
+#include "smem_shm.h"
 
 namespace shm {
 /* smem functions */
@@ -19,18 +19,15 @@ using smem_get_and_clear_last_err_msg_func = const char *(*)();
 
 /* smem shm functions */
 using smem_shm_config_init_func = int32_t (*)(smem_shm_config_t *config);
-using smem_shm_init_func = int32_t (*)(const char *, uint32_t, uint32_t, uint16_t, uint64_t, smem_shm_config_t *);
+using smem_shm_init_func = int32_t (*)(const char *, uint32_t, uint32_t, uint16_t, smem_shm_config_t *);
 using smem_shm_un_init_func = void (*)(uint32_t flags);
 using smem_shm_query_support_data_op_func = uint32_t (*)(void);
 using smem_shm_create_func = smem_shm_t (*)(uint32_t, uint32_t, uint32_t, uint64_t, smem_shm_data_op_type, uint32_t,
                                          void **);
 using smem_shm_destroy_func = int32_t (*)(smem_shm_t, uint32_t);
 using smem_shm_set_extra_context_func = int32_t (*)(smem_shm_t, const void *, uint32_t);
-using smem_shm_get_global_team_func = smem_shm_team_t (*)(smem_shm_t);
-using smem_shm_team_get_rank_func = uint32_t (*)(smem_shm_team_t);
-using smem_shm_team_get_size_func = uint32_t (*)(smem_shm_team_t);
-using smem_shm_control_barrier_func = int32_t (*)(smem_shm_team_t);
-using smem_shm_control_all_gather_func = int32_t (*)(smem_shm_team_t, const char *, uint32_t, char *, uint32_t);
+using smem_shm_control_barrier_func = int32_t (*)(smem_shm_t);
+using smem_shm_control_all_gather_func = int32_t (*)(smem_shm_t, const char *, uint32_t, char *, uint32_t);
 using smem_shm_topo_can_reach_func = int32_t (*)(smem_shm_t, uint32_t, uint32_t *);
 
 class smem_api {
@@ -76,9 +73,9 @@ public:
     }
 
     static inline int32_t smem_shm_init(const char *config_store_ipport, uint32_t world_size, uint32_t rank_id,
-                                      uint16_t device_id, uint64_t gva_space_size, smem_shm_config_t *config)
+                                      uint16_t device_id, smem_shm_config_t *config)
     {
-        return g_smem_shm_init(config_store_ipport, world_size, rank_id, device_id, gva_space_size, config);
+        return g_smem_shm_init(config_store_ipport, world_size, rank_id, device_id, config);
     }
 
     static inline void smem_shm_un_init(uint32_t flags)
@@ -107,27 +104,12 @@ public:
         return g_smem_shm_set_extra_context(handle, context, size);
     }
 
-    static inline smem_shm_team_t smem_shm_get_global_team(smem_shm_t handle)
-    {
-        return g_smem_shm_get_global_team(handle);
-    }
-
-    static inline uint32_t smem_shm_team_get_rank(smem_shm_team_t team)
-    {
-        return g_smem_shm_team_get_rank(team);
-    }
-
-    static inline uint32_t smem_shm_team_get_size(smem_shm_team_t team)
-    {
-        return g_smem_shm_team_get_size(team);
-    }
-
-    static inline int32_t smem_shm_control_barrier(smem_shm_team_t team)
+    static inline int32_t smem_shm_control_barrier(smem_shm_t team)
     {
         return g_smem_shm_control_barrier(team);
     }
 
-    static inline int32_t smem_shm_control_all_gather(smem_shm_team_t team, const char *send_buf, uint32_t send_size,
+    static inline int32_t smem_shm_control_all_gather(smem_shm_t team, const char *send_buf, uint32_t send_size,
                                                   char *recv_buf, uint32_t recv_size)
     {
         return g_smem_shm_control_all_gather(team, send_buf, send_size, recv_buf, recv_size);
@@ -159,9 +141,6 @@ private:
     static smem_shm_create_func g_smem_shm_create;
     static smem_shm_destroy_func g_smem_shm_destroy;
     static smem_shm_set_extra_context_func g_smem_shm_set_extra_context;
-    static smem_shm_get_global_team_func g_smem_shm_get_global_team;
-    static smem_shm_team_get_rank_func g_smem_shm_team_get_rank;
-    static smem_shm_team_get_size_func g_smem_shm_team_get_size;
     static smem_shm_control_barrier_func g_smem_shm_control_barrier;
     static smem_shm_control_all_gather_func g_smem_shm_control_all_gather;
     static smem_shm_topo_can_reach_func g_smem_shm_topo_can_reach;

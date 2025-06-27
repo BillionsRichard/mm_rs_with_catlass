@@ -6,8 +6,8 @@ ascendc_include_directories(shmem_device
     PUBLIC
     ${PROJECT_SOURCE_DIR}/include/
     ${PROJECT_SOURCE_DIR}/src/include/
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/host/
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/include/smem/device/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include/smem/host/
+    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include/smem/device/
     ${ASCEND_DRIVER_PATH}/kernel/inc
     ${ASCEND_HOME_PATH}/${ARCH}-linux/include/
 )

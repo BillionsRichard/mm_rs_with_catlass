@@ -5,7 +5,7 @@ PROJECT_ROOT=$( dirname $(dirname "$SCRIPT_DIR"))
 
 cd ${SCRIPT_DIR}
 
-export LD_LIBRARY_PATH=${SCRIPT_DIR}/build/lib:${PROJECT_ROOT}/install/shmem/lib:${ASCEND_HOME_PATH}/lib64:${PROJECT_ROOT}/install/memfabric_hybrid/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=${SCRIPT_DIR}/build/lib:${PROJECT_ROOT}/install/output/shmem/lib:${ASCEND_HOME_PATH}/lib64:${PROJECT_ROOT}/install/output/memfabric_hybrid/lib:$LD_LIBRARY_PATH
 
 RANK_SIZE="2"
 IPPORT="tcp://127.0.0.1:8766"

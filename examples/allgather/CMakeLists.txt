@@ -42,11 +42,11 @@ set(ASCENDC_CMAKE_DIR ${ASCEND_HOME_PATH}/compiler/tikcpp/ascendc_kernel_cmake)
 include(${ASCENDC_CMAKE_DIR}/ascendc.cmake)
 
 
-include_directories(${CMAKE_SOURCE_DIR}/../../install/shmem/include)
+include_directories(${CMAKE_SOURCE_DIR}/../../install/output/shmem/include)
 include_directories(${ASCEND_HOME_PATH}/include)
 
-link_directories(${CMAKE_SOURCE_DIR}/../../install/shmem/lib)
-link_directories(${CMAKE_SOURCE_DIR}/../../install/memfabric_hybrid/lib)
+link_directories(${CMAKE_SOURCE_DIR}/../../install/output/shmem/lib)
+link_directories(${CMAKE_SOURCE_DIR}/../../install/output/memfabric_hybrid/lib)
 link_directories(${ASCEND_HOME_PATH}/lib64)
 add_executable(allgather main.cpp)
 
@@ -56,7 +56,7 @@ ascendc_library(allgather_kernel SHARED ${KERNEL_FILES})
 ascendc_include_directories(allgather_kernel
     PUBLIC
     ${CMAKE_SOURCE_DIR}/../../include/
-    ${CMAKE_SOURCE_DIR}/../../3rdparty/memfabric_hybrid/include/smem/device/
+    ${CMAKE_SOURCE_DIR}/../../install/output/memfabric_hybrid/include/smem/device/
 )
 
 ascendc_compile_definitions(allgather_kernel PRIVATE
