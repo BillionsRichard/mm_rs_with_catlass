@@ -8,7 +8,6 @@ This file provides device-side collective synchronization implementations, ensur
 #ifndef SHEMEI_BARRIER_H
 #define SHEMEI_BARRIER_H
 
-#include "../shmemi_device_common.h"
 #include "shmemi_device_quiet.h"
 #include "shmemi_device_p2p.h"
 

@@ -1,7 +1,7 @@
 #ifndef SHEMEI_P2P_H
 #define SHEMEI_P2P_H
 
-#include "internal/device/shmemi_device_common.h"
+#include "shmemi_device_quiet.h"
 
 template<typename T>
 SHMEM_DEVICE void shmemi_signal(__gm__ uint8_t *addr, T val) {
@@ -19,10 +19,10 @@ SHMEM_DEVICE void shmemi_signal(__gm__ uint8_t *addr, int pe, T val) {
 
 template<typename T>
 SHMEM_DEVICE void shmemi_wait(__gm__ uint8_t *addr, T val) {
-    while (shmemi_load<T>(addr) != val) {
+    do {
         // always flush data cache to avoid reading staled data
         dcci_cacheline(addr);
-    }
+    } while (shmemi_load<T>(addr) != val);
 }
 
 SHMEM_DEVICE void shmemi_signal_set(__gm__ int32_t *addr, int pe, int32_t val) {
@@ -42,6 +42,8 @@ SHMEM_DEVICE void shmemi_signal_add(__gm__ int32_t *addr, int pe, int32_t val) {
 
 // Atomicity of SHMEM_SIGNAL_SET not guaranteed
 SHMEM_DEVICE void shmemix_signal_op(__gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe) {
+    shmemi_quiet();
+
     switch (sig_op) {
         case SHMEM_SIGNAL_SET:
             shmemi_signal_set(sig_addr, pe, signal);
@@ -54,54 +56,54 @@ SHMEM_DEVICE void shmemix_signal_op(__gm__ int32_t *sig_addr, int32_t signal, in
 
 SHMEM_DEVICE int32_t shmemi_signal_wait_until_eq(__gm__ int32_t *sig_addr, int32_t cmp_val) {
     int32_t ret;
-    while ((ret = *sig_addr) != cmp_val) {
+    do {
         dcci_cacheline((__gm__ uint8_t *)sig_addr);
-    }
+    } while ((ret = *sig_addr) != cmp_val);
 
     return ret;
 }
 
 SHMEM_DEVICE int32_t shmemi_signal_wait_until_ne(__gm__ int32_t *sig_addr, int32_t cmp_val) {
     int32_t ret;
-    while ((ret = *sig_addr) == cmp_val) {
+    do {
         dcci_cacheline((__gm__ uint8_t *)sig_addr);
-    }
+    } while ((ret = *sig_addr) == cmp_val);
 
     return ret;
 }
 
 SHMEM_DEVICE int32_t shmemi_signal_wait_until_gt(__gm__ int32_t *sig_addr, int32_t cmp_val) {
     int32_t ret;
-    while ((ret = *sig_addr) <= cmp_val) {
+    do {
         dcci_cacheline((__gm__ uint8_t *)sig_addr);
-    }
+    } while ((ret = *sig_addr) <= cmp_val);
 
     return ret;
 }
 
 SHMEM_DEVICE int32_t shmemi_signal_wait_until_ge(__gm__ int32_t *sig_addr, int32_t cmp_val) {
     int32_t ret;
-    while ((ret = *sig_addr) < cmp_val) {
+    do {
         dcci_cacheline((__gm__ uint8_t *)sig_addr);
-    }
+    } while ((ret = *sig_addr) < cmp_val);
 
     return ret;
 }
 
 SHMEM_DEVICE int32_t shmemi_signal_wait_until_lt(__gm__ int32_t *sig_addr, int32_t cmp_val) {
     int32_t ret;
-    while ((ret = *sig_addr) >= cmp_val) {
+    do {
         dcci_cacheline((__gm__ uint8_t *)sig_addr);
-    }
+    } while ((ret = *sig_addr) >= cmp_val);
 
     return ret;
 }
 
 SHMEM_DEVICE int32_t shmemi_signal_wait_until_le(__gm__ int32_t *sig_addr, int32_t cmp_val) {
     int32_t ret;
-    while ((ret = *sig_addr) > cmp_val) {
+    do {
         dcci_cacheline((__gm__ uint8_t *)sig_addr);
-    }
+    } while ((ret = *sig_addr) > cmp_val);
 
     return ret;
 }
