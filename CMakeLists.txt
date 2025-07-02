@@ -39,7 +39,7 @@ add_compile_options(
 )
 
 set(CMAKE_CCE_COMPILE_OPTIONS
-    -xcce --cce-aicore-arch=dav-c220
+    -xcce
     "SHELL:-mllvm -cce-aicore-stack-size=0x8000"
     "SHELL:-mllvm -cce-aicore-function-stack-size=0x8000"
     "SHELL:-mllvm -cce-aicore-record-overflow=true"
@@ -77,3 +77,5 @@ add_subdirectory(src)
 if(USE_UNIT_TEST)
     add_subdirectory(tests/unittest)
 endif()
+
+add_subdirectory(example)

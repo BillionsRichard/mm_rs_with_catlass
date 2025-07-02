@@ -2,7 +2,7 @@ file(GLOB_RECURSE TEST_KERNEL_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*_kernel.cpp")
 file(GLOB_RECURSE TEST_HOST_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*_test.cpp")
 
 add_library(shmem_unittest_kernel OBJECT ${TEST_KERNEL_FILES})
-target_compile_options(shmem_unittest_kernel PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS})
+target_compile_options(shmem_unittest_kernel PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} --cce-aicore-arch=dav-c220)
 target_include_directories(shmem_unittest_kernel PRIVATE
     ${PROJECT_SOURCE_DIR}/include/
     ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include
