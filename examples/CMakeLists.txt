@@ -9,7 +9,7 @@ function(shmem_add_example NAME)
         set(ARCH "dav-c220")
     endif()
 
-    target_add_compile_options(${NAME} PRIVATE $CMAKE_CCE_COMPILE_OPTIONS --cce-aicore-arch=${ARCH})
+    target_compile_options(${NAME} PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} --cce-aicore-arch=${ARCH})
     target_include_directories(${NAME} PRIVATE 
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include
@@ -17,6 +17,7 @@ function(shmem_add_example NAME)
         ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include/smem/device/
         ${PROJECT_SOURCE_DIR}/3rdparty/catlass/include
         ${PROJECT_SOURCE_DIR}/3rdparty/catlass/examples/common
+        ${PROJECT_SOURCE_DIR}/examples/${NAME}
     )
     target_link_options(${NAME} PRIVATE --cce-fatobj-link)
     target_link_libraries(${NAME} PRIVATE shmem)

@@ -6,13 +6,13 @@
 #include "device/shmem_device_rma.h"
 #include "device/shmem_device_sync.h"
 #include "device/shmem_device_team.h"
-#else
+#endif
+
 #include "host/shmem_host_def.h"
 #include "host/shmem_host_heap.h"
 #include "host/shmem_host_init.h"
 #include "host/shmem_host_rma.h"
 #include "host/shmem_host_sync.h"
 #include "host/shmem_host_team.h"
-#endif
 
 #endif // SHMEM_API_H

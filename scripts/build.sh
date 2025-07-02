@@ -31,6 +31,7 @@ cd ${PROJECT_ROOT}
 function fn_build()
 {
     fn_build_memfabric
+    cd $THIRD_PARTY_DIR; [[ ! -d "catlass" ]] && git clone https://gitee.com/ascend/catlass; cd ..
 
     rm -rf build
     mkdir -p build
@@ -82,8 +83,7 @@ EOF
     cp -r $INSTALL_DIR/shmem/include/host_device $OUTPUT_DIR/shmem/include
     cp -r $INSTALL_DIR/shmem/include/shmem_api.h $OUTPUT_DIR/shmem/include
     mkdir -p $OUTPUT_DIR/shmem/lib
-    cp -r $INSTALL_DIR/shmem/lib/libshmem_device.so $OUTPUT_DIR/shmem/lib
-    cp -r $INSTALL_DIR/shmem/lib/libshmem_host.so $OUTPUT_DIR/shmem/lib
+    cp -r $INSTALL_DIR/shmem/lib/libshmem.so $OUTPUT_DIR/shmem/lib
 
     mkdir -p $OUTPUT_DIR/memfabric_hybrid/lib
     mkdir -p $OUTPUT_DIR/memfabric_hybrid/include

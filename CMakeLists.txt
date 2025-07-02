@@ -78,4 +78,4 @@ if(USE_UNIT_TEST)
     add_subdirectory(tests/unittest)
 endif()
 
-add_subdirectory(example)
+add_subdirectory(examples)
