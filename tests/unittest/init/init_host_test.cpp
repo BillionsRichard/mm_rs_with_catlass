@@ -1,7 +1,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <acl/acl.h>
-#include "shmem_api.h"
+#include <gtest/gtest.h>
 #include "shmemi_host_common.h"
 #include <gtest/gtest.h>
 extern int test_gnpu_num;

@@ -6,11 +6,7 @@
 #include <gtest/gtest.h>
 
 #include "acl/acl.h"
-
-#include "host/shmem_host_init.h"
-#include "host/shmem_host_heap.h"
-#include "shmemi_init.h"
-#include "shmemi_mm.h"
+#include "shmemi_host_common.h"
 
 extern int test_gnpu_num;
 extern int test_first_npu;

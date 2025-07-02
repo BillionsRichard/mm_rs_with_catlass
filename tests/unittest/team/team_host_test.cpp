@@ -1,9 +1,9 @@
 #include <iostream>
 #include <cstdlib>
 #include <string>
+#include <gtest/gtest.h>
 
 #include "acl/acl.h"
-#include "shmem_api.h"
 #include "shmemi_host_common.h"
 
 #include <gtest/gtest.h>

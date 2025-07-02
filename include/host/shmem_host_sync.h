@@ -17,6 +17,8 @@
 extern "C" {
 #endif
 
+SHMEM_HOST_API uint64_t shmemx_get_ffts_config();
+
 /**
  * @brief barrier of a team on specific stream
  *
