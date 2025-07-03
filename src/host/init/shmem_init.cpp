@@ -1,6 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <cstring>
 #include <vector>
 #include "acl/acl.h"
 #include "shmemi_host_common.h"
@@ -9,8 +9,8 @@ using namespace std;
 
 namespace shm {
 
-#define DEFAULT_MY_PE -1
-#define DEFAULT_N_PES -1
+#define DEFAULT_MY_PE (-1)
+#define DEFAULT_N_PES (-1)
 #define DEFAULT_FLAG 0
 #define DEFAULT_ID 0
 #define DEFAULT_TIMEOUT 120
@@ -19,8 +19,8 @@ namespace shm {
 #define SHMEM_DEVICE_HOST_STATE_INITALIZER                                            \
     {                                                                                 \
         (1 << 16) + sizeof(shmemi_device_host_state_t),  /* version */                     \
-            DEFAULT_MY_PE,                           /* mype */                       \
-            DEFAULT_N_PES,                           /* npes */                       \
+            (DEFAULT_MY_PE),                           /* mype */                       \
+            (DEFAULT_N_PES),                           /* npes */                       \
             NULL,                                    /* heap_base */                   \
             {NULL},                                  /* p2p_heap_base */                \
             {NULL},                                  /* sdma_heap_base */               \
@@ -65,7 +65,6 @@ int32_t shmemi_heap_init(shmem_init_attr_t *attributes)
 {
     void *gva = nullptr;
     int32_t status = SHMEM_SUCCESS;
-    uint64_t smem_global_size = g_state.heap_size * g_state.npes;
     int32_t device_id;
     SHMEM_CHECK_RET(aclrtGetDevice(&device_id));
 
@@ -76,7 +75,7 @@ int32_t shmemi_heap_init(shmem_init_attr_t *attributes)
     }
     smem_shm_config_t config;
     (void) smem_api::smem_shm_config_init(&config);
-    status = smem_api::smem_shm_init(attributes->ip_port, attributes->n_ranks, attributes->my_rank, device_id, smem_global_size,
+    status = smem_api::smem_shm_init(attributes->ip_port, attributes->n_ranks, attributes->my_rank, device_id,
              &config);
     if (status != SHMEM_SUCCESS) {
         SHM_LOG_ERROR("smem_init Failed");
@@ -118,8 +117,8 @@ int32_t shmemi_heap_init(shmem_init_attr_t *attributes)
         delete[] shm::g_ipport;
         attributes->ip_port = nullptr;
     } else {
-         SHM_LOG_WARN("my_rank:" << attributes->my_rank << " shm::g_ipport is released in advance!");
-         attributes->ip_port = nullptr;
+        SHM_LOG_WARN("my_rank:" << attributes->my_rank << " shm::g_ipport is released in advance!");
+        attributes->ip_port = nullptr;
     }
     g_state.is_shmem_created = true;
     return status;
@@ -128,9 +127,7 @@ int32_t shmemi_heap_init(shmem_init_attr_t *attributes)
 int32_t shmemi_control_barrier_all()
 {
     SHM_ASSERT_RETURN(g_smem_handle != nullptr, SHMEM_INVALID_PARAM);
-    smem_shm_team_t obj = smem_api::smem_shm_get_global_team(g_smem_handle);
-    SHM_ASSERT_RETURN(obj != nullptr, SHMEM_INVALID_PARAM);
-    return smem_api::smem_shm_control_barrier(obj);
+    return smem_api::smem_shm_control_barrier(g_smem_handle);
 }
 
 int32_t update_device_state()
@@ -190,7 +187,7 @@ int32_t shmem_set_attr(int32_t my_rank, int32_t n_ranks, uint64_t local_mem_size
     *attributes = &shm::g_attr;
     size_t ip_len = strlen(ip_port);
     shm::g_ipport = new char[ip_len + 1];
-    strcpy(shm::g_ipport, ip_port);
+    std::copy(ip_port, ip_port + ip_len + 1, shm::g_ipport);
     if (shm::g_ipport == nullptr) {
         SHM_LOG_ERROR("my_rank:" << my_rank << " shm::g_ipport is nullptr!");
         return SHMEM_INVALID_VALUE;
@@ -230,6 +227,7 @@ int32_t shmem_init_attr(shmem_init_attr_t *attributes)
     SHMEM_CHECK_RET(shm::memory_manager_initialize(shm::g_state.heap_base, shm::g_state.heap_size));
     SHMEM_CHECK_RET(shm::shmemi_team_init(shm::g_state.mype, shm::g_state.npes));
     SHMEM_CHECK_RET(shm::update_device_state());
+    SHMEM_CHECK_RET(shm::shmemi_sync_init());
     shm::g_state.is_shmem_initialized = true;
     SHMEM_CHECK_RET(shm::shmemi_control_barrier_all());
     return SHMEM_SUCCESS;

@@ -46,6 +46,12 @@ Welcome to Shmem's Documentation!
 
     Troubleshooting_FAQs.md
 
+.. toctree::
+    :maxdepth: 2
+    :caption: Security harding and public IP address
+    :name: Security harding and public IP address
+
+    security.md
 
 Indices and tables
 ==================

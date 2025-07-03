@@ -6,11 +6,7 @@
 #include <gtest/gtest.h>
 
 #include "acl/acl.h"
-
-#include "host/shmem_host_init.h"
-#include "host/shmem_host_heap.h"
-#include "shmemi_init.h"
-#include "shmemi_mm.h"
+#include "shmemi_host_common.h"
 
 extern int test_gnpu_num;
 extern int test_first_npu;
@@ -24,11 +20,6 @@ static uint64_t heap_memory_size = 4UL * 1024UL * 1024UL;
 static aclrtStream heap_memory_stream;
 
 class ShareMemoryManagerTest : public testing::Test {
-public:
-    void TearDown() override
-    {
-        Finalize();
-    }
 
 protected:
     void Initialize(int rank_id, int n_ranks, uint64_t local_mem_size)
@@ -52,15 +43,6 @@ protected:
         testingRank = true;
     }
 
-    void Finalize()
-    {
-        if (testingRank) {
-            auto status = shmem_finalize();
-            EXPECT_EQ(status, SHMEM_SUCCESS);
-            testingRank = false;
-        }
-    }
-
     bool testingRank = false;
 };
 
@@ -70,9 +52,12 @@ TEST_F(ShareMemoryManagerTest, allocate_one_piece_success)
     uint64_t local_mem_size = heap_memory_size;
     test_mutil_task(
         [this](int rank_id, int n_ranks, uint64_t local_mem_size) {
-            Initialize(rank_id, n_ranks, local_mem_size);
+            int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+            aclrtStream stream;
+            test_init(rank_id, n_ranks, local_mem_size, &stream);
             auto ptr = shmem_malloc(4096UL);
             EXPECT_NE(nullptr, ptr);
+            test_finalize(stream, device_id);
         },
         local_mem_size, process_count);
 }
@@ -83,9 +68,12 @@ TEST_F(ShareMemoryManagerTest, allocate_full_space_success)
     uint64_t local_mem_size = heap_memory_size;
     test_mutil_task(
         [this](int rank_id, int n_ranks, uint64_t local_mem_size) {
-            Initialize(rank_id, n_ranks, local_mem_size);
+            int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+            aclrtStream stream;
+            test_init(rank_id, n_ranks, local_mem_size, &stream);
             auto ptr = shmem_malloc(heap_memory_size);
             EXPECT_NE(nullptr, ptr);
+            test_finalize(stream, device_id);
         },
         local_mem_size, process_count);
 }
@@ -96,9 +84,12 @@ TEST_F(ShareMemoryManagerTest, allocate_larage_memory_failed)
     uint64_t local_mem_size = heap_memory_size;
     test_mutil_task(
         [this](int rank_id, int n_ranks, uint64_t local_mem_size) {
-            Initialize(rank_id, n_ranks, local_mem_size);
+            int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+            aclrtStream stream;
+            test_init(rank_id, n_ranks, local_mem_size, &stream);
             auto ptr = shmem_malloc(heap_memory_size + 1UL);
             EXPECT_EQ(nullptr, ptr);
+            test_finalize(stream, device_id);
         },
         local_mem_size, process_count);
 }
@@ -109,7 +100,9 @@ TEST_F(ShareMemoryManagerTest, free_merge)
     uint64_t local_mem_size = heap_memory_size;
     test_mutil_task(
         [this](int rank_id, int n_ranks, uint64_t local_mem_size) {
-            Initialize(rank_id, n_ranks, local_mem_size);
+            int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+            aclrtStream stream;
+            test_init(rank_id, n_ranks, local_mem_size, &stream);
             auto size = 1024UL * 1024UL;  // 1MB
 
             auto ptr1 = shmem_malloc(size);
@@ -134,6 +127,7 @@ TEST_F(ShareMemoryManagerTest, free_merge)
 
             auto ptr6 = shmem_malloc(size * 3UL);
             ASSERT_NE(nullptr, ptr6);
+            test_finalize(stream, device_id);
         },
         local_mem_size, process_count);
 }

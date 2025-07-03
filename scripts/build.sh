@@ -6,15 +6,19 @@ fi
 export ASCEND_TOOLKIT_HOME=${_ASCEND_INSTALL_PATH}
 export ASCEND_HOME_PATH=${_ASCEND_INSTALL_PATH}
 
-source ${_ASCEND_INSTALL_PATH}/bin/setenv.bash
+source ${_ASCEND_INSTALL_PATH}/../set_env.sh
 
 CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 PROJECT_ROOT=$(dirname "$SCRIPT_DIR")
 VERSION="1.0.0"
-OUTPUT_DIR=$PROJECT_ROOT/install
+OUTPUT_DIR=$PROJECT_ROOT/install/output
+INSTALL_DIR=$PROJECT_ROOT/install
 THIRD_PARTY_DIR=$PROJECT_ROOT/3rdparty
+mkdir -p $THIRD_PARTY_DIR
 RELEASE_DIR=$PROJECT_ROOT/ci/release
+
+BUILD_TYPE=Release
 
 COMPILE_OPTIONS=""
 
@@ -26,13 +30,16 @@ cann_default_path="/usr/local/Ascend/ascend-toolkit"
 cd ${PROJECT_ROOT}
 function fn_build()
 {
+    fn_build_memfabric
+    cd $THIRD_PARTY_DIR; [[ ! -d "catlass" ]] && git clone https://gitee.com/ascend/catlass; cd ..
+
     rm -rf build
     mkdir -p build
     rm -rf install
 
 
     cd build
-    cmake $COMPILE_OPTIONS -DCMAKE_INSTALL_PREFIX=../install ..
+    cmake $COMPILE_OPTIONS -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
     make install -j8
     cd -
 }
@@ -51,6 +58,7 @@ function fn_make_run_package()
     fi
     branch=$(git symbolic-ref -q --short HEAD || git describe --tags --exact-match 2> /dev/null || echo $branch)
     commit_id=$(git rev-parse HEAD)
+    mkdir -p $OUTPUT_DIR
     touch $OUTPUT_DIR/version.info
     cat>$OUTPUT_DIR/version.info<<EOF
         SHMEM Version :  ${VERSION}
@@ -60,16 +68,28 @@ function fn_make_run_package()
 EOF
 
     mkdir -p $OUTPUT_DIR/scripts
+    mkdir -p $OUTPUT_DIR/shmem
     mkdir -p $RELEASE_DIR/$ARCH
     cp $PROJECT_ROOT/scripts/install.sh $OUTPUT_DIR
     cp $PROJECT_ROOT/scripts/set_env.sh $OUTPUT_DIR
     cp $PROJECT_ROOT/scripts/uninstall.sh $OUTPUT_DIR/scripts
 
-    cp -r $PROJECT_ROOT/3rdparty/memfabric_hybrid $OUTPUT_DIR
-
     sed -i "s/SHMEMPKGARCH/${ARCH}/" $OUTPUT_DIR/install.sh
     sed -i "s!VERSION_PLACEHOLDER!${VERSION}!" $OUTPUT_DIR/install.sh
     sed -i "s!VERSION_PLACEHOLDER!${VERSION}!" $OUTPUT_DIR/scripts/uninstall.sh
+    mkdir -p $OUTPUT_DIR/shmem/include
+    cp -r $INSTALL_DIR/shmem/include/device $OUTPUT_DIR/shmem/include
+    cp -r $INSTALL_DIR/shmem/include/host $OUTPUT_DIR/shmem/include
+    cp -r $INSTALL_DIR/shmem/include/host_device $OUTPUT_DIR/shmem/include
+    cp -r $INSTALL_DIR/shmem/include/shmem_api.h $OUTPUT_DIR/shmem/include
+    mkdir -p $OUTPUT_DIR/shmem/lib
+    cp -r $INSTALL_DIR/shmem/lib/libshmem.so $OUTPUT_DIR/shmem/lib
+
+    mkdir -p $OUTPUT_DIR/memfabric_hybrid/lib
+    mkdir -p $OUTPUT_DIR/memfabric_hybrid/include
+    cp -r $THIRD_PARTY_DIR/memfabric_hybrid/output/hybm/lib/* $OUTPUT_DIR/memfabric_hybrid/lib
+    cp -r $THIRD_PARTY_DIR/memfabric_hybrid/output/smem/lib64/* $OUTPUT_DIR/memfabric_hybrid/lib
+    cp -r $THIRD_PARTY_DIR/memfabric_hybrid/output/smem/include/smem $OUTPUT_DIR/memfabric_hybrid/include
 
     chmod +x $OUTPUT_DIR/*
     makeself_dir=${ASCEND_HOME_PATH}/toolkit/tools/op_project_templates/ascendc/customize/cmake/util/makeself/
@@ -95,6 +115,29 @@ function fn_build_googletest()
     cmake --install . > /dev/null
     [[ -d "$THIRD_PARTY_DIR/googletest/lib64" ]] && cp -rf $THIRD_PARTY_DIR/googletest/lib64 $THIRD_PARTY_DIR/googletest/lib
     echo "Googletest is successfully installed to $THIRD_PARTY_DIR/googletest"
+    cd ${PROJECT_ROOT}
+}
+
+function fn_build_memfabric()
+{
+    if [ -d "$THIRD_PARTY_DIR/memfabric_hybrid/output/smem/lib64" ]; then
+        return 0
+    fi
+    if [ -d "$THIRD_PARTY_DIR/memfabric_hybrid" ]; then
+        rm -rf "$THIRD_PARTY_DIR/memfabric_hybrid"
+    fi
+
+    cd $THIRD_PARTY_DIR
+    git clone -b br_A3_shm_bm_630 https://gitee.com/ascend/memfabric_hybrid.git
+    cd memfabric_hybrid
+    git submodule init
+    git submodule update --recursive
+    mkdir build
+    cd build 
+    cmake -DBUILD_PYTHON=OFF -DBUILD_OPEN_ABI=OFF -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
+    make install -j4
+    ls -l ../output/smem
+    echo "Memfabric_hybrid is successfully installed to $THIRD_PARTY_DIR/memfabric_hybrid"
     cd ${PROJECT_ROOT}
 }
 
@@ -168,6 +211,12 @@ set -e
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -uttests)
+            fn_build_googletest
+            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DUSE_UNIT_TEST=ON"
+            shift
+            ;;
+        -debug)
+            BUILD_TYPE=Debug
             fn_build_googletest
             COMPILE_OPTIONS="${COMPILE_OPTIONS} -DUSE_UNIT_TEST=ON"
             shift

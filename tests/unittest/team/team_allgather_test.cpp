@@ -1,20 +1,19 @@
 #include <iostream>
 #include <cstdlib>
 #include <string>
-using namespace std;
+#include <gtest/gtest.h>
 
 #include "acl/acl.h"
 #include "shmem_api.h"
 #include "shmemi_host_common.h"
 
-#include <gtest/gtest.h>
 extern int test_gnpu_num;
 extern int test_first_npu;
 extern void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64_t local_mem_size, int process_count);
 extern void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
 extern void test_finalize(aclrtStream stream, int device_id);
 
-extern void team_allgather(uint32_t block_dim, void* stream, uint8_t* gva, shmem_team_t team_id);
+extern void team_allgather(uint32_t block_dim, void* stream, uint64_t config, uint8_t* gva, shmem_team_t team_id);
 
 void test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size) {
     int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
@@ -38,10 +37,10 @@ void test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_siz
             input[i] = (rank_id + 10);
         }
 
-        ASSERT_EQ(aclrtMemcpy(ptr + shmem_team_my_pe(team_odd) * trans_size * sizeof(int32_t), trans_size, input.data(), trans_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);
+        ASSERT_EQ(aclrtMemcpy((void *)((uint64_t)ptr + shmem_team_my_pe(team_odd) * trans_size * sizeof(int32_t)), trans_size, input.data(), trans_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);
 
         // Execute AllGather
-        team_allgather(1, stream, (uint8_t *)ptr, team_odd);
+        team_allgather(1, stream, shmemx_get_ffts_config(), (uint8_t *)ptr, team_odd);
         EXPECT_EQ(aclrtSynchronizeStream(stream), 0);
 
         // Check results

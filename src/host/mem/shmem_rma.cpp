@@ -1,8 +1,7 @@
 #include <iostream>
-using namespace std;
-
 #include "shmemi_host_common.h"
 
+using namespace std;
 // shmem_ptr Symmetric?
 void* shmem_ptr(void *ptr, int32_t pe)
 {

@@ -30,7 +30,6 @@ setuptools.setup(
     author_email="",
     description="python api for aclshmem",
     packages=find_namespace_packages(exclude=("tests*",)),
-    url="https://open.codehub.huawei.com/innersource/OpenComputingKit_G/MatrixMemory/shmem",
     license="Apache License Version 2.0",
     install_requires=["torch-npu"],
     python_requires=">=3.7",

@@ -29,6 +29,10 @@
 extern "C" {
 #endif
 
+SHMEM_DEVICE void shmemx_set_ffts_config(uint64_t config) {
+    AscendC::SetSyncBaseAddr(config);
+}
+
 /**
  * @fn SHMEM_DEVICE void shmem_barrier(shmem_team_t tid)
  * @brief shmem_barrier is a collective synchronization routine over a team. Control returns from shmem_barrier after all PEs in the team have called shmem_barrier. 
@@ -44,7 +48,6 @@ SHMEM_DEVICE void shmem_barrier(shmem_team_t tid) {
 /**
  * @fn SHMEM_DEVICE void shmem_barrier_all()
  * @brief shmem_barrier of all PEs.
- *
  */
 SHMEM_DEVICE void shmem_barrier_all() {
     shmem_barrier(SHMEM_TEAM_WORLD);

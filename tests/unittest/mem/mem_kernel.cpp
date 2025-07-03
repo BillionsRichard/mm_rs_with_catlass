@@ -1,5 +1,4 @@
 #include "kernel_operator.h"
-#include "lowlevel/smem_shm_aicore_base_api.h"
 
 #include "shmem_api.h"
 

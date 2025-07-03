@@ -1,11 +1,10 @@
 #include <iostream>
 #include <string>
-using namespace std;
+#include <gtest/gtest.h>
 
 #include "acl/acl.h"
 #include "shmem_api.h"
 
-#include <gtest/gtest.h>
 extern int test_gnpu_num;
 extern int test_first_npu;
 extern void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64_t local_mem_size, int process_count);
@@ -30,7 +29,7 @@ static int32_t test_scalar_put_get(aclrtStream stream, uint32_t rank_id, uint32_
 
     EXPECT_EQ(aclrtMemcpy(y_host, 1 * sizeof(float), ptr, 1 * sizeof(float), ACL_MEMCPY_DEVICE_TO_HOST), 0);
 
-    string p_name = "[Process " + to_string(rank_id) + "] ";
+    std::string p_name = "[Process " + std::to_string(rank_id) + "] ";
     std::cout << p_name << "-----[PUT]------ " << y_host[0] << " ----" << std::endl;
 
     // for gtest

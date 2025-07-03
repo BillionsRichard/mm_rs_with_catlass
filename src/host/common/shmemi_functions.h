@@ -73,10 +73,10 @@ inline bool funci::get_library_real_path(const std::string &lib_dir_path, const 
 
 #define DL_LOAD_SYM(TARGET_FUNC_VAR, TARGET_FUNC_TYPE, FILE_HANDLE, SYMBOL_NAME)           \
     do {                                                                                   \
-        TARGET_FUNC_VAR = (TARGET_FUNC_TYPE)dlsym(FILE_HANDLE, SYMBOL_NAME);               \
-        if (TARGET_FUNC_VAR == nullptr) {                                                  \
+        (TARGET_FUNC_VAR) = (TARGET_FUNC_TYPE)dlsym((FILE_HANDLE), (SYMBOL_NAME));               \
+        if ((TARGET_FUNC_VAR) == nullptr) {                                                  \
             SHM_LOG_ERROR("Failed to call dlsym to load SYMBOL_NAME, error" << dlerror()); \
-            dlclose(FILE_HANDLE);                                                          \
+            dlclose((FILE_HANDLE));                                                          \
             return false;                                                                  \
         }                                                                                  \
     } while (0)

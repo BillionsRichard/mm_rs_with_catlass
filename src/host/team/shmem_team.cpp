@@ -5,11 +5,10 @@
 #include <vector>
 #include <iostream>
 
-using namespace std;
-
 #include "acl/acl.h"
 #include "shmemi_host_common.h"
 #include "shmemi_device_intf.h"
+using namespace std;
 
 namespace shm {
 uint64_t g_team_mask = 0;
@@ -100,7 +99,7 @@ int32_t shmemi_team_init(int32_t rank, int32_t size)
         SHM_LOG_ERROR("malloc sync counter failed.");
         return SHMEM_INNER_ERROR;
     }
-    ret = shmemi_memset((int32_t *) g_state.sync_counter, SYNC_COUNTERS_SIZE / sizeof(int32_t), 1);
+    ret = shmemi_memset((int32_t *) g_state.sync_counter, SYNC_COUNTERS_SIZE / sizeof(int32_t), 1, SYNC_COUNTERS_SIZE / sizeof(int32_t));
     if (ret != 0) {
         shmemi_team_finalize();
         SHM_LOG_ERROR("memset sync counter failed.");
@@ -124,7 +123,7 @@ int32_t first_free_idx_fetch()
 
 int32_t shmemi_team_finalize()
 {
-    /* Destroy all undestroyed teams*/
+    /* Destroy all undestroyed teams */
     int32_t shmem_max_teams = SHMEM_MAX_TEAMS;
     for (int32_t i = 0; i < shmem_max_teams; i++) {
         if (is_valid_team(i)) shmem_team_destroy(i);
@@ -286,23 +285,4 @@ int32_t shmem_team_n_pes(shmem_team_t team)
     } else {
         return -1;
     }
-}
-
-void shmem_barrier(shmem_team_t tid) {
-    // using default stream to do barrier
-    shmemi_barrier_on_stream(tid, nullptr);
-}
-
-void shmem_barrier_all() {
-    shmem_barrier(SHMEM_TEAM_WORLD);
-}
-
-void shmem_barrier_on_stream(shmem_team_t tid, aclrtStream stream)
-{
-    shmemi_barrier_on_stream(tid, stream);
-}
-
-void shmem_barrier_all_on_stream(aclrtStream stream)
-{
-    shmemi_barrier_on_stream(SHMEM_TEAM_WORLD, stream);
 }

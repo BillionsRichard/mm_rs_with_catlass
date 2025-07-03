@@ -8,13 +8,16 @@
 #include <climits>
 #include <cstdint>
 #include <cstring>
-#include <iostream>
 #include <iomanip>
 #include <mutex>
 #include <unistd.h>
 #include <sstream>
 #include <sys/time.h>
 #include <sys/syscall.h>
+
+#undef inline
+#include <iostream>
+#define inline __inline__ __attribute__((always_inline))
 
 namespace shm {
 using external_log = void (*)(int32_t, const char *);
@@ -104,10 +107,10 @@ private:
 #ifndef SHM_LOG_FILENAME_SHORT
 #define SHM_LOG_FILENAME_SHORT (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #endif
-#define SHM_OUT_LOG(LEVEL, ARGS)                                                       \
-    do {                                                                               \
-        std::ostringstream oss;                                                        \
-        oss << "[SHMEM " << SHM_LOG_FILENAME_SHORT << ":" << __LINE__ << "] " << ARGS; \
+#define SHM_OUT_LOG(LEVEL, ARGS)                                                         \
+    do {                                                                                 \
+        std::ostringstream oss;                                                          \
+        oss << "[SHMEM " << SHM_LOG_FILENAME_SHORT << ":" << __LINE__ << "] " << ARGS;   \
         shm::shm_out_logger::Instance().log(LEVEL, oss);                                 \
     } while (0)
 
@@ -153,7 +156,7 @@ private:
             SHM_LOG_ERROR(" return shmem error: " << check_ret);   \
             return check_ret;                                     \
         }                                                        \
-    } while (0);
+    } while (0)
 
 
 #endif  //SHMEM_SHM_OUT_LOGGER_H
