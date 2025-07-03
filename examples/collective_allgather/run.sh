@@ -5,8 +5,6 @@ PROJECT_ROOT=$( dirname $(dirname "$SCRIPT_DIR"))
 
 cd ${SCRIPT_DIR}
 
-export LD_LIBRARY_PATH=${SCRIPT_DIR}/build/lib:${PROJECT_ROOT}/install/output/shmem/lib:${ASCEND_HOME_PATH}/lib64:${PROJECT_ROOT}/install/output/memfabric_hybrid/lib:$LD_LIBRARY_PATH
-
 RANK_SIZE="2"
 IPPORT="tcp://127.0.0.1:8766"
 GNPU_NUM="8"
@@ -71,8 +69,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${PROJECT_ROOT}/3rdparty/memfabric_hybrid/output/smem/lib64:${PROJECT_ROOT}/3rdparty/memfabric_hybrid/output/hybm/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 for (( idx =0; idx < ${GNPU_NUM}; idx = idx + 1 )); do
-    ./build/bin/allgather "$RANK_SIZE" "$idx" "$IPPORT" "$GNPU_NUM" "$FIRST_RANK" "$FIRST_NPU" &
+    ${PROJECT_ROOT}/build/bin/collective_allgather "$RANK_SIZE" "$idx" "$IPPORT" "$GNPU_NUM" "$FIRST_RANK" "$FIRST_NPU" &
 done
 
 cd ${CURRENT_DIR}

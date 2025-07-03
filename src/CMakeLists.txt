@@ -4,7 +4,7 @@ endif ()
 
 file(GLOB_RECURSE SHMEM_KERNEL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/device/*.cpp)
 add_library(shmem_device OBJECT ${SHMEM_KERNEL_FILES})
-target_compile_options(shmem_device PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS})
+target_compile_options(shmem_device PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} --cce-aicore-arch=dav-c220)
 target_include_directories(shmem_device
     PUBLIC
     ${PROJECT_SOURCE_DIR}/include/

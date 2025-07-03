@@ -1,0 +1,1 @@
+shmem_add_example(collective_allgather main.cpp)

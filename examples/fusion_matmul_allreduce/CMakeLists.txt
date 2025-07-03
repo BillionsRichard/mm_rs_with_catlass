@@ -1,0 +1,1 @@
+shmem_add_example(fusion_matmul_allreduce main.cpp)
