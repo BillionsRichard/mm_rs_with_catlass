@@ -1,7 +1,5 @@
 import multiprocessing
-import time
 import pytest
-import torch
 import numpy as np
 import os
 import subprocess
@@ -12,22 +10,20 @@ import random
 from functools import reduce
 
 # import tests greneral configs.
-from tests.examples.config import SHAPE_TOTAL_SIZE_LIMIT
+from tests.examples.config import NP_RANDOM_SEED, SHAPE_TOTAL_SIZE_LIMIT
+from tests.examples.np_normal_generator import NPNormalGenerator
+from tests.examples.np_uniform_generator import NPUniformGenerator
+from tests.examples.utils import get_rtol
 from tests.examples.config import SHAPE_DIM_VALUES
 from tests.examples.config import SHAPE_DIM_RANDOM_RANGE
-from tests.examples.config import DIST_MEAN_RANGE
-from tests.examples.config import DIST_STD_RANGE
-from tests.examples.config import OUTLIER_FRACTION
-from tests.examples.config import OUTLIER_SCALE
-from tests.examples.config import DTYPES
+from tests.examples.config import MM_AR_OP_CORRECTNESS_INPUT_RANGE
 from tests.examples.config import NUMPY_DTYPES
-from tests.examples.config import DTYPE_PRECISIONS
 from tests.examples.config import SUPPORT_RANKS
-from tests.examples.config import NUM_CASES_PER_DTYPE
+from tests.examples.config import CORRECTNESS_TEST_NUM_CASES_PER_DTYPE
+from tests.examples.config import NUMERICAL_STABILITY_TEST_NUM_CASES_PER_DTYPE
 
 # Use hardcoded paths as fixtures are not reliable
 EXECUTABLE_PATH = os.path.abspath("./examples/matmul_allreduce/out/matmul_allreduce")
-print(f"{EXECUTABLE_PATH=}")
 TEST_DATA_DIR = "tests/examples/matmul_allreduce/test_data"
 
 
@@ -44,9 +40,6 @@ def generate_shapes(num_cases=1):
     )
 
     while len(generated_shapes) < num_cases:
-        # num_batch_dims = random.randint(1, 3)  # Limit batch dims for testing
-
-        # batch_dims = tuple(random.choices(all_dim_values))
         m = random.choice(all_dim_values)
         k = random.choice(all_dim_values)
         n = random.choice(all_dim_values)
@@ -63,45 +56,37 @@ def generate_shapes(num_cases=1):
     return [{"m": m, "k": k, "n": n} for m, k, n in generated_shapes]
 
 
-def generate_tensor(shape, dtype_str):
-    """Generates a tensor with specified distribution and outliers."""
-    dtype = DTYPES[dtype_str]
-    mean = random.uniform(*DIST_MEAN_RANGE)
-    std = random.uniform(*DIST_STD_RANGE)
+def _generate_test_case(dtype_str, shape_info, world_size, category):
+    """生成单个测试用例的通用逻辑"""
+    m, k, n = shape_info["m"], shape_info["k"], shape_info["n"]
+    id_str = f"mm-ar-{category}-test-{dtype_str}-w{world_size}-m{m}k{k}n{n}"
+    return pytest.param({
+        "world_size": world_size,
+        "dtype": dtype_str,
+        **shape_info,
+        "category": category
+    }, id=id_str)
 
-    tensor = torch.randn(shape, dtype=torch.float32) * std + mean
-
-    num_elements = tensor.numel()
-    num_outliers = int(num_elements * OUTLIER_FRACTION)
-    if num_outliers > 0:
-        outlier_indices = torch.randint(0, num_elements, (num_outliers,))
-        outlier_values = torch.randn(num_outliers) * OUTLIER_SCALE[dtype_str]
-        tensor.view(-1)[outlier_indices] = outlier_values.to(torch.float32)
-
-    return tensor.to(dtype)
-
-
-def get_test_cases(num_cases_per_dtype=NUM_CASES_PER_DTYPE):
+def get_test_cases(
+    num_cases_per_dtype_for_correctness=CORRECTNESS_TEST_NUM_CASES_PER_DTYPE,
+    num_cases_per_dtype_for_stability=NUMERICAL_STABILITY_TEST_NUM_CASES_PER_DTYPE,
+):
     """Generates a list of test cases."""
     test_cases = []
-    # Limit dtypes for faster testing
-    # , "fp32", "bf16"
-    for dtype_str in ["fp16"]:
-        shapes = generate_shapes(num_cases_per_dtype)
-        for shape_info in shapes:
-            m = shape_info["m"]
-            k = shape_info["k"]
-            n = shape_info["n"]
-            # batch_dims = shape_info["batch_dims"]
-            # Add world_size parameter
+    for dtype_str in ["fp16"]:  # 可扩展为 ["fp16", "fp32", "bf16"]
+        # 处理正确性测试用例
+        for shape_info in generate_shapes(num_cases_per_dtype_for_correctness):
             for world_size in SUPPORT_RANKS:
-                id_str = f"{dtype_str}-w{world_size}-m{m}k{k}n{n}"
-                test_cases.append(
-                    pytest.param(
-                        {"world_size": world_size, "dtype": dtype_str, **shape_info},
-                        id=id_str,
-                    )
-                )
+                test_cases.append(_generate_test_case(
+                    dtype_str, shape_info, world_size, "correctness"
+                ))
+        
+        # 处理稳定性测试用例
+        for shape_info in generate_shapes(num_cases_per_dtype_for_stability):
+            for world_size in SUPPORT_RANKS:
+                test_cases.append(_generate_test_case(
+                    dtype_str, shape_info, world_size, "stability"
+                ))
     return test_cases
 
 
@@ -135,7 +120,6 @@ def run_matmul_allreduce_kernel(
 
     # It's better to capture stdout/stderr for debugging
     log_path = os.path.join(test_data_dir, "log.txt")
-    print(f"{cmd=}, {os.getcwd()=}")
     with open(log_path, "w") as log_file:
         proc = subprocess.Popen(
             cmd, cwd=test_data_dir, stdout=log_file, stderr=subprocess.STDOUT
@@ -152,9 +136,7 @@ def run_matmul_allreduce_kernel(
         )
 
 
-@pytest.mark.parametrize(
-    "case_params", get_test_cases(num_cases_per_dtype=NUM_CASES_PER_DTYPE)
-)
+@pytest.mark.parametrize("case_params", get_test_cases())
 def test_matmul_allreduce(case_params):
     """Main test function for matmul_allreduce kernel."""
     if not os.path.exists(EXECUTABLE_PATH):
@@ -164,9 +146,7 @@ def test_matmul_allreduce(case_params):
 
     world_size = case_params["world_size"]
     m, k, n = case_params["m"], case_params["k"], case_params["n"]
-    # batch_dims = case_params["batch_dims"]
     dtype_str = case_params["dtype"]
-    dtype = DTYPES[dtype_str]
     numpy_dtype = NUMPY_DTYPES.get(dtype_str, np.float32)
 
     # Setup networking
@@ -175,63 +155,68 @@ def test_matmul_allreduce(case_params):
     ipport = f"tcp://{master_addr}:{master_port}"
     base_device_id = 0
 
-    # Calculate ground truth
-    # For reproducibility, let's re-seed before data generation
-    random.seed(42)
-    torch.manual_seed(42)
-
     shape_a = (m, k)
     shape_b = (k, n)
     shape_c = (m, n)
 
-    all_A = [generate_tensor(shape_a, dtype_str) for _ in range(world_size)]
-    all_B = [generate_tensor(shape_b, dtype_str) for _ in range(world_size)]
-
-    gt_start_time = time.time()
-    # cal CPU matmul & allreduce.
-    gt_fp32 = torch.zeros(shape_c, dtype=torch.float32)
-    for i in range(world_size):
-        gt_fp32 += torch.matmul(all_A[i].float(), all_B[i].float())
-    gt = gt_fp32.to(dtype)
-
-    # Check for overflow in ground truth calculation and skip if it occurs
-    if torch.isinf(gt).any() or torch.isnan(gt).any():
-        case_id_str = f"{dtype_str}-w{world_size}-m{m}k{k}n{n}"
-        print(
-            f"\nINFO: Overflow detected during ground truth calculation for case {case_id_str}. Skipping test case."
+    numpy_dtype = NUMPY_DTYPES.get(dtype_str, np.float16)
+    # For reproducibility, let's re-seed before data generation
+    # op standard data generation
+    np.random.seed(NP_RANDOM_SEED)
+    case_category = case_params["category"]
+    if "correctness" in case_category:
+        in_low, in_hi = MM_AR_OP_CORRECTNESS_INPUT_RANGE
+        np_data_generator = NPUniformGenerator(
+            low=in_low, hi=in_hi, output_dtype=numpy_dtype
         )
-        pytest.skip("Skipping test due to overflow in ground truth generation.")
 
-    gt_duration_ms = (time.time() - gt_start_time) * 1000
+    elif "stability" in case_category:
+        np_data_generator = NPNormalGenerator(output_dtype=numpy_dtype)
 
-    # Persist data if required
-    # if gt_duration_ms > 1.0:
+    all_A = [np_data_generator.generate(shape_a) for _ in range(world_size)]
+    all_B = [np_data_generator.generate(shape_b) for _ in range(world_size)]
+
+    # cal CPU matmul & allreduce.
+    gt_fp32 = np.zeros(shape_c, dtype=np.float32)
+    case_id_str = f"{dtype_str}-w{world_size}-m{m}k{k}n{n}"
+
+    for i in range(world_size):
+        # Always calculate matmul in fp32 for precision
+        a_i = all_A[i]
+        b_i = all_B[i]
+
+        mm = np.matmul(a_i.astype(np.float32), b_i.astype(np.float32))
+        # Skip if intermediate matmul overflows, as the test case is not meaningful
+        if np.isposinf(mm).any() or np.isneginf(mm).any() or np.isnan(mm).any():
+            print(
+                f"\nINFO: Overflow in intermediate matmul for rank {i} in case {case_id_str}. Skipping."
+            )
+            pytest.skip("Skipping test due to overflow in intermediate matmul.")
+
+        gt_fp32 += mm
+
+    gt = gt_fp32.astype(numpy_dtype).reshape(-1)
+
     case_hash = hashlib.md5(str(case_params).encode()).hexdigest()
     case_params["case_id"] = case_hash
     # data_dir is independent for every single test case.
     data_dir = os.path.abspath(os.path.join(TEST_DATA_DIR, case_hash))
-    print(f"{data_dir=}")
     os.makedirs(data_dir, exist_ok=True)
     for i in range(world_size):
         rank_i_a_path = os.path.abspath(os.path.join(data_dir, f"rank_{i}_a.bin"))
         rank_i_b_path = os.path.abspath(os.path.join(data_dir, f"rank_{i}_b.bin"))
-        # print(f"{rank_i_a_path=}")
-        # print(f"{rank_i_b_path=}")
         with open(rank_i_a_path, "wb") as f:
-            f.write(all_A[i].numpy().astype(numpy_dtype).tobytes())
+            f.write(all_A[i].astype(numpy_dtype).tobytes())
 
         with open(rank_i_b_path, "wb") as f:
-            f.write(all_B[i].numpy().astype(numpy_dtype).tobytes())
+            f.write(all_B[i].astype(numpy_dtype).tobytes())
 
-    with open(os.path.join(data_dir, "gt.bin"), "wb") as f:
-        f.write(gt.numpy().astype(numpy_dtype).tobytes())
+    # for debug use.
+    # with open(os.path.join(data_dir, "gt.bin"), "wb") as f:
+    #     f.write(gt.astype(numpy_dtype).tobytes())
 
     # pack CPU input & output.
     case_params[case_hash] = {"A": all_A[i], "B": all_B[i], "gt": gt}
-
-    # Re-seed again for the execution run to use the same data
-    random.seed(42)
-    torch.manual_seed(42)
 
     # Run ranks in parallel
     ctx = multiprocessing.get_context("spawn")
@@ -255,27 +240,29 @@ def test_matmul_allreduce(case_params):
         p.join()
         assert p.exitcode == 0
 
-    # Verify result from rank 0's output
-    output_path = os.path.join(data_dir, "shmem_output.bin")
-    # print(f'shmem matmul_allreduce resultt file: {os.path.abspath(output_path)=}')
-    result_data = np.fromfile(output_path, dtype=numpy_dtype)
-    print(f"{shape_a=}, {shape_b=}, {shape_c=}")
-    np_result = torch.from_numpy(result_data)
-    # print(f'{np_result.shape=}')
-    result_tensor = np_result.reshape(shape_c).to(dtype)
+    shmem_output_path = os.path.join(data_dir, "shmem_output.bin")
+    shmem_result_data = np.fromfile(shmem_output_path, dtype=numpy_dtype)
+    act = shmem_result_data.reshape(-1)
 
-    # # Robust assertion for fp16, handling NaN and Inf
-    # # 1. Check for NaNs
-    # nan_mask_result = torch.isnan(result_tensor)
-    # nan_mask_gt = torch.isnan(gt)
-    # assert torch.equal(nan_mask_result, nan_mask_gt), "Mismatch in NaN values"
+    # 计算次数公式：每个rank做矩阵乘法 + AllReduce累加
+    # MatMul: world_size * m * k * n (每个rank的矩阵乘法)
+    # AllReduce: m * n * (world_size - 1) (累加操作)
+    cmp_count = world_size * m * k * n + m * n * (world_size - 1)
+    err = get_rtol(dtype_str, cmp_count)
+    # Mask for relative error check: |golden| >= 1.0
+    rel_err_check_mask = np.abs(gt) >= 1.0
+    if rel_err_check_mask.any():
+        re = np.abs(act[rel_err_check_mask] - gt[rel_err_check_mask]) / (
+            np.abs(gt[rel_err_check_mask]) + 1e-7
+        )
+        max_re = re.max().item()
+        assert max_re <= err, f"Relative error check failed for {shmem_output_path}!"
+        "Max RE = {max_re:.4e} > threshold ({err:.4e})"
 
-    # # 2. Check for Infs
-    # inf_mask_result = torch.isinf(result_tensor)
-    # inf_mask_gt = torch.isinf(gt)
-    # assert torch.equal(inf_mask_result, inf_mask_gt), "Mismatch in Inf values"
-
-    # # 3. Compare finite values
-    # finite_mask = ~nan_mask_result & ~inf_mask_result
-    rtol, atol = DTYPE_PRECISIONS.get(dtype_str, (1e-2, 1e-2))
-    assert torch.allclose(result_tensor, gt, rtol=rtol, atol=atol), f"{output_path=}"
+    # Mask for absolute error check: |golden| < 1.0
+    abs_err_check_mask = np.abs(gt) < 1.0
+    if abs_err_check_mask.any():
+        ae = np.abs(act[abs_err_check_mask] - gt[abs_err_check_mask])
+        max_ae = ae.max().item()
+        assert max_ae <= err, f"Absolute error check failed for {shmem_output_path}! "
+        "Max AE = {max_ae:.4e} > threshold ({err:.4e})"

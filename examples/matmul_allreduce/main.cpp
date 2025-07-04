@@ -287,21 +287,26 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtMalloc((void **)(&aDevice), aSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *aHost;
     ACL_CHECK(aclrtMallocHost((void **)(&aHost), aSize));
-    ReadFile("./out/a_gm.bin", aHost, aSize);
+    std::string dataPath = argv[8];
+    std::string aPath = dataPath + "/rank_" + std::to_string(rankId) + "_a.bin";
+
+    ReadFile(aPath.c_str(), aHost, aSize);
     ACL_CHECK(aclrtMemcpy(aDevice, aSize, aHost, aSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint8_t *bDevice;
     ACL_CHECK(aclrtMalloc((void **)(&bDevice), bSize, ACL_MEM_MALLOC_HUGE_FIRST));
    uint8_t *bHost;
     ACL_CHECK(aclrtMallocHost((void **)(&bHost), bSize));
-    ReadFile("./out/b_gm.bin", bHost, bSize);
+
+    std::string bPath = dataPath + "/rank_" + std::to_string(rankId) + "_b.bin";
+    ReadFile(bPath.c_str(), bHost, bSize);
     ACL_CHECK(aclrtMemcpy(bDevice, bSize, bHost, bSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint8_t *cDevice;
     ACL_CHECK(aclrtMalloc((void **)(&cDevice), cSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *cHost;
     ACL_CHECK(aclrtMallocHost((void **)(&cHost), cSize));
-    ReadFile("./out/c_gm.bin", cHost, cSize);
+    memset(cHost, 0, cSize);  // 零初始化 C 矩阵
     ACL_CHECK(aclrtMemcpy(cDevice, cSize, cHost, cSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     void *symmPtr = shmem_malloc((204 * 1024 * 1024) * sizeof(__fp16));
@@ -330,7 +335,8 @@ int main(int argc, char **argv)
 
     ACL_CHECK(aclrtMemcpy(cHost, cSize, cDevice, cSize, ACL_MEMCPY_DEVICE_TO_HOST));
     if (rankId == 0) {
-        WriteFile("./out/output.bin", cHost, cSize);
+        std::string cPath = dataPath + "/shmem_output.bin";
+        WriteFile(cPath.c_str(), cHost, cSize);
         std::printf("test finished\n");
     }
 
