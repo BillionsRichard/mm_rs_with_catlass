@@ -11,7 +11,7 @@ extern "C" {
 /**
  * @brief Query the current initialization status.
  *
- * @return Returns initialization status. Returning SHMEM_STATUS_IS_INITALIZED indicates that initialization is complete.
+ * @return Returns initialization status. Returning SHMEM_STATUS_IS_INITIALIZED indicates that initialization is complete.
  */
 SHMEM_HOST_API int shmem_init_status();
 

@@ -16,7 +16,7 @@ namespace shm {
 #define DEFAULT_TIMEOUT 120
 
 // initializer
-#define SHMEM_DEVICE_HOST_STATE_INITALIZER                                            \
+#define SHMEM_DEVICE_HOST_STATE_INITIALIZER                                            \
     {                                                                                 \
         (1 << 16) + sizeof(shmemi_device_host_state_t),  /* version */                     \
             (DEFAULT_MY_PE),                           /* mype */                       \
@@ -34,7 +34,7 @@ namespace shm {
             {0, 16 * 1024, 0},                       /* shmem_mte_config */           \
     }
 
-shmemi_device_host_state_t g_state = SHMEM_DEVICE_HOST_STATE_INITALIZER;
+shmemi_device_host_state_t g_state = SHMEM_DEVICE_HOST_STATE_INITIALIZER;
 shmem_init_attr_t g_attr;
 static smem_shm_t g_smem_handle = nullptr;
 static bool g_attr_init = false;
@@ -204,9 +204,9 @@ int32_t shmem_set_attr(int32_t my_rank, int32_t n_ranks, uint64_t local_mem_size
 
 int32_t shmem_init_status()
 {
-    if (!shm::g_state.is_shmem_created) return SHMEM_STATUS_NOT_INITALIZED;
+    if (!shm::g_state.is_shmem_created) return SHMEM_STATUS_NOT_INITIALIZED;
     else if (!shm::g_state.is_shmem_initialized) return SHMEM_STATUS_SHM_CREATED;
-    else if (shm::g_state.is_shmem_initialized) return SHMEM_STATUS_IS_INITALIZED;
+    else if (shm::g_state.is_shmem_initialized) return SHMEM_STATUS_IS_INITIALIZED;
     else return SHMEM_STATUS_INVALID;
 }
 
@@ -227,6 +227,7 @@ int32_t shmem_init_attr(shmem_init_attr_t *attributes)
     SHMEM_CHECK_RET(shm::memory_manager_initialize(shm::g_state.heap_base, shm::g_state.heap_size));
     SHMEM_CHECK_RET(shm::shmemi_team_init(shm::g_state.mype, shm::g_state.npes));
     SHMEM_CHECK_RET(shm::update_device_state());
+    SHMEM_CHECK_RET(shm::shmemi_sync_init());
     shm::g_state.is_shmem_initialized = true;
     SHMEM_CHECK_RET(shm::shmemi_control_barrier_all());
     return SHMEM_SUCCESS;

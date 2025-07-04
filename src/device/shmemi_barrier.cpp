@@ -1,9 +1,11 @@
 #include "acl/acl.h"
-#include "shmemi_device_intf.h"
-#include "device/shmem_device_sync.h"
+#include "kernel_operator.h"
+
+#include "shmem_api.h"
 
 // kernels
 SHMEM_GLOBAL void k_shmem_barrier(int32_t tid) {
+
     shmemi_barrier<false>(tid);
 } 
 

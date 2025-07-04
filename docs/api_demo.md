@@ -9,9 +9,9 @@ SHMEM的初始化接口样例
 ### 初始化状态  
 ```c++
 enum {
-    SHMEM_STATUS_NOT_INITALIZED = 0,    // 未初始化
+    SHMEM_STATUS_NOT_INITIALIZED = 0,    // 未初始化
     SHMEM_STATUS_SHM_CREATED,           // 完成共享内存堆创建 
-    SHMEM_STATUS_IS_INITALIZED,         // 初始化完成 
+    SHMEM_STATUS_IS_INITIALIZED,         // 初始化完成 
     SHMEM_STATUS_INVALID = INT_MAX,
 };
 ```
@@ -54,7 +54,7 @@ shmem_init_attr(attributes);
 // delete attributes; // 销毁自定义attr
 
 status = shmem_init_status();
-if (status == SHMEM_STATUS_IS_INITALIZED) {
+if (status == SHMEM_STATUS_IS_INITIALIZED) {
     std::cout << "Init success!" << std::endl;
 }
 //################你的任务#################

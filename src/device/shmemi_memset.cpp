@@ -1,7 +1,7 @@
 #include "acl/acl.h"
+#include "kernel_operator.h"
 
-#include "shmemi_device_intf.h"
-#include "internal/device/shmemi_device_arch.h"
+#include "shmem_api.h"
 
 // kernels
 template<typename T>

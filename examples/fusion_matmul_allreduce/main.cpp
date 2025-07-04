@@ -82,10 +82,10 @@ using LayoutC = layout::RowMajor;
 
 CATLASS_GLOBAL
 void ShmemMatmulAllReduce(
-    GM_ADDR fftsAddr, GemmCoord problemShape, GM_ADDR a, GM_ADDR b, GM_ADDR c, GM_ADDR symmetricPtr, CoCTiling cocTiling)
+    uint64_t fftsAddr, GemmCoord problemShape, GM_ADDR a, GM_ADDR b, GM_ADDR c, GM_ADDR symmetricPtr, CoCTiling cocTiling)
 {
     // Set FFTS address
-    AscendC::SetSyncBaseAddr(reinterpret_cast<uint64_t>(fftsAddr));
+    shmemx_set_ffts_config(fftsAddr);
 
     // Define ArchTag
     using ArchTag = Arch::AtlasA2;
@@ -171,10 +171,6 @@ void ShmemMatmulAllReduce(
     matmulCommKernel(params);
 }
 
-extern "C" {
-uint32_t GetAscendCoreSyncAddr(void **addr);
-}
-
 struct Options {
     static constexpr auto helper = 
        "Usage: matmul_allreduce m n k transA transB [--block m0 n0 k0 --ubMoveNum ubMoveNum --pValue pValue --split commNpuSplit commDataSplit lenPerLoop --swizzle swizzleOffset swizzleDirect]\n";
@@ -256,10 +252,6 @@ int main(int argc, char **argv)
     status = shmem_init_attr(attributes);
     status = shmem_init_status();
 
-    // Prepare FFTS address
-    uint8_t *fftsAddr{ nullptr };
-    ACL_CHECK(GetAscendCoreSyncAddr(reinterpret_cast<void **>(&fftsAddr)));
-
     Options options;
     uint32_t m = atoi(argv[5]);
     uint32_t k = atoi(argv[6]);
@@ -287,26 +279,21 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtMalloc((void **)(&aDevice), aSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *aHost;
     ACL_CHECK(aclrtMallocHost((void **)(&aHost), aSize));
-    std::string dataPath = argv[8];
-    std::string aPath = dataPath + "/rank_" + std::to_string(rankId) + "_a.bin";
-
-    ReadFile(aPath.c_str(), aHost, aSize);
+    ReadFile("./out/a_gm.bin", aHost, aSize);
     ACL_CHECK(aclrtMemcpy(aDevice, aSize, aHost, aSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint8_t *bDevice;
     ACL_CHECK(aclrtMalloc((void **)(&bDevice), bSize, ACL_MEM_MALLOC_HUGE_FIRST));
    uint8_t *bHost;
     ACL_CHECK(aclrtMallocHost((void **)(&bHost), bSize));
-
-    std::string bPath = dataPath + "/rank_" + std::to_string(rankId) + "_b.bin";
-    ReadFile(bPath.c_str(), bHost, bSize);
+    ReadFile("./out/b_gm.bin", bHost, bSize);
     ACL_CHECK(aclrtMemcpy(bDevice, bSize, bHost, bSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint8_t *cDevice;
     ACL_CHECK(aclrtMalloc((void **)(&cDevice), cSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *cHost;
     ACL_CHECK(aclrtMallocHost((void **)(&cHost), cSize));
-    memset(cHost, 0, cSize);  // 零初始化 C 矩阵
+    ReadFile("./out/c_gm.bin", cHost, cSize);
     ACL_CHECK(aclrtMemcpy(cDevice, cSize, cHost, cSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     void *symmPtr = shmem_malloc((204 * 1024 * 1024) * sizeof(__fp16));
@@ -329,14 +316,13 @@ int main(int argc, char **argv)
 
     ACL_CHECK(aclrtSynchronizeStream(stream));
     for (int i = 0; i < 1; i++) {
-        ShmemMatmulAllReduce<<<BLOCK_NUM, nullptr, stream>>>(fftsAddr, problemShape, aDevice, bDevice, cDevice, symmetricPtr, cocTiling);
+        ShmemMatmulAllReduce<<<BLOCK_NUM, nullptr, stream>>>(shmemx_get_ffts_config(), problemShape, aDevice, bDevice, cDevice, symmetricPtr, cocTiling);
     }
     ACL_CHECK(aclrtSynchronizeStream(stream));
 
     ACL_CHECK(aclrtMemcpy(cHost, cSize, cDevice, cSize, ACL_MEMCPY_DEVICE_TO_HOST));
     if (rankId == 0) {
-        std::string cPath = dataPath + "/shmem_output.bin";
-        WriteFile(cPath.c_str(), cHost, cSize);
+        WriteFile("./out/output.bin", cHost, cSize);
         std::printf("test finished\n");
     }
 

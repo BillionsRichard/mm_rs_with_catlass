@@ -26,7 +26,6 @@ def gen_golden_data():
     data_dir = args.data_dir
 
     os.makedirs(data_dir, exist_ok=True)
-
     out_data_type = np.float32 if args.out_data_type == 0 else np.float16
     l0c_dtype = np.float32  # Use float32 for more precise matmul calculation
 

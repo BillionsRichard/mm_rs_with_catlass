@@ -6,11 +6,7 @@
 #include <gtest/gtest.h>
 
 #include "acl/acl.h"
-
-#include "host/shmem_host_init.h"
-#include "host/shmem_host_heap.h"
-#include "shmemi_init.h"
-#include "shmemi_mm.h"
+#include "shmemi_host_common.h"
 
 extern int test_gnpu_num;
 extern int test_first_npu;
@@ -43,7 +39,7 @@ protected:
         EXPECT_EQ(shm::g_state.heap_size, local_mem_size + SHMEM_EXTRA_SIZE);
         EXPECT_NE(shm::g_state.team_pools[0], nullptr);
         status = shmem_init_status();
-        EXPECT_EQ(status, SHMEM_STATUS_IS_INITALIZED);
+        EXPECT_EQ(status, SHMEM_STATUS_IS_INITIALIZED);
         testingRank = true;
     }
 
