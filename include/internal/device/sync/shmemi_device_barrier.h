@@ -23,10 +23,33 @@ This file provides device-side collective synchronization implementations, ensur
 
 #include "kernel_operator.h"
 
+SHMEM_DEVICE 
+__gm__ shmemi_sync_bit *shmemi_get_core_sync_array() {
+    return (__gm__ shmemi_sync_bit *)shmemi_get_state()->core_sync_pool;
+}
+
+SHMEM_DEVICE 
+__gm__ shmemi_sync_bit *shmemi_get_core_sync_counter() {
+    return (__gm__ shmemi_sync_bit *)shmemi_get_state()->core_sync_counter;
+}
+
+SHMEM_DEVICE void shmemi_barrier_core_soft() {
+#ifdef __DAV_C220_VEC__
+    auto sync_array = shmemi_get_core_sync_array();
+    int32_t count = shmemi_load((__gm__ int32_t *)(sync_array + SHMEM_AIV_SYNC_OFFSET + AscendC::GetBlockIdx())) + 1;
+    shmemi_signal((__gm__ int32_t *)(sync_array + SHMEM_AIV_SYNC_OFFSET + AscendC::GetBlockIdx()), count);
+    shmemi_wait_until_all((__gm__ int32_t *)(sync_array + SHMEM_AIV_SYNC_OFFSET), AscendC::GetBlockNum() * AscendC::GetTaskRation(), nullptr, SHMEM_CMP_GE, count);
+#endif
+}
+
 /* Level 1: barrier between vec cores (within a device) */
-template<bool isAIVOnly = true>
+template<bool is_aiv_only = true>
 SHMEM_DEVICE void shmemi_barrier_core() {
-    AscendC::SyncAll<isAIVOnly>();
+#ifdef __CCE_AICORE_ENABLE_MIX__
+    AscendC::SyncAll<is_aiv_only>();
+#else
+    shmemi_barrier_core_soft();
+#endif
 }
 
 SHMEM_DEVICE 
@@ -129,7 +152,7 @@ SHMEM_DEVICE void shmemi_barrier_npu_v1(shmemi_team_t *team) {
 
     int shift = 1;
     int my_pe_in_team = (my_pe - start) / stride;
-    int32_t count = shmemi_load<int32_t>((__gm__ uint8_t *)sync_counter);
+    int32_t count = shmemi_load((__gm__ int32_t *)sync_counter) + 1;
 
     while (shift < size) {
         int pre_pe_in_team = (my_pe_in_team - shift + size) % size;
@@ -139,15 +162,15 @@ SHMEM_DEVICE void shmemi_barrier_npu_v1(shmemi_team_t *team) {
         int next_pe = start + next_pe_in_team * stride;
 
         // signal next pe
-        shmemi_signal<int32_t>((__gm__ uint8_t *)(sync_array + my_pe), next_pe, count);
+        shmemi_signal((__gm__ int32_t *)(sync_array + my_pe), next_pe, count);
 
         // wait pre pe
-        shmemi_wait<int32_t>((__gm__ uint8_t *)(sync_array + pre_pe), count);
+        shmemi_wait((__gm__ int32_t *)(sync_array + pre_pe), count);
         
         shift *= 2;
     } 
 
-    shmemi_store<int32_t>((__gm__ uint8_t *)sync_counter, count + 1);
+    shmemi_store((__gm__ int32_t *)sync_counter, count);
 }
 
 /** Group Dissemination Barrier. 
@@ -170,7 +193,7 @@ SHMEM_DEVICE void shmemi_barrier_npu_v2(shmemi_team_t *team) {
     k = k < size ? k : size;
     k = k < vec_size ? k : vec_size;
     int my_pe_in_team = (my_pe - start) / stride;
-    int32_t count = shmemi_load<int32_t>((__gm__ uint8_t *)sync_counter);
+    int32_t count = shmemi_load((__gm__ int32_t *)sync_counter) + 1;
 
     while (shift < size) {
         for (int i = vec_id + 1; i < k; i += vec_size) {
@@ -178,7 +201,7 @@ SHMEM_DEVICE void shmemi_barrier_npu_v2(shmemi_team_t *team) {
             int next_pe = start + next_pe_in_team * stride;
 
             // signal next pe
-            shmemi_signal<int32_t>((__gm__ uint8_t *)(sync_array + my_pe), next_pe, count);
+            shmemi_signal((__gm__ int32_t *)(sync_array + my_pe), next_pe, count);
         }
 
         for (int i = vec_id + 1; i < k; i += vec_size) {
@@ -186,13 +209,13 @@ SHMEM_DEVICE void shmemi_barrier_npu_v2(shmemi_team_t *team) {
             int pre_pe = start + pre_pe_in_team * stride;
 
             // wait pre pe
-            shmemi_wait<int32_t>((__gm__ uint8_t *)(sync_array + pre_pe), count);
+            shmemi_wait((__gm__ int32_t *)(sync_array + pre_pe), count);
         }
         
         shift *= k;
     } 
 
-    shmemi_store<int32_t>((__gm__ uint8_t *)sync_counter, count + 1);
+    shmemi_store((__gm__ int32_t *)sync_counter, count);
 }
 
 /** Centralized Barrier (pull mode). 
@@ -215,26 +238,26 @@ SHMEM_DEVICE void shmemi_barrier_npu_v3(shmemi_team_t *team) {
     k = k < size ? k : size;
     k = k < vec_size ? k : vec_size;
     int my_pe_in_team = (my_pe - start) / stride;
-    int32_t count = shmemi_load<int32_t>((__gm__ uint8_t *)sync_counter);
+    int32_t count = shmemi_load((__gm__ int32_t *)sync_counter) + 1;
 
     for (int i = vec_id; i < size; i += k) {
         if (i == my_pe_in_team) {
             // write local
-            shmemi_signal<int32_t>((__gm__ uint8_t *)sync_array, count);
+            shmemi_signal((__gm__ int32_t *)sync_array, count);
         } else {
             // read remote
             int remote_pe = start + i * stride;
-            shmemi_wait<int32_t>((__gm__ uint8_t *)shmemi_ptr(sync_array, remote_pe), count);
+            shmemi_wait((__gm__ int32_t *)shmemi_ptr(sync_array, remote_pe), count);
         }
     }
 
-    shmemi_store<int32_t>((__gm__ uint8_t *)sync_counter, count + 1);
+    shmemi_store((__gm__ int32_t *)sync_counter, count);
 }
 
 /* Level 3: barrier between hosts, TO BE IMPLEMENTED.*/ 
 SHMEM_DEVICE void shmemi_barrier_sys() {}
 
-template<bool isAIVOnly = true>
+template<bool is_aiv_only = true>
 SHMEM_DEVICE void shmemi_barrier(shmem_team_t tid) {
     shmemi_team_t *team = shmemi_get_state()->team_pools[tid];
 
@@ -248,13 +271,13 @@ SHMEM_DEVICE void shmemi_barrier(shmem_team_t tid) {
         return;
     }
 
-    shmemi_barrier_core<isAIVOnly>();
+    shmemi_barrier_core<is_aiv_only>();
 
     if ASCEND_IS_AIV {
         shmemi_barrier_npu_v3(team);
     }
 
-    shmemi_barrier_core<isAIVOnly>();
+    shmemi_barrier_core<is_aiv_only>();
 }
 
 #endif
