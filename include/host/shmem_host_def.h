@@ -37,9 +37,9 @@ enum shmem_error_code_t : int {
  * @brief The state of the SHMEM library initialization.
 */
 enum shmem_init_status_t{
-    SHMEM_STATUS_NOT_INITALIZED = 0,    ///< Uninitialized.
+    SHMEM_STATUS_NOT_INITIALIZED = 0,    ///< Uninitialized.
     SHMEM_STATUS_SHM_CREATED,           ///< Shared memory heap creation is complete.
-    SHMEM_STATUS_IS_INITALIZED,         ///< Initialization is complete.
+    SHMEM_STATUS_IS_INITIALIZED,         ///< Initialization is complete.
     SHMEM_STATUS_INVALID = INT_MAX,     ///< Invalid status code.
 };
 
