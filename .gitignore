@@ -36,3 +36,6 @@
 /cmake-build-*/
 /build/
 /Build/
+
+sync_config.jsonc
+/tests/examples/matmul_allreduce/__pycache__
