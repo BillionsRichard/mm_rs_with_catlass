@@ -12,7 +12,7 @@ def open_input_file(input_file):
     return df
 
 def get_time_data(df, testLineNum: int):
-    df = df[df['kernel_type'] == "AI_CORE"]
+    df = df[df['kernel_type'] == "KERNEL_MIX_AIC"]
     df = df.reset_index(drop=True)
     time_data = []
     total_rows = len(df)

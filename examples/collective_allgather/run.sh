@@ -10,6 +10,7 @@ IPPORT="tcp://127.0.0.1:8766"
 GNPU_NUM="8"
 FIRST_NPU="0"
 FIRST_RANK="0"
+TEST_TYPE="int"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -62,6 +63,15 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        -type)
+            if [ -n "$2" ]; then
+                TEST_TYPE="$2"
+                shift 2
+            else
+                echo "Error: -type requires a value."
+                exit 1
+            fi
+            ;;
         *)
             echo "Error: Unknown option $1."
             exit 1
@@ -69,13 +79,20 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Golden generate
+rm -rf ./golden
+mkdir -p golden
+python3 data_gen.py $RANK_SIZE $TEST_TYPE
+
+# Kernel test
+rm -rf ./output
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${PROJECT_ROOT}/3rdparty/memfabric_hybrid/output/smem/lib64:${PROJECT_ROOT}/3rdparty/memfabric_hybrid/output/hybm/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 for (( idx =0; idx < ${GNPU_NUM}; idx = idx + 1 )); do
-    msprof --application="${PROJECT_ROOT}/build/bin/collective_allgather $RANK_SIZE $idx $IPPORT $GNPU_NUM $FIRST_RANK $FIRST_NPU" --output=${PROJECT_ROOT}/examples/collective_allgather/output/ &
+    msprof --application="${PROJECT_ROOT}/build/bin/collective_allgather $RANK_SIZE $idx $IPPORT $GNPU_NUM $FIRST_RANK $FIRST_NPU $TEST_TYPE" --output=${PROJECT_ROOT}/examples/collective_allgather/output/ &
 done
-
 wait
 
+# Profiling data statistic
 python3 data_statistic.py
 
 cd ${CURRENT_DIR}
