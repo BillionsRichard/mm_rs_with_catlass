@@ -11,9 +11,6 @@ def gen_random_data(size, dtype):
 def gen_golden_data():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('data_dir', type=str, 
-                        help='Directory to save the data files', 
-                        default="./out")
     parser.add_argument('out_data_type', type=int)
     parser.add_argument('rank_size', type=int)
     parser.add_argument('m', type=int)
@@ -23,32 +20,24 @@ def gen_golden_data():
     parser.add_argument('transB', type=int)
     args = parser.parse_args()
     M, N, K = args.m, args.n, args.k
-    data_dir = args.data_dir
 
-    os.makedirs(data_dir, exist_ok=True)
     out_data_type = np.float32 if args.out_data_type == 0 else np.float16
-    l0c_dtype = np.float32  # Use float32 for more precise matmul calculation
 
-    golden = np.zeros((M, N), dtype=l0c_dtype)
-    np.random.seed(42)
+    a_gm = gen_random_data((M, K), np.float16)
+    b_gm = gen_random_data((K, N), np.float16)
+    c_gm = np.zeros((M, N), dtype=np.float16)
 
-    for i in range(args.rank_size):
-        # Using float16 for a and b as in the original script
-        a_gm = gen_random_data((M, K), np.float16)
-        b_gm = gen_random_data((K, N), np.float16)
-        # print(f'rank_{i}, {a_gm=}, \n{b_gm=}')
+    l0c_dtype = np.float32
+    matrix_c = np.matmul(a_gm.astype(l0c_dtype), b_gm.astype(l0c_dtype)).astype(out_data_type)
 
-        # Save per-rank data
-        a_gm.tofile(os.path.join(data_dir, f"rank_{i}_a.bin"))
-        b_gm.tofile(os.path.join(data_dir, f"rank_{i}_b.bin"))
-
-        # Calculate matmul for this rank and add to golden
-        matrix_c = np.matmul(a_gm.astype(l0c_dtype), b_gm.astype(l0c_dtype))
+    golden = np.zeros_like(matrix_c)
+    for _ in range(args.rank_size):
         golden += matrix_c
 
-    # Convert to target data type and save golden data
-    golden = golden.astype(out_data_type)
-    golden.tofile(os.path.join(data_dir, "golden.bin"))
+    a_gm.tofile("./out/a_gm.bin")
+    b_gm.tofile("./out/b_gm.bin")
+    c_gm.tofile("./out/c_gm.bin")
+    golden.tofile("./out/golden.bin")
 
 if __name__ == '__main__':
     gen_golden_data()

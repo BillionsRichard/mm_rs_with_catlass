@@ -25,7 +25,7 @@ SHMEM_DEVICE __gm__ void* shmem_ptr(__gm__ void* ptr, int pe)
     // Check whether ptr belongs to this rank.
     uint64_t lower_bound = (uint64_t)device_state->p2p_heap_base[shmem_my_pe()];
     uint64_t upper_bound = lower_bound + device_state->heap_size;
-    if (uint64_t(ptr) < lower_bound || uint64_t(ptr) >= upper_bound) {
+    if (uint64_t(ptr) < lower_bound || uint64_t(ptr) >= upper_bound || pe < 0 || pe >= SHMEM_MAX_RANKS) {
         return nullptr;
     }
 
@@ -58,13 +58,13 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
     __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
 
     // block_size: dataMove Unit
-    uint32_t block_size = ub_size / sizeof(T) * sizeof(T);
-    uint32_t remain = (elem_size * sizeof(T)) % block_size;
+    uint64_t block_size = ub_size / sizeof(T) * sizeof(T);
+    uint64_t remain = (elem_size * sizeof(T)) % block_size;
 
-    int repeat_times = (elem_size * sizeof(T)) / block_size;
-    int repeat_elem = block_size / sizeof(T);
-    int loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
-    for (int i = 0; i < repeat_times; i++) {
+    uint64_t repeat_times = (elem_size * sizeof(T)) / block_size;
+    uint64_t repeat_elem = block_size / sizeof(T);
+    uint64_t loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
+    for (uint64_t i = 0; i < repeat_times; i++) {
         smem_shm_copy_gm2ub(buf, remote_ptr + i * repeat_elem, block_size);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
@@ -110,8 +110,8 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
     src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(remote_ptr));
     dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(dst));
 
-    uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
-    uint32_t ub_stride = (copy_params.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
+    uint64_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
+    uint64_t ub_stride = (copy_params.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
     AscendC::DataCopyExtParams data_copy_params_gm2ub(
         copy_params.repeat,
         copy_params.length * sizeof(T),
@@ -155,13 +155,13 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
     remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
     // block_size: dataMove Unit
-    uint32_t block_size = buf.GetSize() * sizeof(T);
-    uint32_t remain = (elem_size * sizeof(T)) % block_size;
+    uint64_t block_size = buf.GetSize() * sizeof(T);
+    uint64_t remain = (elem_size * sizeof(T)) % block_size;
 
-    int repeat_times = (elem_size * sizeof(T)) / block_size;
-    int repeat_elem = block_size / sizeof(T);
-    int loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
-    for (int i = 0; i < repeat_times; i++) {
+    uint64_t repeat_times = (elem_size * sizeof(T)) / block_size;
+    uint64_t repeat_elem = block_size / sizeof(T);
+    uint64_t loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
+    for (uint64_t i = 0; i < repeat_times; i++) {
         smem_shm_copy_gm2ub(buf, remote_buff[i * repeat_elem], block_size);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
@@ -200,8 +200,8 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
     AscendC::GlobalTensor<T> remote_buff;
     remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
-    uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
-    uint32_t ub_stride = (copy_params.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
+    uint64_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
+    uint64_t ub_stride = (copy_params.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
     AscendC::DataCopyExtParams data_copy_params_gm2ub(
         copy_params.repeat,
         copy_params.length * sizeof(T),
@@ -244,13 +244,13 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
     __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
 
     // block_size: dataMove Unit
-    uint32_t block_size = ub_size / sizeof(T) * sizeof(T);
-    uint32_t remain = (elem_size * sizeof(T)) % block_size;
+    uint64_t block_size = ub_size / sizeof(T) * sizeof(T);
+    uint64_t remain = (elem_size * sizeof(T)) % block_size;
 
-    int repeat_times = (elem_size * sizeof(T)) / block_size;
-    int repeat_elem = block_size / sizeof(T);
-    int loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
-    for (int i = 0; i < repeat_times; i++) {
+    uint64_t repeat_times = (elem_size * sizeof(T)) / block_size;
+    uint64_t repeat_elem = block_size / sizeof(T);
+    uint64_t loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
+    for (uint64_t i = 0; i < repeat_times; i++) {
         smem_shm_copy_gm2ub(buf, src + i * repeat_elem, block_size);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
@@ -296,8 +296,8 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
     src_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(src));
     dst_tensor.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(remote_ptr));
 
-    uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
-    uint32_t ub_stride = (copy_params.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
+    uint64_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
+    uint64_t ub_stride = (copy_params.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
     AscendC::DataCopyExtParams data_copy_params_gm2ub(
         copy_params.repeat,
         copy_params.length * sizeof(T),
@@ -341,13 +341,13 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
     remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
     // block_size: dataMove Unit
-    uint32_t block_size = buf.GetSize() * sizeof(T);
-    uint32_t remain = (elem_size * sizeof(T)) % block_size;
+    uint64_t block_size = buf.GetSize() * sizeof(T);
+    uint64_t remain = (elem_size * sizeof(T)) % block_size;
 
-    int repeat_times = (elem_size * sizeof(T)) / block_size;
-    int repeat_elem = block_size / sizeof(T);
-    int loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
-    for (int i = 0; i < repeat_times; i++) {
+    uint64_t repeat_times = (elem_size * sizeof(T)) / block_size;
+    uint64_t repeat_elem = block_size / sizeof(T);
+    uint64_t loop_times = remain > 0 ? repeat_times + 1 : repeat_times;
+    for (uint64_t i = 0; i < repeat_times; i++) {
         smem_shm_copy_gm2ub(buf, src[i * repeat_elem], block_size);
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
         AscendC::WaitFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID);
@@ -386,8 +386,8 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
     AscendC::GlobalTensor<T> remote_buff;
     remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
 
-    uint32_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
-    uint32_t ub_stride = (copy_params.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
+    uint64_t ELE_NUM_PER_UNIT = 32 / sizeof(T);
+    uint64_t ub_stride = (copy_params.length + ELE_NUM_PER_UNIT - 1) / ELE_NUM_PER_UNIT * ELE_NUM_PER_UNIT;
     AscendC::DataCopyExtParams data_copy_params_gm2ub(
         copy_params.repeat,
         copy_params.length * sizeof(T),
@@ -427,8 +427,8 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__ubuf__ T* dst, __gm__ T* src, uint32_t
     if (ptr == nullptr) return;
 
     // Check if Process will out of UB address.
-    int ub_offset = reinterpret_cast<uint64_t>(dst);
-    int process_num = elem_size;
+    uint64_t ub_offset = reinterpret_cast<uint64_t>(dst);
+    uint64_t process_num = elem_size;
     if (ub_offset + process_num * sizeof(T) > ub_limit) return;
 
     __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
@@ -453,8 +453,8 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::LocalTensor<T> dst, AscendC::Gl
     if (ptr == nullptr) return;
 
     // Check if Process will out of UB address.
-    int ub_offset = reinterpret_cast<uint64_t>(dst.GetPhyAddr());
-    int process_num = elem_size;
+    uint64_t ub_offset = reinterpret_cast<uint64_t>(dst.GetPhyAddr());
+    uint64_t process_num = elem_size;
     if (ub_offset + process_num * sizeof(T) > ub_limit) return;
 
     AscendC::GlobalTensor<T> remote_buff;
@@ -482,8 +482,8 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(__ubuf__ T* dst, __gm__ T* src, const no
     __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
 
     // Check if Process will out of UB address.
-    int ub_offset = reinterpret_cast<uint64_t>(dst);
-    int process_num = (copy_params.repeat - 1) * copy_params.dst_ld + copy_params.length;
+    uint64_t ub_offset = reinterpret_cast<uint64_t>(dst);
+    uint64_t process_num = (copy_params.repeat - 1) * copy_params.dst_ld + copy_params.length;
     if (ub_offset + process_num * sizeof(T) > ub_limit) return;
 
     AscendC::GlobalTensor<T> src_tensor;
@@ -521,8 +521,8 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::LocalTensor<T> dst, AscendC::Gl
     if (ptr == nullptr) return;
 
     // Check if Process will out of UB address.
-    int ub_offset = reinterpret_cast<uint64_t>(dst.GetPhyAddr());
-    int process_num = (copy_params.repeat - 1) * copy_params.dst_ld + copy_params.length;
+    uint64_t ub_offset = reinterpret_cast<uint64_t>(dst.GetPhyAddr());
+    uint64_t process_num = (copy_params.repeat - 1) * copy_params.dst_ld + copy_params.length;
     if (ub_offset + process_num * sizeof(T) > ub_limit) return;
 
     AscendC::GlobalTensor<T> remote_buff;
@@ -557,8 +557,8 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __ubuf__ T* src, uint32_t
     if (ptr == nullptr) return;
 
     // Check if Process will out of UB address.
-    int ub_offset = reinterpret_cast<uint64_t>(src);
-    int process_num = elem_size;
+    uint64_t ub_offset = reinterpret_cast<uint64_t>(src);
+    uint64_t process_num = elem_size;
     if (ub_offset + process_num * sizeof(T) > ub_limit) return;
 
     __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
@@ -583,8 +583,8 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::L
     if (ptr == nullptr) return;
 
     // Check if Process will out of UB address.
-    int ub_offset = reinterpret_cast<uint64_t>(src.GetPhyAddr());
-    int process_num = elem_size;
+    uint64_t ub_offset = reinterpret_cast<uint64_t>(src.GetPhyAddr());
+    uint64_t process_num = elem_size;
     if (ub_offset + process_num * sizeof(T) > ub_limit) return;
 
     AscendC::GlobalTensor<T> remote_buff;
@@ -611,8 +611,8 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __ubuf__ T* src, const no
     if (ptr == nullptr) return;
 
     // Check if Process will out of UB address.
-    int ub_offset = reinterpret_cast<uint64_t>(src);
-    int process_num = (copy_params.repeat - 1) * copy_params.src_ld + copy_params.length;
+    uint64_t ub_offset = reinterpret_cast<uint64_t>(src);
+    uint64_t process_num = (copy_params.repeat - 1) * copy_params.src_ld + copy_params.length;
     if (ub_offset + process_num * sizeof(T) > ub_limit) return;
 
     __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
@@ -652,8 +652,8 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::L
     if (ptr == nullptr) return;
 
     // Check if Process will out of UB address.
-    int ub_offset = reinterpret_cast<uint64_t>(src.GetPhyAddr());
-    int process_num = (copy_params.repeat - 1) * copy_params.src_ld + copy_params.length;
+    uint64_t ub_offset = reinterpret_cast<uint64_t>(src.GetPhyAddr());
+    uint64_t process_num = (copy_params.repeat - 1) * copy_params.src_ld + copy_params.length;
     if (ub_offset + process_num * sizeof(T) > ub_limit) return;
 
     AscendC::GlobalTensor<T> remote_buff;

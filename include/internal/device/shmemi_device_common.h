@@ -4,7 +4,7 @@
 #include "shmemi_device_arch.h"
 #include "shmemi_device_def.h"
 
-#include "lowlevel/smem_shm_aicore_base_api.h"
+#include "smem_shm_aicore_base_api.h"
 
 SHMEM_DEVICE __gm__ shmemi_device_host_state_t *shmemi_get_state() {
     return reinterpret_cast<__gm__ shmemi_device_host_state_t *>(smem_shm_get_extra_context_addr());
