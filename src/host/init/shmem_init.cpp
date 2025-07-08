@@ -241,7 +241,7 @@ int32_t shmem_finalize()
 {
     SHMEM_CHECK_RET(shm::shmemi_team_finalize());
     if (shm::g_smem_handle != nullptr) {
-        status = shm::smem_api::smem_shm_destroy(shm::g_smem_handle, 0);
+        int32_t status = shm::smem_api::smem_shm_destroy(shm::g_smem_handle, 0);
         if (status != SHMEM_SUCCESS) {
             SHM_LOG_ERROR("smem_shm_destroy Failed");
             return SHMEM_SMEM_ERROR;
