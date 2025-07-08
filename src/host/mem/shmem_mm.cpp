@@ -47,6 +47,7 @@ void *shmem_calloc(size_t nmemb, size_t size)
         SHM_LOG_ERROR("Memory Heap Not Initialized.");
         return nullptr;
     }
+    SHM_MULTIPLY_OVERFLOW_ASSERT(nmemb + size, size, SIZE_MAX, nullptr);
 
     auto total_size = nmemb * size;
     auto ptr = shm::shm_memory_heap->allocate(total_size);

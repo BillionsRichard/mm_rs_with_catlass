@@ -149,6 +149,18 @@ private:
         }                                        \
     } while (0)
 
+#define SHM_MULTIPLY_OVERFLOW_ASSERT(A, B, MAX, RET)                         \
+    do {                                                                     \
+        if ((A) <= 0 || (B) <= 0 || (MAX) <= 0) {                                  \
+            SHM_LOG_ERROR("INVALID PARAM " << #A << " " << #B << " " << #MAX);           \
+            return RET;                                                      \
+        }                                                                    \
+        if ((A) > (MAX) / (B)) {                               \
+            SHM_LOG_ERROR("OVERFLOW " << #A << " * " << #B << " > " << #MAX);\
+            return RET;                                                      \
+        }                                                                    \
+    } while (0)
+
 #define SHMEM_CHECK_RET(x)                                       \
     do {                                                         \
         int32_t check_ret = x;                                    \

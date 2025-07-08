@@ -39,7 +39,7 @@ protected:
         EXPECT_EQ(shm::g_state.heap_size, local_mem_size + SHMEM_EXTRA_SIZE);
         EXPECT_NE(shm::g_state.team_pools[0], nullptr);
         status = shmem_init_status();
-        EXPECT_EQ(status, SHMEM_STATUS_IS_INITALIZED);
+        EXPECT_EQ(status, SHMEM_STATUS_IS_INITIALIZED);
         testingRank = true;
     }
 
