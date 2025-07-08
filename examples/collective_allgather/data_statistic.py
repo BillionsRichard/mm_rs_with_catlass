@@ -42,7 +42,6 @@ def get_time_file(path):
 
 def get_pref_path(path):
     perf_list = list(filter(lambda item: item.startswith("PROF"), os.listdir(path)))
-    print(perf_list)
     task_time_list = []
     for perf_dir in perf_list:
         perf_path = os.path.join(path, perf_dir)
