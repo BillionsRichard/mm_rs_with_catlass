@@ -38,9 +38,13 @@ public:
         return g_logger;
     }
 
-    inline void set_log_level(log_level level)
+    inline shmem_error_code_t set_log_level(log_level level)
     {
+        if (level < DEBUG_LEVEL || level >= BUTT_LEVEL) {
+            return SHMEM_INVALID_VALUE;
+        }
         m_log_level = level;
+        return SHMEM_SUCCESS;
     }
 
     inline void set_extern_log_func(external_log func, bool force_update = false)
