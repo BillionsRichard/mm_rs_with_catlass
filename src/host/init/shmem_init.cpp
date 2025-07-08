@@ -74,11 +74,15 @@ int32_t shmemi_heap_init(shmem_init_attr_t *attributes)
         return SHMEM_SMEM_ERROR;
     }
     smem_shm_config_t config;
-    (void) smem_api::smem_shm_config_init(&config);
+    status = smem_api::smem_shm_config_init(&config);
+    if (status != SHMEM_SUCCESS) {
+        SHM_LOG_ERROR("smem_shm_config_init Failed");
+        return SHMEM_SMEM_ERROR;
+    }
     status = smem_api::smem_shm_init(attributes->ip_port, attributes->n_ranks, attributes->my_rank, device_id,
              &config);
     if (status != SHMEM_SUCCESS) {
-        SHM_LOG_ERROR("smem_init Failed");
+        SHM_LOG_ERROR("smem_shm_init Failed");
         return SHMEM_SMEM_ERROR;
     }
 
@@ -237,7 +241,11 @@ int32_t shmem_finalize()
 {
     SHMEM_CHECK_RET(shm::shmemi_team_finalize());
     if (shm::g_smem_handle != nullptr) {
-        (void)shm::smem_api::smem_shm_destroy(shm::g_smem_handle, 0);
+        status = shm::smem_api::smem_shm_destroy(shm::g_smem_handle, 0);
+        if (status != SHMEM_SUCCESS) {
+            SHM_LOG_ERROR("smem_shm_destroy Failed");
+            return SHMEM_SMEM_ERROR;
+        }
         shm::g_smem_handle = nullptr;
     }
     shm::smem_api::smem_un_init();
