@@ -83,4 +83,12 @@ int32_t smem_api::load_library(const std::string &lib_dir_path)
     SHM_LOG_INFO("loaded library: " << g_smem_file_name << " under dir: " << lib_dir_path.c_str());
     return SHMEM_SUCCESS;
 }
+
+smem_api::~smem_api()
+{
+    if (g_smem_handle) {
+        dlclose(g_smem_handle);
+        g_smem_handle = nullptr;
+    }
+}
 }  // namespace shm

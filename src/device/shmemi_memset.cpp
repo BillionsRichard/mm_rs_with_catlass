@@ -6,6 +6,9 @@
 // kernels
 template<typename T>
 SHMEM_GLOBAL void k_memset(GM_ADDR array, int32_t len, T val, int32_t count) {
+    if (array == 0) {
+        return;
+    }
     auto tmp = (__gm__ T *) array;
     int32_t valid_count = count < len ? count : len;
     for (int32_t i = 0; i < valid_count; i++) {
