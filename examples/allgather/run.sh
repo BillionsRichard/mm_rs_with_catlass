@@ -91,7 +91,7 @@ done
 # Golden generate
 rm -rf ./golden
 mkdir -p golden
-python3 data_gen.py $RANK_SIZE $TEST_TYPE
+python3 ./scripts/data_gen.py $RANK_SIZE $TEST_TYPE
 
 # Kernel test
 rm -rf ./output
@@ -102,6 +102,6 @@ done
 wait
 
 # Profiling data statistic
-python3 data_statistic.py
+python3 ./scripts/data_statistic.py
 
 cd ${CURRENT_DIR}
