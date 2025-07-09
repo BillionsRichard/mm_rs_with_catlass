@@ -47,7 +47,7 @@ template<class T>
 extern void allgather_demo(uint32_t block_dim, void* stream, uint64_t fftsAddr, uint8_t* input, uint8_t* output, uint8_t* gva, int elements, int magic);
 
 template<class T>
-int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size)
+int test_shmem_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size)
 {
     // 初始化ACL和SHMEM
     int32_t device_id = rank_id % g_npus + f_npu;
@@ -175,16 +175,16 @@ int main(int argc, char *argv[])
     data_type = argv[7];
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
     if (std::string(data_type) == "int") {
-        status = test_shmem_team_all_gather<int>(rank_id, n_ranks, local_mem_size);
+        status = test_shmem_all_gather<int>(rank_id, n_ranks, local_mem_size);
     }
     else if (std::string(data_type) == "int32_t") {
-        status = test_shmem_team_all_gather<int32_t>(rank_id, n_ranks, local_mem_size);
+        status = test_shmem_all_gather<int32_t>(rank_id, n_ranks, local_mem_size);
     }
     else if (std::string(data_type) == "float16_t") {
-        status = test_shmem_team_all_gather<fp16_t>(rank_id, n_ranks, local_mem_size);
+        status = test_shmem_all_gather<fp16_t>(rank_id, n_ranks, local_mem_size);
     }
     else if (std::string(data_type) == "bfloat16_t") {
-        status = test_shmem_team_all_gather<bfloat16>(rank_id, n_ranks, local_mem_size);
+        status = test_shmem_all_gather<bfloat16>(rank_id, n_ranks, local_mem_size);
     }
     if (status) {
         std::exit(EXIT_FAILURE);
