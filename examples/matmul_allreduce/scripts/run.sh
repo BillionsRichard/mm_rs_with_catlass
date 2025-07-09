@@ -81,7 +81,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-cd ${PROJECT_ROOT}/examples/fusion_matmul_allreduce/
+cd ${PROJECT_ROOT}/examples/matmul_allreduce/
 
 DATA_DIR=`realpath ./out`
 echo "DATA_DIR: $DATA_DIR"

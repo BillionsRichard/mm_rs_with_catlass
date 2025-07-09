@@ -32,8 +32,8 @@ from tests.examples.config import CORRECTNESS_TEST_NUM_CASES_PER_DTYPE
 from tests.examples.config import NUMERICAL_STABILITY_TEST_NUM_CASES_PER_DTYPE
 
 # Use hardcoded paths as fixtures are not reliable
-EXECUTABLE_PATH = os.path.abspath("build/bin/fusion_matmul_allreduce")
-TEST_DATA_DIR = "tests/examples/fusion_matmul_allreduce/test_data"
+EXECUTABLE_PATH = os.path.abspath("build/bin/matmul_allreduce")
+TEST_DATA_DIR = "tests/examples/matmul_allreduce/test_data"
 
 
 def _product(factors):

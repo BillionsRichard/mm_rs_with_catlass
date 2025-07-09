@@ -20,7 +20,7 @@ MEMFABRIC_LIB_PATH=$PROJECT_ROOT/install/output/memfabric_hybrid/lib/
 SHMEM_INCLUDE_PATH=$PROJECT_ROOT/install/output/shmem/include/
 SHMEM_LIB_PATH=$PROJECT_ROOT/install/output/shmem/lib/
 
-cd ${PROJECT_ROOT}/examples/fusion_matmul_allreduce/
+cd ${PROJECT_ROOT}/examples/matmul_allreduce/
 
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/install/output/shmem/lib:${ASCEND_HOME_PATH}/lib64:${PROJECT_ROOT}/install/output/memfabric_hybrid/lib:$LD_LIBRARY_PATH
 
@@ -52,6 +52,6 @@ bisheng -O2 -std=c++17 -xcce --cce-aicore-arch=dav-c220             \
     -lruntime -lstdc++ -lascendcl -lm -ltiling_api                  \
     -lplatform -lc_sec -ldl -lnnopbase                              \
     -lascendc_runtime -lerror_manager -lprofapi -lmmpa -lascendalog \
-    ${PROJECT_ROOT}/examples/fusion_matmul_allreduce/main.cpp -o out/fusion_matmul_allreduce
+    ${PROJECT_ROOT}/examples/matmul_allreduce/main.cpp -o out/matmul_allreduce
 
 cd ${CURRENT_DIR}
