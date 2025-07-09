@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
  * This file is a part of the CANN Open Software.
  * Licensed under CANN Open Software License Agreement Version 1.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
@@ -8,27 +8,26 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "kernel_operator.h"
-#include "device/shmem_device_def.h"
+#include "acl/acl.h"
 #include "shmem_api.h"
 
-extern "C" __global__ __aicore__ void device_team_all_gather_test(uint64_t config, GM_ADDR gva, int team_id)
+// all_gather简易实现
+extern "C" __global__ __aicore__ void device_all_gather_test(GM_ADDR gva, int elements)
 {
-    shmemx_set_ffts_config(config);
-    int64_t team_rank = shmem_team_my_pe(team_id);
-    int64_t team_size = shmem_team_n_pes(team_id);
+    int64_t my_rank = shmem_my_pe();
+    int64_t pe_size = shmem_n_pes();
     __gm__ int32_t* gva_gm = (__gm__ int32_t *)gva;
     AscendC::PipeBarrier<PIPE_ALL>();
     // All Gather
-    for (int i = 0; i < team_size - 1; i++) {
-        int64_t dst_rank = shmem_team_translate_pe(team_id, (team_rank + 1 + i) % team_size, SHMEM_TEAM_WORLD);
-        shmem_put_int32_mem_nbi(gva_gm + 16 * team_rank, gva_gm + 16 * team_rank, 16, dst_rank);
+    for (int i = 0; i < pe_size; i++) {
+        shmem_put_int32_mem_nbi(gva_gm + elements * my_rank, gva_gm + elements * my_rank, elements, i);
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
     }
-    shmemi_barrier(team_id);
+    shmemx_barrier_all_vec();
 }
 
-void team_allgather(uint32_t block_dim, void* stream, uint64_t config, uint8_t* gva, shmem_team_t team_id)
+void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva, int elements)
 {
-    device_team_all_gather_test<<<block_dim, nullptr, stream>>>(config, gva, (int)team_id);
+    device_all_gather_test<<<block_dim, nullptr, stream>>>(gva, elements);
 }

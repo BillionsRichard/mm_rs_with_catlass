@@ -1,3 +1,12 @@
+#
+# Copyright (c) 2025 Huawei Technologies Co., Ltd.
+# This file is a part of the CANN Open Software.
+# Licensed under CANN Open Software License Agreement Version 1.0 (the "License").
+# Please refer to the License for details. You may not use this file except in compliance with the License.
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+# See LICENSE in the root of the software repository for the full text of the License.
+#
 import multiprocessing
 import pytest
 import numpy as np
@@ -23,8 +32,8 @@ from tests.examples.config import CORRECTNESS_TEST_NUM_CASES_PER_DTYPE
 from tests.examples.config import NUMERICAL_STABILITY_TEST_NUM_CASES_PER_DTYPE
 
 # Use hardcoded paths as fixtures are not reliable
-EXECUTABLE_PATH = os.path.abspath("build/bin/fusion_matmul_allreduce")
-TEST_DATA_DIR = "tests/examples/fusion_matmul_allreduce/test_data"
+EXECUTABLE_PATH = os.path.abspath("build/bin/matmul_allreduce")
+TEST_DATA_DIR = "tests/examples/matmul_allreduce/test_data"
 
 
 def _product(factors):

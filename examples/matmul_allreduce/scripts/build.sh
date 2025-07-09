@@ -1,4 +1,13 @@
 #!/bin/bash
+#
+# Copyright (c) 2025 Huawei Technologies Co., Ltd.
+# This file is a part of the CANN Open Software.
+# Licensed under CANN Open Software License Agreement Version 1.0 (the "License").
+# Please refer to the License for details. You may not use this file except in compliance with the License.
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+# See LICENSE in the root of the software repository for the full text of the License.
+#
 CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 PROJECT_ROOT=$( dirname $( dirname $(dirname "$SCRIPT_DIR")))
@@ -11,7 +20,7 @@ MEMFABRIC_LIB_PATH=$PROJECT_ROOT/install/output/memfabric_hybrid/lib/
 SHMEM_INCLUDE_PATH=$PROJECT_ROOT/install/output/shmem/include/
 SHMEM_LIB_PATH=$PROJECT_ROOT/install/output/shmem/lib/
 
-cd ${PROJECT_ROOT}/examples/fusion_matmul_allreduce/
+cd ${PROJECT_ROOT}/examples/matmul_allreduce/
 
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/install/output/shmem/lib:${ASCEND_HOME_PATH}/lib64:${PROJECT_ROOT}/install/output/memfabric_hybrid/lib:$LD_LIBRARY_PATH
 
@@ -43,6 +52,6 @@ bisheng -O2 -std=c++17 -xcce --cce-aicore-arch=dav-c220             \
     -lruntime -lstdc++ -lascendcl -lm -ltiling_api                  \
     -lplatform -lc_sec -ldl -lnnopbase                              \
     -lascendc_runtime -lerror_manager -lprofapi -lmmpa -lascendalog \
-    ${PROJECT_ROOT}/examples/fusion_matmul_allreduce/main.cpp -o out/fusion_matmul_allreduce
+    ${PROJECT_ROOT}/examples/matmul_allreduce/main.cpp -o out/matmul_allreduce
 
 cd ${CURRENT_DIR}

@@ -1,8 +1,13 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This file is a part of the CANN Open Software.
+ * Licensed under CANN Open Software License Agreement Version 1.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include <dlfcn.h>
-#include "smem_shm_api.h"
 #include "shmemi_host_common.h"
 
 namespace shm {
@@ -82,5 +87,13 @@ int32_t smem_api::load_library(const std::string &lib_dir_path)
     g_loaded = true;
     SHM_LOG_INFO("loaded library: " << g_smem_file_name << " under dir: " << lib_dir_path.c_str());
     return SHMEM_SUCCESS;
+}
+
+smem_api::~smem_api()
+{
+    if (g_smem_handle) {
+        dlclose(g_smem_handle);
+        g_smem_handle = nullptr;
+    }
 }
 }  // namespace shm

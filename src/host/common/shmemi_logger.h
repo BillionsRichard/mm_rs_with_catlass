@@ -1,5 +1,11 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025-2026. All rights reserved.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This file is a part of the CANN Open Software.
+ * Licensed under CANN Open Software License Agreement Version 1.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 #ifndef SHMEM_SHM_OUT_LOGGER_H
 #define SHMEM_SHM_OUT_LOGGER_H
@@ -38,9 +44,13 @@ public:
         return g_logger;
     }
 
-    inline void set_log_level(log_level level)
+    inline shmem_error_code_t set_log_level(log_level level)
     {
+        if (level < DEBUG_LEVEL || level >= BUTT_LEVEL) {
+            return SHMEM_INVALID_VALUE;
+        }
         m_log_level = level;
+        return SHMEM_SUCCESS;
     }
 
     inline void set_extern_log_func(external_log func, bool force_update = false)

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This file is a part of the CANN Open Software.
  * Licensed under CANN Open Software License Agreement Version 1.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
@@ -32,7 +32,6 @@
 using fp16_t = op::fp16_t;
 using bfloat16 = op::bfloat16;
 
-#include "kernel_operator.h"
 #include "acl/acl.h"
 #include "shmem_api.h"
 

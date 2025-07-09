@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This file is a part of the CANN Open Software.
+ * Licensed under CANN Open Software License Agreement Version 1.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -80,8 +89,8 @@ int32_t shmemi_team_init(int32_t rank, int32_t size)
     SHMEM_CHECK_RET(device_team_update(SHMEM_TEAM_WORLD, &shmem_team_world));
 
     /* Initialize TEAM SYNC */
-    g_state.sync_pool = (shmemi_sync_bit *)shmem_malloc(SYNC_POOL_SIZE);
-    if (g_state.sync_pool == nullptr) {
+    g_state.sync_pool = (uint64_t)shmem_malloc(SYNC_POOL_SIZE);
+    if (g_state.sync_pool == 0) {
         shmemi_team_finalize();
         SHM_LOG_ERROR("malloc sync pool failed.");
         return SHMEM_INNER_ERROR;
@@ -94,15 +103,41 @@ int32_t shmemi_team_init(int32_t rank, int32_t size)
     }
 
     ret = aclrtMalloc((void **) &(g_state.sync_counter), SYNC_COUNTERS_SIZE, ACL_MEM_MALLOC_HUGE_FIRST);
-    if (ret != 0 || g_state.sync_counter == nullptr) {
+    if (ret != 0 || g_state.sync_counter == 0) {
         shmemi_team_finalize();
         SHM_LOG_ERROR("malloc sync counter failed.");
         return SHMEM_INNER_ERROR;
     }
-    ret = shmemi_memset((int32_t *) g_state.sync_counter, SYNC_COUNTERS_SIZE / sizeof(int32_t), 1, SYNC_COUNTERS_SIZE / sizeof(int32_t));
+    ret = aclrtMemset((void *) g_state.sync_counter, SYNC_COUNTERS_SIZE, 0, SYNC_COUNTERS_SIZE);
     if (ret != 0) {
         shmemi_team_finalize();
         SHM_LOG_ERROR("memset sync counter failed.");
+        return SHMEM_INNER_ERROR;
+    }
+
+    ret = aclrtMalloc((void **) &(g_state.core_sync_pool), SHMEM_CORE_SYNC_POOL_SIZE, ACL_MEM_MALLOC_HUGE_FIRST);
+    if (ret != 0 || g_state.core_sync_pool == 0) {
+        shmemi_team_finalize();
+        SHM_LOG_ERROR("malloc core sync pool failed.");
+        return SHMEM_INNER_ERROR;
+    }
+    ret = aclrtMemset((void *) g_state.core_sync_pool, SHMEM_CORE_SYNC_POOL_SIZE, 0, SHMEM_CORE_SYNC_POOL_SIZE);
+    if (ret != 0) {
+        shmemi_team_finalize();
+        SHM_LOG_ERROR("memset core sync pool failed.");
+        return SHMEM_INNER_ERROR;
+    }
+
+    ret = aclrtMalloc((void **) &(g_state.core_sync_counter), SHMEM_CORE_SYNC_COUNTER_SIZE, ACL_MEM_MALLOC_HUGE_FIRST);
+    if (ret != 0 || g_state.core_sync_counter == 0) {
+        shmemi_team_finalize();
+        SHM_LOG_ERROR("malloc core sync counter failed.");
+        return SHMEM_INNER_ERROR;
+    }
+    ret = aclrtMemset((void *) g_state.core_sync_counter, SHMEM_CORE_SYNC_COUNTER_SIZE, 0, SHMEM_CORE_SYNC_COUNTER_SIZE);
+    if (ret != 0) {
+        shmemi_team_finalize();
+        SHM_LOG_ERROR("memset core sync counter failed.");
         return SHMEM_INNER_ERROR;
     }
     return 0;
@@ -129,13 +164,21 @@ int32_t shmemi_team_finalize()
         if (is_valid_team(i)) shmem_team_destroy(i);
     }
 
-    if (g_state.sync_counter != nullptr) {
-        (void)aclrtFree(reinterpret_cast<void *>(g_state.sync_counter));
-        g_state.sync_counter = nullptr;
+    if (g_state.sync_counter != 0) {
+        aclrtFree(reinterpret_cast<void *>(g_state.sync_counter));
+        g_state.sync_counter = 0;
     }
-    if (g_state.sync_pool != nullptr) {
+    if (g_state.sync_pool != 0) {
         shmem_free(reinterpret_cast<void *>(g_state.sync_pool));
-        g_state.sync_pool = nullptr;
+        g_state.sync_pool = 0;
+    }
+    if (g_state.core_sync_counter != 0) {
+        aclrtFree(reinterpret_cast<void *>(g_state.core_sync_counter));
+        g_state.core_sync_counter = 0;
+    }    
+    if (g_state.core_sync_pool != 0) {
+        aclrtFree(reinterpret_cast<void *>(g_state.core_sync_pool));
+        g_state.core_sync_pool = 0;
     }
     if (g_shmem_team_pool != nullptr) {
         free(g_shmem_team_pool);

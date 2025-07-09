@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This file is a part of the CANN Open Software.
+ * Licensed under CANN Open Software License Agreement Version 1.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
 #include <stdint.h>
 #include <stdlib.h>
 #include <cstring>
@@ -29,6 +38,8 @@ namespace shm {
             {NULL},                                  /* team_pools */                  \
             NULL,                                    /* sync_pool */                  \
             NULL,                                    /* sync_counter */                \
+            NULL,                                    /* core_sync_pool */             \
+            NULL,                                    /* core_sync_counter */          \
             false,                                   /* shmem_is_shmem_initialized */ \
             false,                                   /* shmem_is_shmem_created */     \
             {0, 16 * 1024, 0},                       /* shmem_mte_config */           \
@@ -74,11 +85,15 @@ int32_t shmemi_heap_init(shmem_init_attr_t *attributes)
         return SHMEM_SMEM_ERROR;
     }
     smem_shm_config_t config;
-    (void) smem_api::smem_shm_config_init(&config);
+    status = smem_api::smem_shm_config_init(&config);
+    if (status != SHMEM_SUCCESS) {
+        SHM_LOG_ERROR("smem_shm_config_init Failed");
+        return SHMEM_SMEM_ERROR;
+    }
     status = smem_api::smem_shm_init(attributes->ip_port, attributes->n_ranks, attributes->my_rank, device_id,
              &config);
     if (status != SHMEM_SUCCESS) {
-        SHM_LOG_ERROR("smem_init Failed");
+        SHM_LOG_ERROR("smem_shm_init Failed");
         return SHMEM_SMEM_ERROR;
     }
 
@@ -237,7 +252,11 @@ int32_t shmem_finalize()
 {
     SHMEM_CHECK_RET(shm::shmemi_team_finalize());
     if (shm::g_smem_handle != nullptr) {
-        (void)shm::smem_api::smem_shm_destroy(shm::g_smem_handle, 0);
+        int32_t status = shm::smem_api::smem_shm_destroy(shm::g_smem_handle, 0);
+        if (status != SHMEM_SUCCESS) {
+            SHM_LOG_ERROR("smem_shm_destroy Failed");
+            return SHMEM_SMEM_ERROR;
+        }
         shm::g_smem_handle = nullptr;
     }
     shm::smem_api::smem_un_init();
