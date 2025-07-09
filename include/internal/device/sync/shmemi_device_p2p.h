@@ -13,29 +13,28 @@
 #include "shmemi_device_quiet.h"
 
 template<typename T>
-SHMEM_DEVICE void shmemi_signal(__gm__ uint8_t *addr, T val) {
-    shmemi_store<T>(addr, val);
+SHMEM_DEVICE void shmemi_signal(__gm__ T *addr, T val) {
+    shmemi_store(addr, val);
 
     // flush data cache to GM after signal to ensure it is visiable to other ranks 
-    dcci_cacheline(addr);
+    dcci_cacheline((__gm__ uint8_t *)addr);
 }
 
 template<typename T>
-SHMEM_DEVICE void shmemi_signal(__gm__ uint8_t *addr, int pe, T val) {
-    __gm__ uint8_t *remote = shmemi_ptr(addr, pe);
-    shmemi_signal<T>(remote, val);
+SHMEM_DEVICE void shmemi_signal(__gm__ T *addr, int pe, T val) {
+    shmemi_signal(shmemi_ptr(addr, pe), val);
 }
 
 template<typename T>
-SHMEM_DEVICE void shmemi_wait(__gm__ uint8_t *addr, T val) {
+SHMEM_DEVICE void shmemi_wait(__gm__ T *addr, T val) {
     do {
         // always flush data cache to avoid reading staled data
-        dcci_cacheline(addr);
-    } while (shmemi_load<T>(addr) != val);
+        dcci_cacheline((__gm__ uint8_t *)addr);
+    } while (shmemi_load(addr) != val);
 }
 
 SHMEM_DEVICE void shmemi_signal_set(__gm__ int32_t *addr, int pe, int32_t val) {
-    shmemi_signal<int32_t>((__gm__ uint8_t *)addr, pe, val);
+    shmemi_signal(addr, pe, val);
 }
 
 SHMEM_DEVICE void shmemi_signal_add(__gm__ int32_t *addr, int pe, int32_t val) {
@@ -133,6 +132,89 @@ SHMEM_DEVICE int32_t shmemi_signal_wait_until(__gm__ int32_t *sig_addr, int cmp,
             return shmemi_signal_wait_until_le(sig_addr, cmp_val);
     }
     return -1;
+}
+
+SHMEM_DEVICE int32_t shmemi_signal_fetch(__gm__ int32_t *sig_addr) {
+    dcci_cacheline((__gm__ uint8_t *)sig_addr);
+    return *sig_addr;
+}
+
+template<typename T>
+SHMEM_DEVICE void shmemi_wait_until(__gm__ T *sig_addr, int cmp, T cmp_val) {
+    switch (cmp) {
+        case SHMEM_CMP_EQ:
+            do {dcci_cacheline((__gm__ uint8_t *)sig_addr);} while(!(*sig_addr == cmp_val)); break;
+        case SHMEM_CMP_NE:
+            do {dcci_cacheline((__gm__ uint8_t *)sig_addr);} while(!(*sig_addr != cmp_val)); break;
+        case SHMEM_CMP_GT:
+            do {dcci_cacheline((__gm__ uint8_t *)sig_addr);} while(!(*sig_addr >  cmp_val)); break;
+        case SHMEM_CMP_GE:
+            do {dcci_cacheline((__gm__ uint8_t *)sig_addr);} while(!(*sig_addr >= cmp_val)); break;
+        case SHMEM_CMP_LT:
+            do {dcci_cacheline((__gm__ uint8_t *)sig_addr);} while(!(*sig_addr <  cmp_val)); break;
+        case SHMEM_CMP_LE:
+            do {dcci_cacheline((__gm__ uint8_t *)sig_addr);} while(!(*sig_addr <= cmp_val)); break;
+    }
+}
+
+template<typename T>
+SHMEM_DEVICE int shmemi_test(__gm__ T *sig_addr, int cmp, T cmp_val) {
+    dcci_cacheline((__gm__ uint8_t *)sig_addr);
+    switch (cmp) {
+        case SHMEM_CMP_EQ:
+            return *sig_addr == cmp_val;
+        case SHMEM_CMP_NE:
+            return *sig_addr != cmp_val;
+        case SHMEM_CMP_GT:
+            return *sig_addr > cmp_val;
+        case SHMEM_CMP_GE:
+            return *sig_addr >= cmp_val;
+        case SHMEM_CMP_LT:
+            return *sig_addr < cmp_val;
+        case SHMEM_CMP_LE:
+            return *sig_addr <= cmp_val;
+    }
+    return 0;
+}
+
+template<typename T>
+SHMEM_DEVICE void shmemi_wait_until_all(__gm__ T *sig_addr, size_t nelems, const int *status, int cmp, T cmp_val, int stride = SHMEMI_SYNCBIT_SIZE / sizeof(T)) {
+    for (int i = 0; i < nelems; i++) {
+        if (status && status[i] != 0) {
+            continue;
+        }
+
+        shmemi_wait_until(sig_addr + i * stride, cmp, cmp_val);
+    }
+}
+
+template<typename T>
+SHMEM_DEVICE int shmemi_test_all(__gm__ T *sig_addr, size_t nelems, const int *status, int cmp, T cmp_val, int stride = SHMEMI_SYNCBIT_SIZE / sizeof(T)) {
+    int ret = 1;
+
+    for (int i = 0; i < nelems; i++) {
+        if (status && status[i] != 0) {
+            continue;
+        } 
+
+        dcci_cacheline((__gm__ uint8_t *)(sig_addr + i * stride));
+        switch (cmp) {
+            case SHMEM_CMP_EQ:
+                ret &= (*(sig_addr + i * stride) == cmp_val); break;
+            case SHMEM_CMP_NE:
+                ret &= (*(sig_addr + i * stride) != cmp_val); break;
+            case SHMEM_CMP_GT:
+                ret &= (*(sig_addr + i * stride) >  cmp_val); break;
+            case SHMEM_CMP_GE:
+                ret &= (*(sig_addr + i * stride) >= cmp_val); break;
+            case SHMEM_CMP_LT:
+                ret &= (*(sig_addr + i * stride) <  cmp_val); break;
+            case SHMEM_CMP_LE:
+                ret &= (*(sig_addr + i * stride) <= cmp_val); break;
+        }
+    }
+
+    return ret;
 }
 
 #endif

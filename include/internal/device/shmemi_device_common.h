@@ -32,12 +32,12 @@ SHMEM_DEVICE uint64_t shmemi_get_heap_size() {
 }
 
 template<typename T>
-SHMEM_DEVICE void shmemi_store(__gm__ uint8_t *addr, T val) {
+SHMEM_DEVICE void shmemi_store(__gm__ T *addr, T val) {
     *((__gm__ T *)addr) = val;
 }
 
 template<typename T>
-SHMEM_DEVICE T shmemi_load(__gm__ uint8_t *cache) {
+SHMEM_DEVICE T shmemi_load(__gm__ T *cache) {
     return *((__gm__ T *)cache);
 }
 

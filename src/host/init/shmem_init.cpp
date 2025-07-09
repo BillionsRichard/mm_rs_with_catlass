@@ -38,6 +38,8 @@ namespace shm {
             {NULL},                                  /* team_pools */                  \
             NULL,                                    /* sync_pool */                  \
             NULL,                                    /* sync_counter */                \
+            NULL,                                    /* core_sync_pool */             \
+            NULL,                                    /* core_sync_counter */          \
             false,                                   /* shmem_is_shmem_initialized */ \
             false,                                   /* shmem_is_shmem_created */     \
             {0, 16 * 1024, 0},                       /* shmem_mte_config */           \

@@ -20,11 +20,11 @@ extern "C" SHMEM_GLOBAL void increase(uint64_t config, GM_ADDR addr, int rank_id
 #endif
 
 #ifdef __DAV_C220_VEC__
-    uint64_t val = shmemi_load<uint64_t>(addr);
+    uint64_t val = shmemi_load((__gm__ uint64_t *)addr);
 
     shmem_barrier_all();
     GM_ADDR remote = shmemi_ptr(addr, (rank_id + 1) % rank_size);
-    shmemi_store<uint64_t>(remote, val + 1);
+    shmemi_store((__gm__ uint64_t *)remote, val + 1);
     shmem_barrier_all();
 #endif
 }
@@ -52,9 +52,9 @@ extern "C" SHMEM_GLOBAL void p2p_chain(uint64_t config, GM_ADDR addr, int rank_i
 #ifdef __DAV_C220_VEC__
     if (rank_id == 0) {
         shmemx_signal_op(sig_addr, 1, SHMEM_SIGNAL_ADD, next);
-        shmem_signal_wait_until(sig_addr, SHMEM_CMP_EQ, 3);
+        shmem_signal_wait_until(sig_addr, SHMEM_CMP_EQ, 1 + AscendC::GetBlockNum() * AscendC::GetTaskRation());
     } else {
-        shmem_signal_wait_until(sig_addr, SHMEM_CMP_EQ, 3);
+        shmem_signal_wait_until(sig_addr, SHMEM_CMP_EQ, 1 + AscendC::GetBlockNum() * AscendC::GetTaskRation());
         shmemx_signal_op(sig_addr, 1, SHMEM_SIGNAL_ADD, next);
     }
 #endif

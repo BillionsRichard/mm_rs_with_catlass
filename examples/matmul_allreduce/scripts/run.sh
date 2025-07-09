@@ -81,7 +81,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-cd ${PROJECT_ROOT}/examples/fusion_matmul_allreduce/
+cd ${PROJECT_ROOT}/examples/matmul_allreduce/
 
 DATA_DIR=`realpath ./out`
 echo "DATA_DIR: $DATA_DIR"
@@ -103,7 +103,7 @@ echo "PROJECT_ROOT: $PROJECT_ROOT"
 echo "Test Case, M: ${M}, K: ${K}, N: ${N}"
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${PROJECT_ROOT}/3rdparty/memfabric_hybrid/output/smem/lib64:${PROJECT_ROOT}/3rdparty/memfabric_hybrid/output/hybm/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 for (( idx =0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
-    ${PROJECT_ROOT}/build/bin/fusion_matmul_allreduce "$RANK_SIZE" "$idx" "$IPPORT" "$FIRST_NPU" "$M" "$K" "$N" $DATA_DIR &
+    ${PROJECT_ROOT}/build/bin/matmul_allreduce "$RANK_SIZE" "$idx" "$IPPORT" "$FIRST_NPU" "$M" "$K" "$N" $DATA_DIR &
 done
 
 # Wait until all process exit

@@ -80,7 +80,7 @@ done
 
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${PROJECT_ROOT}/3rdparty/memfabric_hybrid/output/smem/lib64:${PROJECT_ROOT}/3rdparty/memfabric_hybrid/output/hybm/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 for (( idx =0; idx < ${GNPU_NUM}; idx = idx + 1 )); do
-    ${PROJECT_ROOT}/build/bin/collective_allgather "$RANK_SIZE" "$idx" "$IPPORT" "$GNPU_NUM" "$FIRST_RANK" "$FIRST_NPU" &
+    ${PROJECT_ROOT}/build/bin/allgather "$RANK_SIZE" "$idx" "$IPPORT" "$GNPU_NUM" "$FIRST_RANK" "$FIRST_NPU" &
 done
 
 cd ${CURRENT_DIR}

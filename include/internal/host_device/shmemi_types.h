@@ -14,8 +14,6 @@
 extern "C" {
 #endif
 
-
-#define SHMEM_MAX_CORES_PER_RANK 32
 #define SHMEM_MAX_RANKS 2048
 #define SHMEM_MAX_TEAMS 32
 
@@ -36,6 +34,16 @@ extern "C" {
 #define SYNC_POOL_SIZE (SYNC_ARRAY_SIZE * SHMEM_MAX_TEAMS)
 #define SYNC_COUNTERS_SIZE (SYNC_COUNTER_SIZE * SHMEM_MAX_TEAMS)
 #define SHMEM_BARRIER_TG_DISSEM_KVAL 8
+
+// core level sync
+#define SHMEM_MAX_AIC_PER_NPU 25
+#define SHMEM_MAX_AIV_PER_NPU 50
+#define SHMEM_MAX_CORE_PER_NPU (SHMEM_MAX_AIC_PER_NPU + SHMEM_MAX_AIV_PER_NPU)
+#define SHMEM_AIC_SYNC_OFFSET 0
+#define SHMEM_AIV_SYNC_OFFSET (SHMEM_AIC_SYNC_OFFSET + SHMEM_MAX_AIC_PER_NPU)
+#define SHMEM_SYNC_COUNTER_OFFSET (SHMEM_AIV_SYNC_OFFSET + SHMEM_MAX_AIV_PER_NPU)
+#define SHMEM_CORE_SYNC_POOL_SIZE (SHMEM_MAX_CORE_PER_NPU * SHMEMI_SYNCBIT_SIZE)
+#define SHMEM_CORE_SYNC_COUNTER_SIZE SHMEMI_SYNCBIT_SIZE
 
 // Total extra
 #define SHMEM_EXTRA_SIZE_UNALIGHED SYNC_POOL_SIZE
@@ -75,8 +83,11 @@ typedef struct {
     
     // Using shmemi_sync_bit instead of basic types to shmemi_store flag, avoiding concurrent write due to cacheline sharing.
     // Refer to shmemi_barrier.h for more details.
-    shmemi_sync_bit *sync_pool;
-    shmemi_sync_bit *sync_counter;
+    // These members are 'shmemi_sync_bit *' types actully, but are defined as 'uint64_t' due to compiler restriction.
+    uint64_t sync_pool;
+    uint64_t sync_counter;
+    uint64_t core_sync_pool;
+    uint64_t core_sync_counter;
 
     bool is_shmem_initialized;
     bool is_shmem_created;

@@ -10,8 +10,8 @@ tests/examples/
 ├── utils.py # 通用工具函数（动态误差计算等）
 ├── np_uniform_generator.py # 均匀分布随机数生成器
 ├── np_normal_generator.py # 正态分布随机数生成器
-├── fusion_matmul_allreduce/
-│ ├── test_fusion_matmul_allreduce.py # fusion_matmul_allreduce 内核的 pytest 测试脚本
+├── matmul_allreduce/
+│ ├── test_fusion_matmul_allreduce.py # matmul_allreduce 内核的 pytest 测试脚本
 │ └── test_data/ # 持久化的测试数据缓存目录
 ├── readme.md # 本文档
 └── ... # 其他内核的测试目录
@@ -62,7 +62,7 @@ tests/examples/
 ## 4. 如何运行测试
 1.  **编译核函数**: 确保目标核函数的 C++ 可执行文件已经编译。例如，对于 `matmul_allreduce`，需要先执行：
     ```bash
-    bash examples/fusion_matmul_allreduce/scripts/build.sh
+    bash examples/matmul_allreduce/scripts/build.sh
     ```
 2.  **设置可执行文件路径**: 在 `test_fusion_matmul_allreduce.py` 脚本的顶部，确认 `EXECUTABLE_PATH` 变量指向了正确的 C++ 可执行文件路径。
 3.  **运行 Pytest**: 在项目根目录下，直接运行 `pytest` 命令。
