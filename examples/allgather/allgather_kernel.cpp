@@ -194,10 +194,10 @@ SHMEM_DEVICE void all_gather_origin(__gm__ T* input, __gm__ T* output, __gm__ T*
 
 // all_gather
 template<typename T>
-SHMEM_DEVICE void all_gather_big_data(GM_ADDR fftsAddr, __gm__ T* input, __gm__ T* output, __gm__ T* gva, int elements, int magic)
+SHMEM_DEVICE void all_gather_big_data(uint64_t fftsAddr, __gm__ T* input, __gm__ T* output, __gm__ T* gva, int elements, int magic)
 {
 #ifdef __DAV_C220_VEC__
-    AscendC::SetSyncBaseAddr(reinterpret_cast<uint64_t>(fftsAddr));
+    shmemx_set_ffts_config(fftsAddr);
 
     const int64_t max_gva_num = GVA_BUFF_MAX_SIZE / sizeof(T);
     int times = (elements + max_gva_num - 1) / max_gva_num;
@@ -218,7 +218,7 @@ SHMEM_DEVICE void all_gather_big_data(GM_ADDR fftsAddr, __gm__ T* input, __gm__ 
 
 // all_gather
 template<typename T>
-SHMEM_DEVICE void all_gather_small_data(GM_ADDR fftsAddr, __gm__ T* input, __gm__ T* output, __gm__ T* gva, int elements, int magic)
+SHMEM_DEVICE void all_gather_small_data(uint64_t fftsAddr, __gm__ T* input, __gm__ T* output, __gm__ T* gva, int elements, int magic)
 {
 #ifdef __DAV_C220_VEC__
     const int64_t aivNum = GetBlockNum() * 2;
@@ -274,7 +274,7 @@ SHMEM_DEVICE void all_gather_small_data(GM_ADDR fftsAddr, __gm__ T* input, __gm_
 }
 
 #define ALLGATHER_FUNC_DEF(type) \
-extern "C" __global__ __aicore__ void ShmemAllGather_##type(GM_ADDR fftsAddr, GM_ADDR input, GM_ADDR output, GM_ADDR gva, int elements, int magic) {    \
+extern "C" __global__ __aicore__ void ShmemAllGather_##type(uint64_t fftsAddr, GM_ADDR input, GM_ADDR output, GM_ADDR gva, int elements, int magic) {   \
     if (elements * sizeof(type) < 2097152) {                                                                                                            \
         all_gather_small_data<type>(fftsAddr, (__gm__ type*)input, (__gm__ type*)output, (__gm__ type*)gva, elements, magic);                           \
     }                                                                                                                                                   \
@@ -289,7 +289,7 @@ extern "C" __global__ __aicore__ void ShmemAllGather_##type(GM_ADDR fftsAddr, GM
 TYPE_FUNC(ALLGATHER_FUNC_DEF);
 
 template<class T>
-void allgather_demo(uint32_t block_dim, void* stream, uint8_t *fftsAddr, uint8_t* input, uint8_t* output, uint8_t* gva, int elements, int magic)
+void allgather_demo(uint32_t block_dim, void* stream, uint64_t fftsAddr, uint8_t* input, uint8_t* output, uint8_t* gva, int elements, int magic)
 {
     if (std::is_same<T, int>::value) {
         ShmemAllGather_int<<<block_dim, nullptr, stream>>>(fftsAddr, input, output, gva, elements, magic);
@@ -305,6 +305,6 @@ void allgather_demo(uint32_t block_dim, void* stream, uint8_t *fftsAddr, uint8_t
     }
 }
 
-template void allgather_demo<int>(uint32_t block_dim, void* stream, uint8_t *fftsAddr, uint8_t* input, uint8_t* output, uint8_t* gva, int elements, int magic);
-template void allgather_demo<fp16_t>(uint32_t block_dim, void* stream, uint8_t *fftsAddr, uint8_t* input, uint8_t* output, uint8_t* gva, int elements, int magic);
-template void allgather_demo<bfloat16>(uint32_t block_dim, void* stream, uint8_t *fftsAddr, uint8_t* input, uint8_t* output, uint8_t* gva, int elements, int magic);
+template void allgather_demo<int>(uint32_t block_dim, void* stream, uint64_t fftsAddr, uint8_t* input, uint8_t* output, uint8_t* gva, int elements, int magic);
+template void allgather_demo<fp16_t>(uint32_t block_dim, void* stream, uint64_t fftsAddr, uint8_t* input, uint8_t* output, uint8_t* gva, int elements, int magic);
+template void allgather_demo<bfloat16>(uint32_t block_dim, void* stream, uint64_t fftsAddr, uint8_t* input, uint8_t* output, uint8_t* gva, int elements, int magic);

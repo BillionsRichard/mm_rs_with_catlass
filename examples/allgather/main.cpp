@@ -44,11 +44,7 @@ constexpr int64_t UB_DMA_MAX_SIZE = 190 * 1024;
 constexpr int64_t GVA_BUFF_MAX_SIZE = 100 * 1024 * 1024;
 
 template<class T>
-extern void allgather_demo(uint32_t block_dim, void* stream, uint8_t *fftsAddr, uint8_t* input, uint8_t* output, uint8_t* gva, int elements, int magic);
-
-extern "C" {
-uint32_t GetAscendCoreSyncAddr(void **addr);
-}
+extern void allgather_demo(uint32_t block_dim, void* stream, uint64_t fftsAddr, uint8_t* input, uint8_t* output, uint8_t* gva, int elements, int magic);
 
 template<class T>
 int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size)
@@ -67,8 +63,7 @@ int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size
     status = shmem_init_attr(attributes);
 
     // Prepare FFTS address
-    uint8_t *fftsAddr{ nullptr };
-    GetAscendCoreSyncAddr(reinterpret_cast<void **>(&fftsAddr));
+    uint64_t fftsAddr = shmemx_get_ffts_config();
 
     int PERF_TIMES = 50;
 
@@ -122,7 +117,7 @@ int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size
         // AllGather
         for (int zz = 0; zz < PERF_TIMES; zz++) {
             magic++;
-            allgather_demo<T>(BLOCK_NUM, stream, (uint8_t *)fftsAddr, (uint8_t *)input_ptr, (uint8_t *)output_ptr, (uint8_t *)ptr, trans_size, magic * 1024);
+            allgather_demo<T>(BLOCK_NUM, stream, fftsAddr, (uint8_t *)input_ptr, (uint8_t *)output_ptr, (uint8_t *)ptr, trans_size, magic * 1024);
         }
         status = aclrtSynchronizeStream(stream);
 

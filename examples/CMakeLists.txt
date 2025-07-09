@@ -21,8 +21,6 @@ function(shmem_add_fusion_example NAME)
     )
     target_link_options(${NAME} PRIVATE --cce-fatobj-link)
     target_link_libraries(${NAME} PRIVATE shmem)
-    target_link_libraries(${NAME} PRIVATE runtime stdc++ ascendcl m tiling_api platform c_sec dl nnopbase)
-    target_link_libraries(${NAME} PRIVATE ascendc_runtime error_manager profapi mmpa ascendalog)
 endfunction()
 
 function(shmem_add_collective_example NAME)
@@ -48,8 +46,6 @@ function(shmem_add_collective_example NAME)
         ${PROJECT_SOURCE_DIR}/examples/${NAME}
     )
     target_link_libraries(${NAME} PRIVATE shmem ${NAME}_kernel)
-    target_link_libraries(${NAME} PRIVATE runtime stdc++ ascendcl m tiling_api platform c_sec dl nnopbase)
-    target_link_libraries(${NAME} PRIVATE ascendc_runtime error_manager profapi mmpa ascendalog)
 endfunction()
 
 foreach(EXAMPLE
