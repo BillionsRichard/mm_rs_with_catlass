@@ -88,7 +88,7 @@ echo "DATA_DIR: $DATA_DIR"
 
 # Generate golden data
 rm -rf out/*.bin
-python3 utils/gen_data.py \
+python3 ./scripts/gen_data.py \
     --data_dir ./out \
     --out_data_type 1 \
     --rank_size ${RANK_SIZE}\
@@ -110,6 +110,6 @@ done
 wait
 
 # Verify output
-python3 utils/verify_result.py ${DATA_DIR}/shmem_output.bin ${DATA_DIR}/golden.bin 1 ${M} ${N} ${K}
+python3 ./scripts/verify_result.py ${DATA_DIR}/shmem_output.bin ${DATA_DIR}/golden.bin 1 ${M} ${N} ${K}
 
 cd ${CURRENT_DIR}

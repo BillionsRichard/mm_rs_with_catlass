@@ -25,7 +25,7 @@
 
 #include "fp16_t.h"
 #include "bfloat16.h"
-#include "../matmul_allreduce/utils/utils.h"
+#include "utils.h"
 
 using fp16_t = op::fp16_t;
 using bfloat16 = op::bfloat16;

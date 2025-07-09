@@ -18,6 +18,7 @@ function(shmem_add_fusion_example NAME)
         ${PROJECT_SOURCE_DIR}/3rdparty/catlass/include
         ${PROJECT_SOURCE_DIR}/3rdparty/catlass/examples/common
         ${PROJECT_SOURCE_DIR}/examples/${NAME}
+        ${PROJECT_SOURCE_DIR}/examples/utils
     )
     target_link_options(${NAME} PRIVATE --cce-fatobj-link)
     target_link_libraries(${NAME} PRIVATE shmem)
@@ -44,6 +45,7 @@ function(shmem_add_collective_example NAME)
         ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include/smem/host/
         ${PROJECT_SOURCE_DIR}/3rdparty/catlass/examples/common
         ${PROJECT_SOURCE_DIR}/examples/${NAME}
+        ${PROJECT_SOURCE_DIR}/examples/utils
     )
     target_link_libraries(${NAME} PRIVATE shmem ${NAME}_kernel)
 endfunction()
