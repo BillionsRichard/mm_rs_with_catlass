@@ -12,8 +12,7 @@ CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 PROJECT_ROOT=$(dirname "$SCRIPT_DIR")
 VERSION="1.0.0"
-OUTPUT_DIR=$PROJECT_ROOT/install/output
-INSTALL_DIR=$PROJECT_ROOT/install
+OUTPUT_DIR=$PROJECT_ROOT/install
 THIRD_PARTY_DIR=$PROJECT_ROOT/3rdparty
 mkdir -p $THIRD_PARTY_DIR
 RELEASE_DIR=$PROJECT_ROOT/ci/release
@@ -68,7 +67,6 @@ function fn_make_run_package()
 EOF
 
     mkdir -p $OUTPUT_DIR/scripts
-    mkdir -p $OUTPUT_DIR/shmem
     mkdir -p $RELEASE_DIR/$ARCH
     cp $PROJECT_ROOT/scripts/install.sh $OUTPUT_DIR
     cp $PROJECT_ROOT/scripts/set_env.sh $OUTPUT_DIR
@@ -77,13 +75,6 @@ EOF
     sed -i "s/SHMEMPKGARCH/${ARCH}/" $OUTPUT_DIR/install.sh
     sed -i "s!VERSION_PLACEHOLDER!${VERSION}!" $OUTPUT_DIR/install.sh
     sed -i "s!VERSION_PLACEHOLDER!${VERSION}!" $OUTPUT_DIR/scripts/uninstall.sh
-    mkdir -p $OUTPUT_DIR/shmem/include
-    cp -r $INSTALL_DIR/shmem/include/device $OUTPUT_DIR/shmem/include
-    cp -r $INSTALL_DIR/shmem/include/host $OUTPUT_DIR/shmem/include
-    cp -r $INSTALL_DIR/shmem/include/host_device $OUTPUT_DIR/shmem/include
-    cp -r $INSTALL_DIR/shmem/include/shmem_api.h $OUTPUT_DIR/shmem/include
-    mkdir -p $OUTPUT_DIR/shmem/lib
-    cp -r $INSTALL_DIR/shmem/lib/libshmem.so $OUTPUT_DIR/shmem/lib
 
     mkdir -p $OUTPUT_DIR/memfabric_hybrid/lib
     mkdir -p $OUTPUT_DIR/memfabric_hybrid/include
@@ -128,7 +119,7 @@ function fn_build_memfabric()
     fi
 
     cd $THIRD_PARTY_DIR
-    git clone -b br_A3_shm_bm_630 https://gitee.com/ascend/memfabric_hybrid.git
+    git clone -b br_hdk_patch https://gitee.com/ascend/memfabric_hybrid.git
     cd memfabric_hybrid
     git submodule init
     git submodule update --recursive
