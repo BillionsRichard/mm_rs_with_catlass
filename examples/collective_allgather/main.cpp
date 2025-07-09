@@ -44,8 +44,9 @@ const char *data_type;
 
 using namespace AscendC;
 
-constexpr int64_t MEM_DMA_UNIT_INT_NUM = 16;
-constexpr int64_t UB_SINGLE_DMA_SIZE_MAX = 190 * 1024;
+constexpr int64_t SYNC_FLAG_INTERVAL = 16;
+constexpr int64_t UB_DMA_MAX_SIZE = 190 * 1024;
+constexpr int64_t GVA_BUFF_MAX_SIZE = 100 * 1024 * 1024;
 
 template<typename T>
 SHMEM_DEVICE void all_gather_origin(__gm__ T* input, __gm__ T* output, __gm__ T* gva, int64_t max_gva_num, int elements, int len, int64_t magic)
@@ -53,8 +54,8 @@ SHMEM_DEVICE void all_gather_origin(__gm__ T* input, __gm__ T* output, __gm__ T*
     const int64_t aivNum = GetBlockNum() * 2;
     const int64_t aivIndex = GetBlockIdx();
 
-    const int64_t data_offset = aivNum * MEM_DMA_UNIT_INT_NUM;
-    const int64_t flag_offset = aivIndex * MEM_DMA_UNIT_INT_NUM;
+    const int64_t data_offset = aivNum * SYNC_FLAG_INTERVAL;
+    const int64_t flag_offset = aivIndex * SYNC_FLAG_INTERVAL;
 
     int64_t my_rank = shmem_my_pe();
     int64_t pe_size = shmem_n_pes();
@@ -72,9 +73,6 @@ SHMEM_DEVICE void all_gather_origin(__gm__ T* input, __gm__ T* output, __gm__ T*
         flags_ub2[i] = (__ubuf__ int32_t*)(544) + i * 16;
     }
 
-    // avoid sync signal collision on gm.
-    int64_t case_offset = magic / 1024 / 1024 * 1024;
-
     // 0-7 copy data to local symmetric mem, 8-15 copy remote data from symmetric mem.
     int core_group_num = aivNum / 2;
     int core_per_rank = core_group_num / pe_size;
@@ -88,7 +86,7 @@ SHMEM_DEVICE void all_gather_origin(__gm__ T* input, __gm__ T* output, __gm__ T*
     // GM to SymmPtr
     if (aivIndex < core_group_num) {
         __ubuf__ T* tmp_buff = reinterpret_cast<__ubuf__ T*>(uint64_t(1024 + 32));
-        uint32_t copy_ub_size = UB_SINGLE_DMA_SIZE_MAX;
+        uint32_t copy_ub_size = UB_DMA_MAX_SIZE;
         uint32_t copy_ub_num = copy_ub_size / sizeof(T);
         uint32_t copy_total_size = group_per_num * sizeof(T);
 
@@ -96,14 +94,14 @@ SHMEM_DEVICE void all_gather_origin(__gm__ T* input, __gm__ T* output, __gm__ T*
         int64_t flag = 0;
         while (copy_total_size >= copy_ub_size) {
             shmem_mte_put_mem_nbi(
-                gva_data_gm + max_gva_num + aivIndex * len_per_core + times * copy_ub_num,
+                gva_data_gm + aivIndex * len_per_core + times * copy_ub_num,
                 input_gm + aivIndex * len_per_core + times * copy_ub_num,
                 tmp_buff, copy_ub_size, copy_ub_num, my_rank, EVENT_ID0);
             AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0);
             times += 1;
             flag = times + magic;
-            shmemx_signal_op(gva_sync_gm + case_offset + flag_offset, flag, SHMEM_SIGNAL_SET, my_rank);
+            shmemx_signal_op(gva_sync_gm + flag_offset, flag, SHMEM_SIGNAL_SET, my_rank);
 
             AscendC::SetFlag<AscendC::HardEvent::S_MTE2>(EVENT_ID0);
             AscendC::WaitFlag<AscendC::HardEvent::S_MTE2>(EVENT_ID0);
@@ -117,7 +115,7 @@ SHMEM_DEVICE void all_gather_origin(__gm__ T* input, __gm__ T* output, __gm__ T*
             return;
         }
         shmem_mte_put_mem_nbi(
-            gva_data_gm + max_gva_num + aivIndex * len_per_core + times * copy_ub_num,
+            gva_data_gm + aivIndex * len_per_core + times * copy_ub_num,
             input_gm + aivIndex * len_per_core + times * copy_ub_num,
             tmp_buff, copy_ub_size, copy_total_size / sizeof(T), my_rank, EVENT_ID0);
         AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0);
@@ -125,7 +123,7 @@ SHMEM_DEVICE void all_gather_origin(__gm__ T* input, __gm__ T* output, __gm__ T*
         times += 1;
         flag = times + magic;
         AscendC::PipeBarrier<PIPE_ALL>();
-        shmemx_signal_op(gva_sync_gm + case_offset + flag_offset, flag, SHMEM_SIGNAL_SET, my_rank);
+        shmemx_signal_op(gva_sync_gm + flag_offset, flag, SHMEM_SIGNAL_SET, my_rank);
         AscendC::PipeBarrier<PIPE_ALL>();
         return;
     }
@@ -138,7 +136,7 @@ SHMEM_DEVICE void all_gather_origin(__gm__ T* input, __gm__ T* output, __gm__ T*
 
     __ubuf__ T* ping_buff = reinterpret_cast<__ubuf__ T*>(uint64_t(1 * 1024 + 32));
     __ubuf__ T* pong_buff = reinterpret_cast<__ubuf__ T*>(uint64_t(96 * 1024 + 32));
-    uint32_t copy_ub_size = UB_SINGLE_DMA_SIZE_MAX / 2;
+    uint32_t copy_ub_size = UB_DMA_MAX_SIZE / 2;
     uint32_t copy_ub_num = copy_ub_size / sizeof(T);
     int x = (aivIndex - core_group_num) / core_per_rank;
 
@@ -156,12 +154,12 @@ SHMEM_DEVICE void all_gather_origin(__gm__ T* input, __gm__ T* output, __gm__ T*
                 all_data_size = (len - group_idx * len_per_core) * sizeof(T);
             }
 
-            if (*flags_ub1[group_idx] * UB_SINGLE_DMA_SIZE_MAX >= all_data_size) {
+            if (*flags_ub1[group_idx] * UB_DMA_MAX_SIZE >= all_data_size) {
                 *flags_ub1[group_idx] = INT32_MAX;
                 continue;
             }
 
-            shmem_get_int32_mem_nbi(flags_ub2[group_idx], gva_sync_gm + case_offset + group_idx * MEM_DMA_UNIT_INT_NUM, 1, x);
+            shmem_get_int32_mem_nbi(flags_ub2[group_idx], gva_sync_gm + group_idx * SYNC_FLAG_INTERVAL, 1, x);
             AscendC::PipeBarrier<PIPE_ALL>();
 
             if ((*flags_ub2[group_idx] >> 10) != (magic >> 10)) {
@@ -176,11 +174,11 @@ SHMEM_DEVICE void all_gather_origin(__gm__ T* input, __gm__ T* output, __gm__ T*
             int group_recv_offset = x * elements + group_idx * len_per_core;
             int group_send_offset = group_idx * len_per_core;
 
-            int send_offset = *flags_ub1[group_idx] * UB_SINGLE_DMA_SIZE_MAX / sizeof(T);
-            int recv_offset = *flags_ub1[group_idx] * UB_SINGLE_DMA_SIZE_MAX / sizeof(T);
-            int num_total = (ready_num - *flags_ub1[group_idx]) * UB_SINGLE_DMA_SIZE_MAX / sizeof(T);
-            if (ready_num * UB_SINGLE_DMA_SIZE_MAX > all_data_size) {
-                num_total = (all_data_size - *flags_ub1[group_idx] * UB_SINGLE_DMA_SIZE_MAX) / sizeof(T);
+            int send_offset = *flags_ub1[group_idx] * UB_DMA_MAX_SIZE / sizeof(T);
+            int recv_offset = *flags_ub1[group_idx] * UB_DMA_MAX_SIZE / sizeof(T);
+            int num_total = (ready_num - *flags_ub1[group_idx]) * UB_DMA_MAX_SIZE / sizeof(T);
+            if (ready_num * UB_DMA_MAX_SIZE > all_data_size) {
+                num_total = (all_data_size - *flags_ub1[group_idx] * UB_DMA_MAX_SIZE) / sizeof(T);
             }
             AscendC::PipeBarrier<PIPE_ALL>();
             for (int i = 0; num_total > 0; i++) {
@@ -190,7 +188,7 @@ SHMEM_DEVICE void all_gather_origin(__gm__ T* input, __gm__ T* output, __gm__ T*
                 uint32_t copy_num = num_total > copy_ub_num ? copy_ub_num : num_total;
 
                 AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
-                shmem_mte_get_mem_nbi(output_gm + group_recv_offset + recv_offset, gva_data_gm + max_gva_num + group_send_offset + send_offset, buf, copy_ub_size, copy_num, x, EVENT_ID);
+                shmem_mte_get_mem_nbi(output_gm + group_recv_offset + recv_offset, gva_data_gm + group_send_offset + send_offset, buf, copy_ub_size, copy_num, x, EVENT_ID);
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID);
 
                 send_offset += copy_num;
@@ -224,8 +222,7 @@ SHMEM_DEVICE void all_gather_big_data(GM_ADDR fftsAddr, __gm__ T* input, __gm__ 
 #ifdef __DAV_C220_VEC__
     AscendC::SetSyncBaseAddr(reinterpret_cast<uint64_t>(fftsAddr));
 
-    const int64_t max_gva_memory = 100 * 1024 * 1024; // Byte
-    const int64_t max_gva_num = max_gva_memory / sizeof(T);
+    const int64_t max_gva_num = GVA_BUFF_MAX_SIZE / sizeof(T);
     int times = (elements + max_gva_num - 1) / max_gva_num;
     int total_num = elements;
 
@@ -250,12 +247,11 @@ SHMEM_DEVICE void all_gather_small_data(GM_ADDR fftsAddr, __gm__ T* input, __gm_
     const int64_t aivNum = GetBlockNum() * 2;
     const int64_t aivIndex = GetBlockIdx();
 
-    const int64_t data_offset = aivNum * MEM_DMA_UNIT_INT_NUM;
-    const int64_t flag_offset = aivIndex * MEM_DMA_UNIT_INT_NUM;
+    const int64_t data_offset = aivNum * SYNC_FLAG_INTERVAL;
+    const int64_t flag_offset = aivIndex * SYNC_FLAG_INTERVAL;
 
     int64_t my_rank = shmem_my_pe();
     int64_t pe_size = shmem_n_pes();
-    int64_t max_gva_num = 100 * 1024 * 1024 / sizeof(T);
 
     __gm__ T *input_gm = (__gm__ T *)input;
     __gm__ T *output_gm = (__gm__ T *)output;
@@ -266,7 +262,7 @@ SHMEM_DEVICE void all_gather_small_data(GM_ADDR fftsAddr, __gm__ T* input, __gm_
     __ubuf__ T* tmp_buff = (__ubuf__ T*)(64);
 
     // data move parameters
-    const uint32_t ub_size = UB_SINGLE_DMA_SIZE_MAX;
+    const uint32_t ub_size = UB_DMA_MAX_SIZE;
     uint32_t input_offset, output_offset, gva_offset, num_per_core;
 
     // [AllGather Step 1] local input gm -> symmetric mem.
@@ -302,7 +298,7 @@ SHMEM_DEVICE void all_gather_small_data(GM_ADDR fftsAddr, __gm__ T* input, __gm_
 
 #define ALLGATHER_FUNC_DEF(type) \
 extern "C" __global__ __aicore__ void ShmemAllGather_##type(GM_ADDR fftsAddr, GM_ADDR input, GM_ADDR output, GM_ADDR gva, int elements, int magic) {    \
-    if (elements < 2097152) {                                                                                                                           \
+    if (elements * sizeof(type) < 2097152) {                                                                                                            \
         all_gather_small_data<type>(fftsAddr, (__gm__ type*)input, (__gm__ type*)output, (__gm__ type*)gva, elements, magic);                           \
     }                                                                                                                                                   \
     else {                                                                                                                                              \
@@ -383,7 +379,9 @@ int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size
             std::cout << "Case: " << test_cases[i] << " Started." << std::endl;
         }
         uint32_t trans_size = test_cases[i];
-        if (trans_size < 2097152) {
+
+        //  Small data kernel needs 8 AIV core, Big data kernel needs 16 AIV.
+        if (trans_size * sizeof(T) < 2097152) {
             BLOCK_NUM = 4;
         } else {
             BLOCK_NUM = 8;
@@ -400,10 +398,9 @@ int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size
         void *output_ptr;
         aclrtMalloc(&output_ptr, trans_size * n_ranks * sizeof(T), ACL_MEM_MALLOC_HUGE_FIRST);
 
-        // data Buffer + sync Buffer
-        void *ptr = shmem_malloc(128 * 1024 * 1024 * sizeof(T));
-        std::vector<int> sync_array(2048, 0);
-        aclrtMemcpy((uint8_t*)ptr, 2048 * sizeof(T), sync_array.data(), 2048 * sizeof(T), ACL_MEMCPY_HOST_TO_DEVICE);
+        // sync Buffer + data Buffer
+        int aiv_num = BLOCK_NUM * 2;
+        void *ptr = shmem_malloc(aiv_num * SYNC_FLAG_INTERVAL * sizeof(T) + GVA_BUFF_MAX_SIZE / sizeof(T));
 
         // AllGather
         for (int zz = 0; zz < PERF_TIMES; zz++) {
