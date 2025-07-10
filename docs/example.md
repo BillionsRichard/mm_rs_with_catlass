@@ -1,158 +1,73 @@
 # AllGather
 该样例工程位于examples\allgather文件夹下。
 
-实现了对各卡上16个int32_t数据的allgather功能。
+在该样例中，实现了一个通信量较小(单PE通信量小于2MB)情况下，有着更低时延的AllGather纯通信算子。 各PE首先将存在本端input地址下的数据push到本PE的对称内存上；确认远端PE的任务完成后，从远端PE的对称内存拉取对应PE的数据，从而整体完成AllGather的操作。这个样例展示了多种shmem API的用法，包括
 
 ## 核函数实现
 ```c++
-#ifndef _KERNEL_ALLGATHER_
-#define _KERNEL_ALLGATHER_
 
 #include "kernel_operator.h"
-#include "shmem_api.h"
-
-// 纯vec不能全核同步，需添加cube逻辑
-SHMEM_DEVICE void cube_guard()
-{
-    using namespace AscendC;
-
-#ifdef __DAV_C220_CUBE__
-    LocalTensor<float> result;
-    result.address_.logicPos = (uint8_t)TPosition::CO1;
-    result.InitBuffer(0, 256);
-    
-    LocalTensor<half> left;
-    left.address_.logicPos = (uint8_t)TPosition::A2;
-    left.InitBuffer(0, 256);
-
-    LocalTensor<half> right;
-    right.address_.logicPos = (uint8_t)TPosition::B2;
-    right.InitBuffer(0, 256);
-
-    MmadParams param;
-    param.m = 16;
-    param.n = 16;
-    param.k = 16;
-
-    Mmad<float, half, half>(result, left, right, param);
-#endif
-}
-
-// all_gather简易实现
-extern "C" __global__ __aicore__ void device_all_gather_test(GM_ADDR gva, int elements)
-{
-    int64_t my_rank = shmem_my_pe();
-    int64_t pe_size = shmem_n_pes();
-    __gm__ int32_t* gva_gm = (__gm__ int32_t *)gva;
-    AscendC::PipeBarrier<PIPE_ALL>();
-    cube_guard();
-    // All Gather
-    for (int i = 0; i < pe_size; i++) {
-        shmem_put_int32_mem_nbi(gva_gm + elements * my_rank, gva_gm + elements * my_rank, elements, i);
-        AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
-        AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);
-    }
-    shmem_barrier_all();
-}
-
-void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva, int elements)
-{
-    device_all_gather_test<<<block_dim, nullptr, stream>>>(gva, elements);
-}
-
-#endif  // _KERNEL_ALLGATHER_
-```
-
-## host调用
-
-```c++
-#include <iostream>
-#include <cstdlib>
-#include <string>
-#include <vector>
-
 #include "acl/acl.h"
 #include "shmem_api.h"
+using namespace AscendC;
 
-int g_npus = 8;
-const char *ipport;
-int f_rank = 0;
-int f_npu = 0;
-extern void allgather_demo(uint32_t block_dim, void* stream, uint8_t* gva, int elements);
+constexpr int64_t SYNC_FLAG_INTERVAL = 16;
+constexpr int64_t UB_DMA_MAX_SIZE = 190 * 1024;
+constexpr int64_t GVA_BUFF_MAX_SIZE = 100 * 1024 * 1024;
 
-int test_shmem_team_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size)
+template<typename T>
+SHMEM_DEVICE void all_gather_small_data(uint64_t fftsAddr, __gm__ T* input, __gm__ T* output, __gm__ T* gva, int elements, int magic)
 {
-    // 初始化ACL和SHMEM
-    int32_t device_id = rank_id % g_npus + f_npu;
-    int status = 0;
-    aclrtStream stream = nullptr;
+#ifdef __DAV_C220_VEC__
+    const int64_t aivNum = GetBlockNum() * 2;
+    const int64_t aivIndex = GetBlockIdx();
 
-    status = aclInit(nullptr);
-    status = aclrtSetDevice(device_id);
-    status = aclrtCreateStream(&stream);
+    const int64_t data_offset = aivNum * SYNC_FLAG_INTERVAL;
+    const int64_t flag_offset = aivIndex * SYNC_FLAG_INTERVAL;
 
-    shmem_init_attr_t *attributes;
-    status = shmem_set_attr(rank_id, n_ranks, local_mem_size, ipport, &attributes);
-    status = shmem_init_attr(attributes);
+    int64_t my_rank = shmem_my_pe();
+    int64_t pe_size = shmem_n_pes();
 
-    void *ptr = shmem_malloc(1024);
+    __gm__ T *input_gm = (__gm__ T *)input;
+    __gm__ T *output_gm = (__gm__ T *)output;
 
-    // 初始化数据
-    uint32_t trans_size = 16;
-    std::vector<int32_t> input(trans_size, 0);
-    for (int i = 0; i < trans_size; i++) {
-        input[i] = (rank_id + 10);
-    }
-
-    status = aclrtMemcpy(ptr + shmem_my_pe() * trans_size * sizeof(int32_t), trans_size * sizeof(int32_t),
-                         input.data(), trans_size * sizeof(int32_t), ACL_MEMCPY_HOST_TO_DEVICE);
-
-    // AllGather
-    allgather_demo(1, stream, (uint8_t *)ptr, trans_size);
-    status = aclrtSynchronizeStream(stream);
-
-    // 结果校验打印
-    int32_t *y_host;
-    size_t input_size = n_ranks * trans_size * sizeof(int32_t);
-    status = aclrtMallocHost(reinterpret_cast<void**>(&y_host), input_size);
-    status = aclrtMemcpy(y_host, input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST);
+    __gm__ T *gva_data_gm = (__gm__ T*)((__gm__ int32_t*)gva + data_offset);
+    __gm__ int32_t *gva_sync_gm = (__gm__ int32_t *)gva;
     
-    for (int i = 0; i < n_ranks; i++) {
-        if (y_host[trans_size * i] != 10 + i) {
-            std::cout << y_host[trans_size * i] << " != " << 10 + i << std::endl;
-            std::exit(EXIT_FAILURE);
-        }
+    __ubuf__ T* tmp_buff = (__ubuf__ T*)(64);
+
+    // data move parameters
+    const uint32_t ub_size = UB_DMA_MAX_SIZE;
+    uint32_t input_offset, output_offset, gva_offset, num_per_core;
+
+    // [AllGather Step 1] local input gm -> symmetric mem.
+    num_per_core = elements / aivNum;
+    input_offset = aivIndex * num_per_core;
+    gva_offset = aivIndex * num_per_core;
+    if (aivIndex == aivNum - 1) {
+        num_per_core = elements - num_per_core * aivIndex;
     }
-    std::cout << "rank: " << rank_id << " [";
-    for (int j = 0; j < trans_size * n_ranks; j++) {
-        std::cout << y_host[j] << ", ";
+    shmem_mte_put_mem_nbi(gva_data_gm + gva_offset, input_gm + input_offset, tmp_buff, ub_size, num_per_core, my_rank, EVENT_ID0);
+
+    const int64_t core_per_rank = aivNum / pe_size;
+    const int64_t core_rank_idx = aivIndex % core_per_rank;
+    const int64_t x = aivIndex / core_per_rank;
+
+    // Sync Ensure Corresponding Tasks Done.
+    shmemx_signal_op(gva_sync_gm + flag_offset, magic, SHMEM_SIGNAL_SET, my_rank);
+
+    for (int64_t i = 0; i < aivNum; i++) {
+        shmem_signal_wait_until((__gm__ int32_t *)shmem_ptr(gva_sync_gm, x) + flag_offset, SHMEM_CMP_EQ, magic);
     }
-    std::cout << "]" << std::endl;
-    // 去初始化
-    status = aclrtFreeHost(y_host);
-    shmem_free(ptr);
-    status = shmem_finalize();
-    status = aclrtDestroyStream(stream);
-    status = aclrtResetDevice(device_id);
-    status = aclFinalize();
-    return 0;
+
+    // [AllGather Step 2] symmetric mem -> local output.
+    num_per_core = elements / core_per_rank;
+    output_offset = x * elements + core_rank_idx * num_per_core;
+    gva_offset = core_rank_idx * num_per_core;
+    if (core_rank_idx == core_per_rank - 1) {
+        num_per_core = elements - num_per_core * core_rank_idx;
+    }
+    shmem_mte_get_mem_nbi(output_gm + output_offset, gva_data_gm + gva_offset, tmp_buff, ub_size, num_per_core, x, EVENT_ID0);
+#endif
 }
-
-int main(int argc, char *argv[])
-{   
-    int status = 0;
-    int n_ranks = atoi(argv[1]);
-    int rank_id = atoi(argv[2]);
-    ipport = argv[3];
-    g_npus = atoi(argv[4]);
-    f_rank = atoi(argv[5]);
-    f_npu = atoi(argv[6]);
-    uint64_t local_mem_size = 1024UL * 1024UL * 1024;
-    status = test_shmem_team_all_gather(rank_id, n_ranks, local_mem_size);
-    std::cout << "[SUCCESS] demo run success in rank " << rank_id << std::endl;
-    
-    return 0;
-}
-
-
 ```
