@@ -1,7 +1,7 @@
 # AllGather
 该样例工程位于examples\allgather文件夹下。
 
-在该样例中，实现了一个通信量较小(单PE通信量小于2MB)情况下，有着更低时延的AllGather纯通信算子。 各PE首先将存在本端input地址下的数据push到本PE的对称内存上；确认远端PE的任务完成后，从远端PE的对称内存拉取对应PE的数据，从而整体完成AllGather的操作。这个样例展示了多种shmem API的用法，包括
+在该样例中，实现了一个通信量较小(单PE通信量小于2MB)情况下，有着更低时延的AllGather纯通信算子。 各PE首先将存在本端input地址下的数据push到本PE的对称内存上；确认远端PE的任务完成后，从远端PE的对称内存拉取对应PE的数据，从而整体完成AllGather的操作。这个样例展示了多种shmem API的用法，包括shmem_mte_put_mem_nbi、shmemx_signal_op以及shmem_mte_get_mem_nbi等，用于p2p的通信以及同步任务。
 
 ## 核函数实现
 ```c++
