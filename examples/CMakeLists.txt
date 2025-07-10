@@ -18,6 +18,7 @@ function(shmem_add_fusion_example NAME)
         ${PROJECT_SOURCE_DIR}/3rdparty/catlass/include
         ${PROJECT_SOURCE_DIR}/3rdparty/catlass/examples/common
         ${PROJECT_SOURCE_DIR}/examples/${NAME}
+        ${PROJECT_SOURCE_DIR}/examples/utils
     )
     target_link_options(${NAME} PRIVATE --cce-fatobj-link)
     target_link_libraries(${NAME} PRIVATE shmem)
@@ -25,11 +26,13 @@ endfunction()
 
 function(shmem_add_collective_example NAME)
     add_library(${NAME}_kernel SHARED ${NAME}_kernel.cpp)
-    target_compile_options(${NAME}_kernel PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} --cce-aicore-arch=dav-c220-vec)
+    target_compile_options(${NAME}_kernel PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} --cce-aicore-arch=dav-c220)
     target_include_directories(${NAME}_kernel PRIVATE 
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include
         ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include/smem/device/
+        ${PROJECT_SOURCE_DIR}/3rdparty/catlass/include
+        ${PROJECT_SOURCE_DIR}/3rdparty/catlass/examples/common
         ${PROJECT_SOURCE_DIR}/examples/${NAME}
     )
     target_link_options(${NAME}_kernel PRIVATE --cce-fatobj-link)
@@ -40,7 +43,9 @@ function(shmem_add_collective_example NAME)
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include
         ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include/smem/host/
+        ${PROJECT_SOURCE_DIR}/3rdparty/catlass/examples/common
         ${PROJECT_SOURCE_DIR}/examples/${NAME}
+        ${PROJECT_SOURCE_DIR}/examples/utils
     )
     target_link_libraries(${NAME} PRIVATE shmem ${NAME}_kernel)
 endfunction()

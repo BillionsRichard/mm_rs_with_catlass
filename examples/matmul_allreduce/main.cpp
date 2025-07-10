@@ -56,7 +56,7 @@
 #include "host/shmem_host_team.h"
 
 // utils
-#include "utils/utils.h"
+#include "utils.h"
 
 static uint32_t gNpuNum = 8;
 static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 1024;

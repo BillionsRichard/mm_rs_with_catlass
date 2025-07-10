@@ -57,19 +57,13 @@ GLIBC >= 2.28
     出现提示`xxx install success!`则安装成功
 
 执行一个样例matmul_allreduce算子。  
-1.在3rdparty目录下, clone catlass代码仓:
-
-```sh
-git clone https://gitee.com/ascend/catlass.git
-```
-
-2.在shmem/examples/matmul_allreduce目录下进行demo编译:
+1.在shmem/目录编译:
 
 ```sh
 bash scripts/build.sh
 ```
 
-3.在shmem/examples/matmul_allreduce目录执行demo:
+2.在shmem/examples/matmul_allreduce目录执行demo:
 
 ```sh
 bash scripts/run.sh -ranks 2 -M 1024 -K 2048 -N 8192
