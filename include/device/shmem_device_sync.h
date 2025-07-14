@@ -39,6 +39,12 @@
 extern "C" {
 #endif
 
+/**
+ * @fn SHMEM_DEVICE void shmemx_set_ffts_config(uint64_t config)
+ * @brief Set runtime ffts address. Call this at MIX Kernel entry point (if the kernel contains barrier calls).
+ *
+ * @param config              [config] ffts config, acquired by shmemx_get_ffts_config()
+ */
 SHMEM_DEVICE void shmemx_set_ffts_config(uint64_t config) {
     AscendC::SetSyncBaseAddr(config);
 }

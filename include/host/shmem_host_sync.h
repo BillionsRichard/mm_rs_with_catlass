@@ -27,40 +27,12 @@
 extern "C" {
 #endif
 
+/**
+ * @fn SHMEM_HOST_API uint64_t shmemx_get_ffts_config()
+ * @brief Get runtime ffts config. This config should be passed to MIX Kernel and set by MIX Kernel using shmemx_set_ffts. Refer to shmemx_set_ffts for more details.
+ *
+ */
 SHMEM_HOST_API uint64_t shmemx_get_ffts_config();
-
-/**
- * @brief barrier of a team on specific stream
- *
- * @param tid              [in] team to do barrier
- * @param stream           [in] stream the barrier will be executed on
- */
-SHMEM_HOST_API void shmem_barrier_on_stream(shmem_team_t tid, aclrtStream stream);
-
-/**
- * @brief barrier of all PEs on specific stream
- *
- * @param stream           [in] stream the barrier will be executed on
- */
-SHMEM_HOST_API void shmem_barrier_all_on_stream(aclrtStream stream);
-
-/**
- * @fn SHMEM_HOST_API void shmem_barrier(shmem_team_t tid)
- * @brief Both the host and device have a function named <b>shmem_barrier()</b> and has different meanings, which is distinguished by prefix macros SHMEM_HOST_API and SHMEM_DEVICE.
- *        <br>
- *        On the host side, this method is a barrier of team on default stream
- *
- * @param tid              [in] team to do barrier
- */
-SHMEM_HOST_API void shmem_barrier(shmem_team_t tid);
-
-/**
- * @fn SHMEM_HOST_API void shmem_barrier_all()
- * @brief Both the host and device have a function named <b>shmem_barrier_all()</b> and has different meanings, which is distinguished by prefix macros SHMEM_HOST_API and SHMEM_DEVICE.
- *        <br>
- *        On the host side, this method is a barrier of all PEs on default stream
- */
-SHMEM_HOST_API void shmem_barrier_all();
 
 #ifdef __cplusplus
 }
