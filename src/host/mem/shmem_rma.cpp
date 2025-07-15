@@ -16,7 +16,7 @@ void* shmem_ptr(void *ptr, int32_t pe)
     uint64_t lower_bound = (uint64_t)shm::g_state.heap_base;
     uint64_t upper_bound = lower_bound + shm::g_state.heap_size;
     if (uint64_t(ptr) < lower_bound || uint64_t(ptr) >= upper_bound) {
-        SHM_LOG_ERROR("PE: " << shmem_my_pe() << " Got Ilegal Address !!");
+        SHM_LOG_ERROR("shmem_ptr Failed. PE: " << shmem_my_pe() << " Got Ilegal Address !!");
         return nullptr;
     }
 
@@ -26,7 +26,7 @@ void* shmem_ptr(void *ptr, int32_t pe)
         symm_ptr = (void *)((uint64_t)symm_ptr + offset);
         return symm_ptr;
     }
-    SHM_LOG_ERROR("PE: " << shmem_my_pe() << " shmem_ptr Failed !!");
+    SHM_LOG_ERROR("shmem_ptr Failed. PE: " << shmem_my_pe() << " g_state.p2p_heap_base contains nullptr, Please Check Init Status!!");
     return nullptr;
 }
 
