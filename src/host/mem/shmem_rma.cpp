@@ -11,23 +11,23 @@
 #include "shmemi_host_common.h"
 
 using namespace std;
-// shmem_ptr Symmetric?
 void* shmem_ptr(void *ptr, int32_t pe)
 {
-    uint64_t lower_bound = (uint64_t)shm::g_state.p2p_heap_base[shmem_my_pe()];
+    uint64_t lower_bound = (uint64_t)shm::g_state.heap_base;
     uint64_t upper_bound = lower_bound + shm::g_state.heap_size;
     if (uint64_t(ptr) < lower_bound || uint64_t(ptr) >= upper_bound) {
         SHM_LOG_ERROR("PE: " << shmem_my_pe() << " Got Ilegal Address !!");
         return nullptr;
     }
-    void *mype_ptr = shm::g_state.p2p_heap_base[shmem_my_pe()];
-    uint64_t offset = reinterpret_cast<uint64_t>(ptr) - reinterpret_cast<uint64_t>(mype_ptr);
-    if (shm::g_state.heap_base != nullptr) {
-        return (void *)((uint64_t)shm::g_state.heap_base + shm::g_state.heap_size * pe + offset);
+
+    uint64_t offset = (uint64_t)ptr - (uint64_t)shm::g_state.heap_base;
+    void *symm_ptr = shm::g_state.p2p_heap_base[pe];
+    if (symm_ptr != nullptr) {
+        symm_ptr = (void *)((uint64_t)symm_ptr + offset);
+        return symm_ptr;
     }
-    else {
-        return nullptr;
-    }
+    SHM_LOG_ERROR("PE: " << shmem_my_pe() << " shmem_ptr Failed !!");
+    return nullptr;
 }
 
 // Set Memcpy Interfaces necessary UB Buffer.
