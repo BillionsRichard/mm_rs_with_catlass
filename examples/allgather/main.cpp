@@ -94,9 +94,9 @@ int test_shmem_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size)
 
         //  Small data kernel needs 8 AIV core, Big data kernel needs 16 AIV.
         if (trans_size * sizeof(T) < 2097152) {
-            BLOCK_NUM = 4;
-        } else {
             BLOCK_NUM = 8;
+        } else {
+            BLOCK_NUM = 16;
         }
 
         void *input_ptr;
@@ -111,7 +111,7 @@ int test_shmem_all_gather(int rank_id, int n_ranks, uint64_t local_mem_size)
         aclrtMalloc(&output_ptr, trans_size * n_ranks * sizeof(T), ACL_MEM_MALLOC_HUGE_FIRST);
 
         // sync Buffer + data Buffer
-        int aiv_num = BLOCK_NUM * 2;
+        int aiv_num = BLOCK_NUM;
         void *ptr = shmem_malloc(aiv_num * SYNC_FLAG_INTERVAL * sizeof(T) + GVA_BUFF_MAX_SIZE / sizeof(T));
 
         // AllGather

@@ -28,7 +28,7 @@ constexpr int64_t GVA_BUFF_MAX_SIZE = 100 * 1024 * 1024;
 template<typename T>
 SHMEM_DEVICE void all_gather_origin(__gm__ T* input, __gm__ T* output, __gm__ T* gva, int64_t max_gva_num, int elements, int len, int64_t magic)
 {
-    const int64_t aivNum = GetBlockNum() * 2;
+    const int64_t aivNum = GetBlockNum();
     const int64_t aivIndex = GetBlockIdx();
 
     const int64_t data_offset = aivNum * SYNC_FLAG_INTERVAL;
@@ -221,7 +221,7 @@ template<typename T>
 SHMEM_DEVICE void all_gather_small_data(uint64_t fftsAddr, __gm__ T* input, __gm__ T* output, __gm__ T* gva, int elements, int magic)
 {
 #ifdef __DAV_C220_VEC__
-    const int64_t aivNum = GetBlockNum() * 2;
+    const int64_t aivNum = GetBlockNum();
     const int64_t aivIndex = GetBlockIdx();
 
     const int64_t data_offset = aivNum * SYNC_FLAG_INTERVAL;
@@ -256,11 +256,10 @@ SHMEM_DEVICE void all_gather_small_data(uint64_t fftsAddr, __gm__ T* input, __gm
     const int64_t x = aivIndex / core_per_rank;
 
     // Sync Ensure Corresponding Tasks Done.
-    shmemx_signal_op(gva_sync_gm + flag_offset, magic, SHMEM_SIGNAL_SET, my_rank);
+    shmemi_barrier_core_soft();
 
-    for (int64_t i = 0; i < aivNum; i++) {
-        shmem_signal_wait_until((__gm__ int32_t *)shmem_ptr(gva_sync_gm, x) + flag_offset, SHMEM_CMP_EQ, magic);
-    }
+    shmemx_signal_op(gva_sync_gm + flag_offset, magic, SHMEM_SIGNAL_SET, my_rank);
+    shmem_signal_wait_until((__gm__ int32_t *)shmem_ptr(gva_sync_gm, x) + flag_offset, SHMEM_CMP_EQ, magic);
 
     // [AllGather Step 2] symmetric mem -> local output.
     num_per_core = elements / core_per_rank;
