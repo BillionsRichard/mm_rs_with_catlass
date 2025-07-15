@@ -100,6 +100,49 @@ TEST_F(ShareMemoryManagerTest, allocate_larage_memory_failed)
         local_mem_size, process_count);
 }
 
+TEST_F(ShareMemoryManagerTest, calloc)
+{
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = heap_memory_size;
+    test_mutil_task(
+        [this](int rank_id, int n_ranks, uint64_t local_mem_size) {
+            int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+            aclrtStream stream;
+            test_init(rank_id, n_ranks, local_mem_size, &stream);
+            const size_t nmemb = 16;
+            const size_t elemSize = sizeof(uint32_t);
+            auto ptr = static_cast<uint32_t*>(shmem_calloc(nmemb, elemSize));
+            EXPECT_NE(nullptr, ptr);
+            uint32_t *ptr_host;
+            ASSERT_EQ(aclrtMallocHost((void**)&ptr_host, sizeof(uint32_t) * nmemb), 0);
+            ASSERT_EQ(aclrtMemcpy(ptr_host, sizeof(uint32_t) * nmemb, ptr, sizeof(uint32_t) * nmemb, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+            for (size_t i = 0; i <nmemb; ++i) {
+                EXPECT_EQ(ptr_host[i], 0u);
+            }
+            test_finalize(stream, device_id);
+        },
+        local_mem_size, process_count);
+}
+
+TEST_F(ShareMemoryManagerTest, align)
+{
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = heap_memory_size;
+    test_mutil_task(
+        [this](int rank_id, int n_ranks, uint64_t local_mem_size) {
+            int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+            aclrtStream stream;
+            test_init(rank_id, n_ranks, local_mem_size, &stream);
+            const size_t alignment = 16;
+            const size_t size = 128;
+            auto ptr = shmem_align(alignment, size);
+            EXPECT_NE(nullptr, ptr);
+            EXPECT_EQ(reinterpret_cast<uintptr_t>(ptr) & alignment, 0u);
+            test_finalize(stream, device_id);
+        },
+        local_mem_size, process_count);
+}
+
 TEST_F(ShareMemoryManagerTest, free_merge)
 {
     const int process_count = test_gnpu_num;
