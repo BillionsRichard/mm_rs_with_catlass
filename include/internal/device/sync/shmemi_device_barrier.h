@@ -40,12 +40,11 @@ SHMEM_DEVICE void shmemi_barrier_core_soft() {
 
     int idx = AscendC::GetBlockIdx();
     int size = AscendC::GetBlockNum();
-    int count = shmemi_load((__gm__ int32_t *)(sync_counter + idx)) + 1;
+    int count = shmemi_load((__gm__ int32_t *)(sync_counter)) + 1;
 
     int shift = 1;
     int offset = 0;
     while (shift < size) {
-        int pre = (idx + size - shift) % size;
         int next = (idx + shift) % size;
 
         shmemi_signal((__gm__ int32_t *)(sync_array + next * SHMEM_LOG_MAX_AIV_PER_NPU + offset), count);
@@ -55,7 +54,7 @@ SHMEM_DEVICE void shmemi_barrier_core_soft() {
         offset++;
     }
 
-    shmemi_store((__gm__ int32_t *)(sync_counter + idx), count);
+    shmemi_store((__gm__ int32_t *)(sync_counter), count);
 #endif
 }
 
