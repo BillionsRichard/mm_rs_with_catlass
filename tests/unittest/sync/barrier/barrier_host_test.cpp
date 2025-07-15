@@ -24,6 +24,7 @@ void test_init(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size, aclrtS
 void test_finalize(aclrtStream stream, int32_t device_id);
 
 void increase_do(void* stream, uint64_t config, uint8_t *addr, int32_t rankId, int32_t rankSize);
+void increase_vec_do(void* stream, uint64_t config, uint8_t *addr, int32_t rankId, int32_t rankSize);
 void p2p_chain_do(void *stream, uint64_t config, uint8_t *addr, int rank_id, int rank_size);
 
 constexpr int32_t SHMEM_BARRIER_TEST_NUM = 3;
@@ -48,8 +49,24 @@ static void test_barrier_black_box(int32_t rank_id, int32_t n_ranks, uint64_t lo
         shm::shmemi_control_barrier_all();
     }
 
+    uint64_t *addr_dev_vec = (uint64_t *)shmem_malloc(sizeof(uint64_t));
+    ASSERT_EQ(aclrtMemset(addr_dev_vec, sizeof(uint64_t), 0, sizeof(uint64_t)), 0);
+    uint64_t *addr_host_vec;
+    ASSERT_EQ(aclrtMallocHost((void **)&addr_host_vec, sizeof(uint64_t)), 0);
+
+    for (int32_t i = 1; i <= SHMEM_BARRIER_TEST_NUM; i++) {
+        std::cout << "[TEST] vec barriers test blackbox rank_id: " << rank_id << " time: " << i << std::endl;
+        increase_vec_do(stream, shmemx_get_ffts_config(), (uint8_t *)addr_dev_vec, rank_id, n_ranks);
+        ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
+        ASSERT_EQ(aclrtMemcpy(addr_host_vec, sizeof(uint64_t), addr_dev_vec, sizeof(uint64_t), ACL_MEMCPY_DEVICE_TO_HOST), 0);
+        ASSERT_EQ((*addr_host_vec), i);
+        shm::shmemi_control_barrier_all();
+    }
+
     ASSERT_EQ(aclrtFreeHost(addr_host), 0);
     shmem_free(addr_dev);
+    ASSERT_EQ(aclrtFreeHost(addr_host_vec), 0);
+    shmem_free(addr_dev_vec);
 
     test_finalize(stream, device_id);
     if (::testing::Test::HasFailure()){

@@ -22,10 +22,23 @@ extern "C" SHMEM_GLOBAL void increase(uint64_t config, GM_ADDR addr, int rank_id
 #ifdef __DAV_C220_VEC__
     uint64_t val = shmemi_load((__gm__ uint64_t *)addr);
 
-    shmem_barrier_all();
+    shmem_barrier(SHMEM_TEAM_WORLD);
     GM_ADDR remote = shmemi_ptr(addr, (rank_id + 1) % rank_size);
     shmemi_store((__gm__ uint64_t *)remote, val + 1);
     shmem_barrier_all();
+#endif
+}
+
+extern "C" SHMEM_GLOBAL void increase_vec(uint64_t config, GM_ADDR addr, int rank_id, int rank_size) {
+    shmemx_set_ffts_config(config);
+
+#ifdef __DAV_C220_VEC__
+    uint64_t val = shmemi_load((__gm__ uint64_t *)addr);
+
+    shmemx_barrier_vec(SHMEM_TEAM_WORLD);
+    GM_ADDR remote = shmemi_ptr(addr, (rank_id + 1) % rank_size);
+    shmemi_store((__gm__ uint64_t *)remote, val + 1);
+    shmemx_barrier_all_vec();
 #endif
 }
 
@@ -64,6 +77,10 @@ extern "C" SHMEM_GLOBAL void p2p_chain(uint64_t config, GM_ADDR addr, int rank_i
 
 void increase_do(void* stream, uint64_t config, uint8_t *addr, int rank_id, int rank_size) {
     increase<<<16, nullptr, stream>>>(config, addr, rank_id, rank_size);
+}
+
+void increase_vec_do(void* stream, uint64_t config, uint8_t *addr, int rank_id, int rank_size) {
+    increase_vec<<<16, nullptr, stream>>>(config, addr, rank_id, rank_size);
 }
 
 void p2p_chain_do(void *stream, uint64_t config, uint8_t *addr, int rank_id, int rank_size) {
