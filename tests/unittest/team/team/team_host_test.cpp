@@ -71,6 +71,19 @@ void test_shmem_team(int rank_id, int n_ranks, uint64_t local_mem_size) {
         ASSERT_EQ(shmem_team_my_pe(team_odd), rank_id / stride);
         ASSERT_EQ(shmem_n_pes(), n_ranks);
         ASSERT_EQ(shmem_my_pe(), rank_id);
+
+        int local_idx = shmem_team_my_pe(team_odd);
+        int global_idx = shmem_team_translate_pe(team_odd, local_idx, SHMEM_TEAM_WORLD);
+        ASSERT_EQ(global_idx, rank_id);
+
+        int back_local = shmem_team_translate_pe(SHMEM_TEAM_WORLD, rank_id, team_odd);
+        ASSERT_EQ(back_local, local_idx);
+
+        int invalid_src = shmem_team_translate_pe(team_odd, team_size, SHMEM_TEAM_WORLD);
+        ASSERT_EQ(invalid_src, -1);
+
+        int invalid_dest = shmem_team_translate_pe(SHMEM_TEAM_WORLD, start - 1, team_odd);
+        ASSERT_EQ(invalid_dest, -1);
     }
 
     // #################### device代码测试 ##############################
