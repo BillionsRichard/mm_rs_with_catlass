@@ -36,9 +36,25 @@ __gm__ shmemi_sync_bit *shmemi_get_core_sync_counter() {
 SHMEM_DEVICE void shmemi_barrier_core_soft() {
 #ifdef __DAV_C220_VEC__
     auto sync_array = shmemi_get_core_sync_array();
-    int32_t count = shmemi_load((__gm__ int32_t *)(sync_array + SHMEM_AIV_SYNC_OFFSET + AscendC::GetBlockIdx())) + 1;
-    shmemi_signal((__gm__ int32_t *)(sync_array + SHMEM_AIV_SYNC_OFFSET + AscendC::GetBlockIdx()), count);
-    shmemi_wait_until_all((__gm__ int32_t *)(sync_array + SHMEM_AIV_SYNC_OFFSET), AscendC::GetBlockNum() * AscendC::GetTaskRation(), nullptr, SHMEM_CMP_GE, count);
+    auto sync_counter = shmemi_get_core_sync_counter();
+
+    int idx = AscendC::GetBlockIdx();
+    int size = AscendC::GetBlockNum();
+    int count = shmemi_load((__gm__ int32_t *)(sync_counter)) + 1;
+
+    int shift = 1;
+    int offset = 0;
+    while (shift < size) {
+        int next = (idx + shift) % size;
+
+        shmemi_signal((__gm__ int32_t *)(sync_array + next * SHMEM_LOG_MAX_AIV_PER_NPU + offset), count);
+        shmemi_wait((__gm__ int32_t *)(sync_array + idx * SHMEM_LOG_MAX_AIV_PER_NPU + offset), count);
+
+        shift *= 2;
+        offset++;
+    }
+
+    shmemi_store((__gm__ int32_t *)(sync_counter), count);
 #endif
 }
 
