@@ -52,6 +52,22 @@ protected:
     bool testingRank = false;
 };
 
+TEST_F(ShareMemoryManagerTest, allocate_zero)
+{
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = heap_memory_size;
+    test_mutil_task(
+        [this](int rank_id, int n_ranks, uint64_t local_mem_size) {
+            int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+            aclrtStream stream;
+            test_init(rank_id, n_ranks, local_mem_size, &stream);
+            auto ptr = shmem_malloc(0UL);
+            EXPECT_EQ(nullptr, ptr);
+            test_finalize(stream, device_id);
+        },
+        local_mem_size, process_count);
+}
+
 TEST_F(ShareMemoryManagerTest, allocate_one_piece_success)
 {
     const int process_count = test_gnpu_num;
@@ -84,7 +100,7 @@ TEST_F(ShareMemoryManagerTest, allocate_full_space_success)
         local_mem_size, process_count);
 }
 
-TEST_F(ShareMemoryManagerTest, allocate_larage_memory_failed)
+TEST_F(ShareMemoryManagerTest, allocate_large_memory_failed)
 {
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = heap_memory_size;
@@ -100,7 +116,24 @@ TEST_F(ShareMemoryManagerTest, allocate_larage_memory_failed)
         local_mem_size, process_count);
 }
 
-TEST_F(ShareMemoryManagerTest, calloc)
+TEST_F(ShareMemoryManagerTest, calloc_zero)
+{
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = heap_memory_size;
+    test_mutil_task(
+        [this](int rank_id, int n_ranks, uint64_t local_mem_size) {
+            int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+            aclrtStream stream;
+            test_init(rank_id, n_ranks, local_mem_size, &stream);
+            const size_t nmemb = 16;
+            auto ptr = static_cast<uint32_t*>(shmem_calloc(nmemb, 0UL));
+            EXPECT_EQ(nullptr, ptr);
+            test_finalize(stream, device_id);
+        },
+        local_mem_size, process_count);
+}
+
+TEST_F(ShareMemoryManagerTest, calloc_one_piece_success)
 {
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = heap_memory_size;
@@ -116,7 +149,7 @@ TEST_F(ShareMemoryManagerTest, calloc)
             uint32_t *ptr_host;
             ASSERT_EQ(aclrtMallocHost((void**)&ptr_host, sizeof(uint32_t) * nmemb), 0);
             ASSERT_EQ(aclrtMemcpy(ptr_host, sizeof(uint32_t) * nmemb, ptr, sizeof(uint32_t) * nmemb, ACL_MEMCPY_DEVICE_TO_HOST), 0);
-            for (size_t i = 0; i <nmemb; ++i) {
+            for (size_t i = 0; i < nmemb; ++i) {
                 EXPECT_EQ(ptr_host[i], 0u);
             }
             test_finalize(stream, device_id);
@@ -124,7 +157,64 @@ TEST_F(ShareMemoryManagerTest, calloc)
         local_mem_size, process_count);
 }
 
-TEST_F(ShareMemoryManagerTest, align)
+TEST_F(ShareMemoryManagerTest, calloc_full_space_success)
+{
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = heap_memory_size;
+    test_mutil_task(
+        [this](int rank_id, int n_ranks, uint64_t local_mem_size) {
+            int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+            aclrtStream stream;
+            test_init(rank_id, n_ranks, local_mem_size, &stream);
+            const size_t nmemb = 16;
+            auto ptr = shmem_calloc(nmemb, heap_memory_size / nmemb);
+            EXPECT_NE(nullptr, ptr);
+            ASSERT_EQ(aclrtMallocHost((void**)&ptr_host, sizeof(uint32_t) * nmemb), 0);
+            ASSERT_EQ(aclrtMemcpy(ptr_host, heap_memory_size, ptr, heap_memory_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);
+            for (size_t i = 0; i < nmemb; ++i) {
+                EXPECT_EQ(ptr_host[i], 0u);
+            }
+            test_finalize(stream, device_id);
+        },
+        local_mem_size, process_count);
+}
+
+TEST_F(ShareMemoryManagerTest, calloc_large_memory_failed)
+{
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = heap_memory_size;
+    test_mutil_task(
+        [this](int rank_id, int n_ranks, uint64_t local_mem_size) {
+            int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+            aclrtStream stream;
+            test_init(rank_id, n_ranks, local_mem_size, &stream);
+            const size_t nmemb = 16;
+            auto ptr = shmem_calloc(nmemb, heap_memory_size / nmemb + 1UL);
+            EXPECT_EQ(nullptr, ptr);
+            test_finalize(stream, device_id);
+        },
+        local_mem_size, process_count);
+}
+
+TEST_F(ShareMemoryManagerTest, align_zero)
+{
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = heap_memory_size;
+    test_mutil_task(
+        [this](int rank_id, int n_ranks, uint64_t local_mem_size) {
+            int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+            aclrtStream stream;
+            test_init(rank_id, n_ranks, local_mem_size, &stream);
+            const size_t alignment = 16;
+            auto ptr = shmem_align(alignment, 0UL);
+            EXPECT_EQ(nullptr, ptr);
+            EXPECT_EQ(reinterpret_cast<uintptr_t>(ptr) & alignment, 0u);
+            test_finalize(stream, device_id);
+        },
+        local_mem_size, process_count);
+}
+
+TEST_F(ShareMemoryManagerTest, align_one_piece_success)
 {
     const int process_count = test_gnpu_num;
     uint64_t local_mem_size = heap_memory_size;
@@ -138,6 +228,40 @@ TEST_F(ShareMemoryManagerTest, align)
             auto ptr = shmem_align(alignment, size);
             EXPECT_NE(nullptr, ptr);
             EXPECT_EQ(reinterpret_cast<uintptr_t>(ptr) & alignment, 0u);
+            test_finalize(stream, device_id);
+        },
+        local_mem_size, process_count);
+}
+
+TEST_F(ShareMemoryManagerTest, align_large_memory_failed)
+{
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = heap_memory_size;
+    test_mutil_task(
+        [this](int rank_id, int n_ranks, uint64_t local_mem_size) {
+            int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+            aclrtStream stream;
+            test_init(rank_id, n_ranks, local_mem_size, &stream);
+            const size_t alignment = 16;
+            auto ptr = shmem_align(alignment, heap_memory_size + 1UL);
+            EXPECT_EQ(nullptr, ptr);
+            test_finalize(stream, device_id);
+        },
+        local_mem_size, process_count);
+}
+
+TEST_F(ShareMemoryManagerTest, align_not_two_power_failed)
+{
+    const int process_count = test_gnpu_num;
+    uint64_t local_mem_size = heap_memory_size;
+    test_mutil_task(
+        [this](int rank_id, int n_ranks, uint64_t local_mem_size) {
+            int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+            aclrtStream stream;
+            test_init(rank_id, n_ranks, local_mem_size, &stream);
+            const size_t alignment = 17;
+            auto ptr = shmem_align(alignment, heap_memory_size + 1UL);
+            EXPECT_EQ(nullptr, ptr);
             test_finalize(stream, device_id);
         },
         local_mem_size, process_count);
