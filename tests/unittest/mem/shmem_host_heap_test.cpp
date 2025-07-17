@@ -169,6 +169,7 @@ TEST_F(ShareMemoryManagerTest, calloc_full_space_success)
             const size_t nmemb = 16;
             auto ptr = shmem_calloc(nmemb, heap_memory_size / nmemb);
             EXPECT_NE(nullptr, ptr);
+            uint32_t *ptr_host;
             ASSERT_EQ(aclrtMallocHost((void**)&ptr_host, sizeof(uint32_t) * nmemb), 0);
             ASSERT_EQ(aclrtMemcpy(ptr_host, heap_memory_size, ptr, heap_memory_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);
             for (size_t i = 0; i < nmemb; ++i) {
@@ -224,7 +225,7 @@ TEST_F(ShareMemoryManagerTest, align_one_piece_success)
             aclrtStream stream;
             test_init(rank_id, n_ranks, local_mem_size, &stream);
             const size_t alignment = 16;
-            const size_t size = 128;
+            const size_t size = 128UL;
             auto ptr = shmem_align(alignment, size);
             EXPECT_NE(nullptr, ptr);
             EXPECT_EQ(reinterpret_cast<uintptr_t>(ptr) & alignment, 0u);
@@ -260,7 +261,8 @@ TEST_F(ShareMemoryManagerTest, align_not_two_power_failed)
             aclrtStream stream;
             test_init(rank_id, n_ranks, local_mem_size, &stream);
             const size_t alignment = 17;
-            auto ptr = shmem_align(alignment, heap_memory_size + 1UL);
+            const size_t size = 128UL;
+            auto ptr = shmem_align(alignment, size);
             EXPECT_EQ(nullptr, ptr);
             test_finalize(stream, device_id);
         },
