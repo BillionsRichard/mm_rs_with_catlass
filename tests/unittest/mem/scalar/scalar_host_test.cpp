@@ -15,19 +15,7 @@
 #include "shmem_api.h"
 #include "bfloat16.h"
 #include "fp16_t.h"
-
-#define SHMEM_FUNC_TYPE(FUNC)        \
-    FUNC(float, float);              \
-    FUNC(double, double);            \
-    FUNC(int8, int8_t);              \
-    FUNC(int16, int16_t);            \
-    FUNC(int32, int32_t);            \
-    FUNC(int64, int64_t);            \
-    FUNC(uint8, uint8_t);            \
-    FUNC(uint16, uint16_t);          \
-    FUNC(uint32, uint32_t);          \
-    FUNC(uint64, uint64_t);          \
-    FUNC(char, char)
+#include "../utils/func_type.h"
 
 extern int test_gnpu_num;
 extern int test_first_npu;
@@ -36,7 +24,7 @@ extern void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtSt
 extern void test_finalize(aclrtStream stream, int device_id);
 
 #define PUT_ONE_NUM_DO(NAME, TYPE)                                                                      \
-extern void put_##NAME##_one_num_do(uint32_t block_dim, void* stream, uint8_t* gva, TYPE val);          \
+extern void put_##NAME##_one_num_do(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev);      \
 extern void get_##NAME##_one_num_do(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev) 
 
 SHMEM_FUNC_TYPE(PUT_ONE_NUM_DO);
@@ -54,8 +42,9 @@ static int32_t test_##NAME##_scalar_put_get(aclrtStream stream, uint32_t rank_id
     uint32_t block_dim = 1;                                                                                             \
                                                                                                                         \
     TYPE value = static_cast<TYPE>(3.5f) + (TYPE)rank_id;                                                               \
+    *dev_ptr = value;                                                                                                   \
     void *ptr = shmem_malloc(1024);                                                                                     \
-    put_##NAME##_one_num_do(block_dim, stream, (uint8_t *)ptr, value);                                                  \                               
+    put_##NAME##_one_num_do(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);                                     \                               
     EXPECT_EQ(aclrtSynchronizeStream(stream), 0);                                                                       \
     sleep(2);                                                                                                           \
                                                                                                                         \
