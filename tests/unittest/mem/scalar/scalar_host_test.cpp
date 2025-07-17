@@ -27,7 +27,7 @@ extern void test_finalize(aclrtStream stream, int device_id);
 extern void put_##NAME##_one_num_do(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev);      \
 extern void get_##NAME##_one_num_do(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev) 
 
-SHMEM_FUNC_TYPE(PUT_ONE_NUM_DO);
+SHMEM_FUNC_TYPE_HOST(PUT_ONE_NUM_DO);
 
 #define TEST_SCALAR_PUT_GET(NAME, TYPE)                                                                                 \
 static int32_t test_##NAME##_scalar_put_get(aclrtStream stream, uint32_t rank_id, uint32_t rank_size)                   \
@@ -42,7 +42,7 @@ static int32_t test_##NAME##_scalar_put_get(aclrtStream stream, uint32_t rank_id
     uint32_t block_dim = 1;                                                                                             \
                                                                                                                         \
     TYPE value = static_cast<TYPE>(3.5f) + (TYPE)rank_id;                                                               \
-    *dev_ptr = value;                                                                                                   \
+    EXPECT_EQ(aclrtMemcpy(dev_ptr, 1 * sizeof(TYPE), &value, 1 * sizeof(TYPE), ACL_MEMCPY_DEVICE_TO_HOST), 0);          \
     void *ptr = shmem_malloc(1024);                                                                                     \
     put_##NAME##_one_num_do(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);                                     \                               
     EXPECT_EQ(aclrtSynchronizeStream(stream), 0);                                                                       \
@@ -74,7 +74,7 @@ static int32_t test_##NAME##_scalar_put_get(aclrtStream stream, uint32_t rank_id
     return flag;                                                                                                        \
 }
 
-SHMEM_FUNC_TYPE(TEST_SCALAR_PUT_GET);
+SHMEM_FUNC_TYPE_HOST(TEST_SCALAR_PUT_GET);
 
 #define TEST_SHMEM_SCALAR(NAME, TYPE)                                                       \
 void test_##NAME##_shmem_scalar(int rank_id, int n_ranks, uint64_t local_mem_size)          \
@@ -94,7 +94,7 @@ void test_##NAME##_shmem_scalar(int rank_id, int n_ranks, uint64_t local_mem_siz
     }                                                                                       \
 }
 
-SHMEM_FUNC_TYPE(TEST_SHMEM_SCALAR);
+SHMEM_FUNC_TYPE_HOST(TEST_SHMEM_SCALAR);
 
 #define TEST_API(NAME, TYPE)                                                        \
 TEST(TestScalarApi, Test##NAME##ShmemScalar)                                        \
@@ -104,4 +104,4 @@ TEST(TestScalarApi, Test##NAME##ShmemScalar)                                    
     test_mutil_task(test_##NAME##_shmem_scalar, local_mem_size, process_count);     \
 }
 
-SHMEM_FUNC_TYPE(TEST_API);
+SHMEM_FUNC_TYPE_HOST(TEST_API);
