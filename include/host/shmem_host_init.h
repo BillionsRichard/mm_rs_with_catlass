@@ -59,7 +59,7 @@ SHMEM_HOST_API int shmem_set_data_op_engine_type(shmem_init_attr_t *attributes, 
 SHMEM_HOST_API int shmem_set_timeout(shmem_init_attr_t *attributes, uint32_t value);
 
 /**
- * @brief Initialization based on attributes and build the shmem library.
+ * @brief Initialize the resources required for SHMEM task based on attributes.
  *        Attributes can be created by users or obtained by calling <b>shmem_set_attr()</b>.
  *        if the self-created attr structure is incorrect, the initialization will fail.
  *        It is recommended to build the attributes by <b>shmem_set_attr()</b>. 
@@ -70,8 +70,7 @@ SHMEM_HOST_API int shmem_set_timeout(shmem_init_attr_t *attributes, uint32_t val
 SHMEM_HOST_API int shmem_init_attr(shmem_init_attr_t *attributes);
 
 /**
- * @brief Ends the program previously initialized by <b>shmem_init_attr()</b>.
- *        release all resources used by the SHMEM library.
+ * @brief Release all resources used by the SHMEM library.
  *
  * @return Returns 0 on success or an error code on failure
  */
