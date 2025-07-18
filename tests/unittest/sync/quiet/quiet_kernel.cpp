@@ -10,17 +10,32 @@
 #include "kernel_operator.h"
 #include "shmem_api.h"
 
-extern "C" SHMEM_GLOBAL void quiet(uint64_t config, GM_ADDR addr, GM_ADDR dev, int32_t rank_id, int32_t rank_size) {
+extern "C" SHMEM_GLOBAL void quiet_order(uint64_t config, GM_ADDR addr, int rank_id, int rank_size) {
     shmemx_set_ffts_config(config);
+    __gm__ uint64_t *base = reinterpret_cast<__gm__ uint64_t*>(addr);
+    shmem_barrier_all();
+    if (rank_id == 0) {
+        uint64_t a_val = 42, b_val = 84;
+        shmemi_store<uint64_t>(base, a_val);
+        shmemi_store<uint64_t>(base + 1, b_val);
+        shmem_quiet();
+    }
 
-    shmem_put_int32_mem_nbi((__gm__ int32_t *)addr, (__gm__ int32_t *)dev, rank_size, rank_id);
-    shmemi_store((__gm__ int32_t *)dev, rank_id + 11);
-    shmem_put_int32_mem_nbi((__gm__ int32_t *)addr, (__gm__ int32_t *)dev, rank_size, rank_id);
-    shmem_quiet();
-    shmemi_store((__gm__ int32_t *)dev, rank_id + 12);
-    shmem_put_int32_mem_nbi((__gm__ int32_t *)addr, (__gm__ int32_t *)dev, rank_size, rank_id);
+    if (rank_id == 1) {
+        uint64_t seen_b;
+        __gm__ uint64_t *remote = shmemi_ptr(base, 0);
+        do {
+            seen_b = shmemi_load<uint64_t>(remote + 1);
+        } while (seen_b != 84);
+        uint64_t seen_a = shmemi_load<uint64_t>(remote);
+
+        shmemi_store<uint64_t>(base + 2, seen_b);
+        shmemi_store<uint64_t>(base + 3, seen_a);
+    }
+
+    shmem_barrier_all();
 }
 
-void quiet_do(void* stream, uint64_t config, uint8_t *addr, uint8_t *dev, int32_t rank_id, int32_t rank_size) {
-    quiet<<<1, nullptr, stream>>>(config, addr, dev, rank_id, rank_size);
+void quiet_order_do(void* stream, uint64_t config, uint8_t *addr, int32_t rank_id, int32_t n_ranks) {
+    quiet_order<<<1, nullptr, stream>>>(config, addr, rank_id, n_ranks);
 }

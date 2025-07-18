@@ -24,54 +24,46 @@ void test_mutil_task(std::function<void(int32_t, int32_t, uint64_t)> func, uint6
 void test_init(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size, aclrtStream *st);
 void test_finalize(aclrtStream stream, int32_t device_id);
 
-void quiet_do(void* stream, uint64_t config, uint8_t *addr, uint8_t *dev, int32_t rank_id, int32_t rank_size);
+void quiet_order_do(void* stream, uint64_t config, uint8_t *addr, int32_t rank_id, int32_t n_ranks);
 
-static void test_quiet(int32_t rank_id, int32_t rank_size, uint64_t local_mem_size) {
+static void test_quiet_order(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size) {
+    int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
     aclrtStream stream;
-    test_init(rank_id, rank_size, local_mem_size, &stream);
+    test_init(rank_id, n_ranks, local_mem_size, &stream);
     ASSERT_NE(stream, nullptr);
 
-    int32_t *addr_dev = (int32_t *)shmem_malloc(sizeof(int32_t) * rank_size);
-    ASSERT_EQ(aclrtMemset(addr_dev, sizeof(int32_t) * rank_size, 0, sizeof(int32_t)) * rank_size, 0);
+    uint64_t *addr_dev = (uint64_t *)shmem_malloc(4 * sizeof(uint64_t));
+    ASSERT_EQ(aclrtMemset(addr_dev, 4 * sizeof(uint64_t), 0, 4 * sizeof(uint64_t)), 0);
 
-    size_t input_size = (int)rank_size * sizeof(int32_t);
+    std::vector<uint64_t> addr_host(4, 0);
 
-    std::vector<int32_t> input(rank_size, 0);
-    for (int32_t i = 0; i < rank_size; i++) {
-        input[i] = static_cast<int32_t>(rank_id + 10);
-    }     
-    void *dev_ptr;
-    ASSERT_EQ(aclrtMalloc(&dev_ptr, input_size, ACL_MEM_MALLOC_NORMAL_ONLY), 0);
-    ASSERT_EQ(aclrtMemcpy(dev_ptr, input_size, input.data(), input_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);
-
-    int32_t *addr_host;
-    ASSERT_EQ(aclrtMallocHost((void **)&addr_host, sizeof(int32_t) * rank_size), 0);
-
-    quiet_do(stream, shmemx_get_ffts_config(), (uint8_t *)addr_dev, (uint8_t *)dev_ptr, rank_id, rank_size);
+    std::cout << "[TEST] quiet order test rank " << rank_id << std::endl;
+    quiet_order_do(stream, shmemx_get_ffts_config(), (uint8_t *)addr_dev, rank_id, n_ranks);
 
     ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
-    ASSERT_EQ(aclrtMemcpy(addr_host, sizeof(int32_t) * rank_size, addr_dev, sizeof(int32_t) * rank_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);
-    for (int32_t i = 0; i < rank_size; ++i) {
-        if (i == 0) {
-            ASSERT_EQ(addr_host[i], rank_id + 11);
-        } else {
-            ASSERT_EQ(addr_host[i], rank_id + 10);
-        }
-    }
+    ASSERT_EQ(aclrtMemcpy(addr_host.data(),
+                          4 * sizeof(uint64_t),
+                          addr_dev,
+                          4 * sizeof(uint64_t),
+                          ACL_MEMCPY_DEVICE_TO_HOST),
+              0);
 
+    if (rank_id == 1) {
+        ASSERT_EQ(addr_host[2], 84u);
+        ASSERT_EQ(addr_host[3], 42u);
+    }
     shmem_free(addr_dev);
 
-    int32_t dev_id = rank_id % test_gnpu_num + test_first_npu;
-    test_finalize(stream, dev_id);
-
-    if (::testing::Test::HasFailure()) {
+    test_finalize(stream, device_id);
+    if (::testing::Test::HasFailure()){
         exit(1);
     }
 }
 
-TEST(TEST_SYNC_API, test_quiet) {
+TEST(TEST_SYNC_API, test_quiet_order) {
     const int32_t process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 16;
-    test_mutil_task(test_quiet, local_mem_size, process_count);
+    test_mutil_task(test_quiet_order, local_mem_size, process_count);
 }
+
 

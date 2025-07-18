@@ -22,7 +22,7 @@ extern "C" SHMEM_GLOBAL void increase(uint64_t config, GM_ADDR addr, int rank_id
 #ifdef __DAV_C220_VEC__
     uint64_t val = shmemi_load((__gm__ uint64_t *)addr);
 
-    shmem_barrier(SHMEM_TEAM_WORLD);
+    shmem_barrier_all();
     GM_ADDR remote = shmemi_ptr(addr, (rank_id + 1) % rank_size);
     shmemi_store((__gm__ uint64_t *)remote, val + 1);
     shmem_barrier_all();
@@ -35,10 +35,46 @@ extern "C" SHMEM_GLOBAL void increase_vec(uint64_t config, GM_ADDR addr, int ran
 #ifdef __DAV_C220_VEC__
     uint64_t val = shmemi_load((__gm__ uint64_t *)addr);
 
-    shmemx_barrier_vec(SHMEM_TEAM_WORLD);
+    shmemx_barrier_all_vec();
     GM_ADDR remote = shmemi_ptr(addr, (rank_id + 1) % rank_size);
     shmemi_store((__gm__ uint64_t *)remote, val + 1);
     shmemx_barrier_all_vec();
+#endif
+}
+
+extern "C" SHMEM_GLOBAL void increase_odd_team(uint64_t config, GM_ADDR addr, int rank_id, int rank_size, shmem_team_t team_id) {
+    shmemx_set_ffts_config(config);
+    
+#ifdef __DAV_C220_CUBE__
+    // scalar unit of cube core is not affected by barrier
+    shmem_barrier_all();
+    shmem_barrier_all();
+#endif
+
+#ifdef __DAV_C220_VEC__
+    uint64_t val = shmemi_load((__gm__ uint64_t *)addr);
+
+    shmem_barrier(team_id);
+    if (rank_id & 1) {
+        GM_ADDR remote = shmemi_ptr(addr, (rank_id + 2) % rank_size);
+        shmemi_store((__gm__ uint64_t *)remote, val + 1);
+    }
+    shmem_barrier(team_id);
+#endif
+}
+
+extern "C" SHMEM_GLOBAL void increase_vec_odd_team(uint64_t config, GM_ADDR addr, int rank_id, int rank_size, shmem_team_t team_id) {
+    shmemx_set_ffts_config(config);
+
+#ifdef __DAV_C220_VEC__
+    uint64_t val = shmemi_load((__gm__ uint64_t *)addr);
+
+    shmemx_barrier_vec(team_id);
+    if (rank_id & 1) {
+        GM_ADDR remote = shmemi_ptr(addr, (rank_id + 2) % rank_size);
+        shmemi_store((__gm__ uint64_t *)remote, val + 1);
+    }
+    shmemx_barrier_vec(team_id);
 #endif
 }
 
@@ -81,6 +117,14 @@ void increase_do(void* stream, uint64_t config, uint8_t *addr, int rank_id, int 
 
 void increase_vec_do(void* stream, uint64_t config, uint8_t *addr, int rank_id, int rank_size) {
     increase_vec<<<16, nullptr, stream>>>(config, addr, rank_id, rank_size);
+}
+
+void increase_do_odd_team(void* stream, uint64_t config, uint8_t *addr, int rank_id, int rank_size, shmem_team_t team_id) {
+    increase_odd_team<<<16, nullptr, stream>>>(config, addr, rank_id, rank_size, team_id);
+}
+
+void increase_vec_do_odd_team(void* stream, uint64_t config, uint8_t *addr, int rank_id, int rank_size, shmem_team_t team_id) {
+    increase_vec_odd_team<<<16, nullptr, stream>>>(config, addr, rank_id, rank_size, team_id);
 }
 
 void p2p_chain_do(void *stream, uint64_t config, uint8_t *addr, int rank_id, int rank_size) {

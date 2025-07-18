@@ -25,6 +25,8 @@ void test_finalize(aclrtStream stream, int32_t device_id);
 
 void increase_do(void* stream, uint64_t config, uint8_t *addr, int32_t rankId, int32_t rankSize);
 void increase_vec_do(void* stream, uint64_t config, uint8_t *addr, int32_t rankId, int32_t rankSize);
+void increase_do_odd_team(void* stream, uint64_t config, uint8_t *addr, int32_t rankId, int32_t rankSize, shmem_team_t team_id);
+void increase_vec_do_odd_team(void* stream, uint64_t config, uint8_t *addr, int32_t rankId, int32_t rankSize, shmem_team_t team_id);
 void p2p_chain_do(void *stream, uint64_t config, uint8_t *addr, int rank_id, int rank_size);
 
 constexpr int32_t SHMEM_BARRIER_TEST_NUM = 3;
@@ -74,6 +76,61 @@ static void test_barrier_black_box(int32_t rank_id, int32_t n_ranks, uint64_t lo
     }
 }
 
+static void test_barrier_black_box_odd_team(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size) {
+    int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+    aclrtStream stream;
+    test_init(rank_id, n_ranks, local_mem_size, &stream);
+    ASSERT_NE(stream, nullptr);
+
+    shmem_team_t team_odd;
+    int start = 1;
+    int stride = 2;
+    int team_size = n_ranks / 2;
+    shmem_team_split_strided(SHMEM_TEAM_WORLD, start, stride, team_size, &team_odd);
+
+    uint64_t *addr_dev = (uint64_t *)shmem_malloc(sizeof(uint64_t));
+    ASSERT_EQ(aclrtMemset(addr_dev, sizeof(uint64_t), 0, sizeof(uint64_t)), 0);
+    uint64_t *addr_host;
+    ASSERT_EQ(aclrtMallocHost((void **)&addr_host, sizeof(uint64_t)), 0);
+
+    uint64_t *addr_dev_vec = (uint64_t *)shmem_malloc(sizeof(uint64_t));
+    ASSERT_EQ(aclrtMemset(addr_dev_vec, sizeof(uint64_t), 0, sizeof(uint64_t)), 0);
+    uint64_t *addr_host_vec;
+    ASSERT_EQ(aclrtMallocHost((void **)&addr_host_vec, sizeof(uint64_t)), 0);
+
+    if (rank_id & 1) {
+        for (int32_t i = 1; i <= SHMEM_BARRIER_TEST_NUM; i++) {
+            std::cout << "[TEST] barriers test blackbox rank_id: " << rank_id << " time: " << i << std::endl;
+            increase_do_odd_team(stream, shmemx_get_ffts_config(), (uint8_t *)addr_dev, rank_id, n_ranks, team_odd);
+            ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
+            ASSERT_EQ(aclrtMemcpy(addr_host, sizeof(uint64_t), addr_dev, sizeof(uint64_t), ACL_MEMCPY_DEVICE_TO_HOST), 0);
+            ASSERT_EQ((*addr_host), i);
+            shm::shmemi_control_barrier_all();
+        }
+
+        for (int32_t i = 1; i <= SHMEM_BARRIER_TEST_NUM; i++) {
+            std::cout << "[TEST] vec barriers test blackbox rank_id: " << rank_id << " time: " << i << std::endl;
+            increase_vec_do_odd_team(stream, shmemx_get_ffts_config(), (uint8_t *)addr_dev_vec, rank_id, n_ranks, team_odd);
+            ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
+            ASSERT_EQ(aclrtMemcpy(addr_host_vec, sizeof(uint64_t), addr_dev_vec, sizeof(uint64_t), ACL_MEMCPY_DEVICE_TO_HOST), 0);
+            ASSERT_EQ((*addr_host_vec), i);
+            shm::shmemi_control_barrier_all();
+        }
+    }
+
+    ASSERT_EQ(aclrtFreeHost(addr_host), 0);
+    shmem_free(addr_dev);
+    ASSERT_EQ(aclrtFreeHost(addr_host_vec), 0);
+    shmem_free(addr_dev_vec);
+
+    shmem_team_destroy(team_odd);
+
+    test_finalize(stream, device_id);
+    if (::testing::Test::HasFailure()){
+        exit(1);
+    }
+}
+
 static void test_p2p(int rank_id, int rank_size, uint64_t local_mem_size) {
     aclrtStream stream;
     test_init(rank_id, rank_size, local_mem_size, &stream);
@@ -96,6 +153,13 @@ TEST(TEST_SYNC_API, test_barrier_black_box)
     const int32_t process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 16;
     test_mutil_task(test_barrier_black_box, local_mem_size, process_count);
+}
+
+TEST(TEST_SYNC_API, test_barrier_black_box_odd_team)
+{
+    const int32_t process_count = test_gnpu_num;
+    uint64_t local_mem_size = 1024UL * 1024UL * 16;
+    test_mutil_task(test_barrier_black_box_odd_team, local_mem_size, process_count);
 }
 
 TEST(TEST_SYNC_API, test_p2p)
