@@ -17,20 +17,27 @@
 extern "C" {
 #endif
 /**
- * @addtogroup group_macros
+ * @addtogroup group_structs
  * @{
 */
-
-// Non-Contiguous Datacopy Param
+/**
+ * @struct non_contiguous_copy_param
+ * @brief Non-Contiguous Datacopy Param.
+ *
+ * - uint32_t repeat: Data move times
+ * - uint32_t length: Data move unit length
+ * - uint32_t src_ld: Src data leading dimension. Interval between the head of the repeat and the head of the following repeat.
+ * - uint32_t dst_ld: Dst data leading dimension.
+*/
 struct non_contiguous_copy_param
 {
     uint32_t repeat;
     uint32_t length;
-    uint32_t src_ld;     // src data leading dimension. Interval between the head of the repeat and the head of the following repeat
-    uint32_t dst_ld;     // dst data leading dimension
+    uint32_t src_ld;
+    uint32_t dst_ld;
 };
 
-/**@} */ // end of group_macros
+/**@} */ // end of group_structs
 
 #ifdef __cplusplus
 }
