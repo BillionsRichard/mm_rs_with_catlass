@@ -21,7 +21,6 @@ extern "C" SHMEM_GLOBAL void quiet(uint64_t config, GM_ADDR addr, GM_ADDR dev, i
     shmem_put_int32_mem_nbi((__gm__ int32_t *)addr, (__gm__ int32_t *)dev, rank_size, rank_id);
 }
 
-// 对应的 launch wrapper，blockDim 用 1，与 p2p_chain_do 保持一致
 void quiet_do(void* stream, uint64_t config, uint8_t *addr, uint8_t *dev, int32_t rank_id, int32_t rank_size) {
     quiet<<<1, nullptr, stream>>>(config, addr, dev, rank_id, rank_size);
 }
