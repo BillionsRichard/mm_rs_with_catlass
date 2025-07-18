@@ -65,6 +65,12 @@ void test_shmem_team(int rank_id, int n_ranks, uint64_t local_mem_size) {
     int team_size = n_ranks / 2;
     shmem_team_split_strided(SHMEM_TEAM_WORLD, start, stride, team_size, &team_odd);
 
+    shmem_team_t team_even;
+    start = 0;
+    stride = 2;
+    team_size = n_ranks / 2;
+    shmem_team_split_strided(SHMEM_TEAM_WORLD, start, stride, team_size, &team_even);
+
     // #################### host侧取值测试 ##############################
     if (rank_id & 1) {
         ASSERT_EQ(shmem_team_n_pes(team_odd), team_size);
@@ -79,11 +85,17 @@ void test_shmem_team(int rank_id, int n_ranks, uint64_t local_mem_size) {
         int back_local = shmem_team_translate_pe(SHMEM_TEAM_WORLD, rank_id, team_odd);
         ASSERT_EQ(back_local, local_idx);
 
+        int invalid_team = shmem_team_translate_pe(team_odd, local_idx, SHMEM_TEAM_INVALID);
+        ASSERT_EQ(invalid_team, -1);
+
         int invalid_src = shmem_team_translate_pe(team_odd, team_size, SHMEM_TEAM_WORLD);
         ASSERT_EQ(invalid_src, -1);
 
         int invalid_dest = shmem_team_translate_pe(SHMEM_TEAM_WORLD, start - 1, team_odd);
         ASSERT_EQ(invalid_dest, -1);
+
+        int invalid_odd_even = shmem_team_translate_pe(team_odd, local_idx, team_even);
+        ASSERT_EQ(invalid_odd_even, -1);
     }
 
     // #################### device代码测试 ##############################
