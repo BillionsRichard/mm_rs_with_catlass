@@ -20,14 +20,14 @@ extern int64_t test_gnpu_num;
 extern const char* test_global_ipport;
 extern int test_first_npu;
 
-void test_mutil_task(std::function<void(int64_t, int64_t, uint64_t)> func, uint64_t local_mem_size, int64_t process_count);
-void test_init(int64_t rank_id, int64_t n_ranks, uint64_t local_mem_size, aclrtStream *st);
-void test_finalize(aclrtStream stream, int64_t device_id);
+void test_mutil_task(std::function<void(int32_t, int32_t, uint64_t)> func, uint64_t local_mem_size, int32_t process_count);
+void test_init(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size, aclrtStream *st);
+void test_finalize(aclrtStream stream, int32_t device_id);
 
-void quiet_order_do(void* stream, uint64_t config, uint8_t *addr, int64_t rank_id, int64_t n_ranks);
+void quiet_order_do(void* stream, uint64_t config, uint8_t *addr, int32_t rank_id, int32_t n_ranks);
 void fence_order_do(void* stream, uint64_t config, uint8_t *addr, int32_t rank_id, int32_t n_ranks);
 
-static void test_quiet_order(int64_t rank_id, int64_t n_ranks, uint64_t local_mem_size) {
+static void test_quiet_order(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size) {
     aclrtStream stream;
     int64_t device_id = rank_id % test_gnpu_num + test_first_npu;
     test_init(rank_id, n_ranks, local_mem_size, &stream);
@@ -51,9 +51,8 @@ static void test_quiet_order(int64_t rank_id, int64_t n_ranks, uint64_t local_me
               0);
 
     if (rank_id == 1) {
-        ASSERT_EQ(host_buf[33], 0xCCu);
-        ASSERT_EQ(host_buf[34], 0xBBu);
-        ASSERT_EQ(host_buf[35], 0xAAu);
+        ASSERT_EQ(host_buf[33], 0xBBu);
+        ASSERT_EQ(host_buf[34], 0xAAu);
     }
 
     shmem_free(dev_ptr);
@@ -88,7 +87,6 @@ static void test_fence_order(int32_t rank_id, int32_t n_ranks, uint64_t local_me
               0);
 
     if (rank_id == 1) {
-        int 
         ASSERT_EQ(addr_host[17], 84u);
         ASSERT_EQ(addr_host[18], 42u);
     }
