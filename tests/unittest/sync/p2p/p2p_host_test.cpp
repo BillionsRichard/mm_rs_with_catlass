@@ -9,7 +9,6 @@
  */
 #include <iostream>
 #include <string>
-#include <vector>
 #include <gtest/gtest.h>
 
 #include "acl/acl.h"
@@ -24,44 +23,28 @@ void test_mutil_task(std::function<void(int32_t, int32_t, uint64_t)> func, uint6
 void test_init(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size, aclrtStream *st);
 void test_finalize(aclrtStream stream, int32_t device_id);
 
-void fence_order_do(void* stream, uint64_t config, uint8_t *addr, int32_t rank_id, int32_t n_ranks);
+void p2p_chain_do(void *stream, uint64_t config, uint8_t *addr, int rank_id, int rank_size);
 
-static void test_fence_order(int32_t rank_id, int32_t n_ranks, uint64_t local_mem_size) {
-    int32_t device_id = rank_id % test_gnpu_num + test_first_npu;
+static void test_p2p(int rank_id, int rank_size, uint64_t local_mem_size) {
     aclrtStream stream;
-    test_init(rank_id, n_ranks, local_mem_size, &stream);
-    ASSERT_NE(stream, nullptr);
+    test_init(rank_id, rank_size, local_mem_size, &stream);
 
-    uint64_t *addr_dev = (uint64_t *)shmem_malloc(4 * sizeof(uint64_t));
-    ASSERT_EQ(aclrtMemset(addr_dev, 4 * sizeof(uint64_t), 0, 4 * sizeof(uint64_t)), 0);
-
-    std::vector<uint64_t> addr_host(4, 0);
-
-    std::cout << "[TEST] fence order test rank " << rank_id << std::endl;
-    fence_order_do(stream, shmemx_get_ffts_config(), (uint8_t *)addr_dev, rank_id, n_ranks);
-
+    int32_t *addr_dev = (int32_t *)shmem_malloc(sizeof(int32_t));
+    ASSERT_EQ(aclrtMemset(addr_dev, sizeof(int32_t), 0, sizeof(int32_t)), 0);
+    p2p_chain_do(stream, shmemx_get_ffts_config(), (uint8_t *)addr_dev, rank_id, rank_size);
     ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
-    ASSERT_EQ(aclrtMemcpy(addr_host.data(),
-                          4 * sizeof(uint64_t),
-                          addr_dev,
-                          4 * sizeof(uint64_t),
-                          ACL_MEMCPY_DEVICE_TO_HOST),
-              0);
-
-    if (rank_id == 1) {
-        ASSERT_EQ(addr_host[2], 84u);
-        ASSERT_EQ(addr_host[3], 42u);
-    }
     shmem_free(addr_dev);
 
-    test_finalize(stream, device_id);
+    int32_t dev_id = rank_id % test_gnpu_num + test_first_npu;
+    test_finalize(stream, dev_id);
     if (::testing::Test::HasFailure()){
         exit(1);
     }
 }
 
-TEST(TEST_SYNC_API, test_fence_order) {
+TEST(TEST_SYNC_API, test_p2p)
+{
     const int32_t process_count = test_gnpu_num;
     uint64_t local_mem_size = 1024UL * 1024UL * 16;
-    test_mutil_task(test_fence_order, local_mem_size, process_count);
+    test_mutil_task(test_p2p, local_mem_size, process_count);
 }

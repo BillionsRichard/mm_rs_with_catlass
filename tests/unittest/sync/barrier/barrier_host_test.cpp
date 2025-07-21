@@ -27,7 +27,6 @@ void increase_do(void* stream, uint64_t config, uint8_t *addr, int32_t rankId, i
 void increase_vec_do(void* stream, uint64_t config, uint8_t *addr, int32_t rankId, int32_t rankSize);
 void increase_do_odd_team(void* stream, uint64_t config, uint8_t *addr, int32_t rankId, int32_t rankSize, shmem_team_t team_id);
 void increase_vec_do_odd_team(void* stream, uint64_t config, uint8_t *addr, int32_t rankId, int32_t rankSize, shmem_team_t team_id);
-void p2p_chain_do(void *stream, uint64_t config, uint8_t *addr, int rank_id, int rank_size);
 
 constexpr int32_t SHMEM_BARRIER_TEST_NUM = 3;
 
@@ -131,23 +130,6 @@ static void test_barrier_black_box_odd_team(int32_t rank_id, int32_t n_ranks, ui
     }
 }
 
-static void test_p2p(int rank_id, int rank_size, uint64_t local_mem_size) {
-    aclrtStream stream;
-    test_init(rank_id, rank_size, local_mem_size, &stream);
-
-    int32_t *addr_dev = (int32_t *)shmem_malloc(sizeof(int32_t));
-    ASSERT_EQ(aclrtMemset(addr_dev, sizeof(int32_t), 0, sizeof(int32_t)), 0);
-    p2p_chain_do(stream, shmemx_get_ffts_config(), (uint8_t *)addr_dev, rank_id, rank_size);
-    ASSERT_EQ(aclrtSynchronizeStream(stream), 0);
-    shmem_free(addr_dev);
-
-    int32_t dev_id = rank_id % test_gnpu_num + test_first_npu;
-    test_finalize(stream, dev_id);
-    if (::testing::Test::HasFailure()){
-        exit(1);
-    }
-}
-
 TEST(TEST_SYNC_API, test_barrier_black_box)
 {
     const int32_t process_count = test_gnpu_num;
@@ -162,9 +144,3 @@ TEST(TEST_SYNC_API, test_barrier_black_box_odd_team)
     test_mutil_task(test_barrier_black_box_odd_team, local_mem_size, process_count);
 }
 
-TEST(TEST_SYNC_API, test_p2p)
-{
-    const int32_t process_count = test_gnpu_num;
-    uint64_t local_mem_size = 1024UL * 1024UL * 16;
-    test_mutil_task(test_p2p, local_mem_size, process_count);
-}
