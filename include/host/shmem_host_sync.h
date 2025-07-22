@@ -31,6 +31,8 @@ extern "C" {
  * @fn SHMEM_HOST_API uint64_t shmemx_get_ffts_config()
  * @brief Get runtime ffts config. This config should be passed to MIX Kernel and set by MIX Kernel using shmemx_set_ffts. Refer to shmemx_set_ffts for more details.
  *
+ * @return ffts config
+ *
  */
 SHMEM_HOST_API uint64_t shmemx_get_ffts_config();
 
