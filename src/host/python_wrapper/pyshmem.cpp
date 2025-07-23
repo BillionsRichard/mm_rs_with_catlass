@@ -14,15 +14,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "torch/extension.h"
-#include "ATen/ops/from_blob.h"
-#include "torch_npu/csrc/core/npu/NPUFunctions.h"
-#include "torch_npu/csrc/aten/common/from_blob.h"
-#include "host/shmem_host_init.h"
-#include "host/shmem_host_heap.h"
-#include "host/shmem_host_rma.h"
-#include "host/shmem_host_team.h"
-#include "host/shmem_host_sync.h"
+#include "shmem_api.h"
 
 namespace py = pybind11;
 
@@ -49,7 +41,7 @@ inline std::string get_connect_url()
 int shmem_initialize(int rank, int world_size, int64_t mem_size)
 {
     shmem_init_attr_t attribute{
-        0, rank, world_size, "", static_cast<uint64_t>(mem_size), {SHMEM_DATA_OP_MTE, 120, 120, 120}};
+        rank, world_size, "", static_cast<uint64_t>(mem_size), {0, SHMEM_DATA_OP_MTE, 120, 120, 120}};
     auto url = get_connect_url();
     if (url.empty()) {
         std::cerr << "cannot get store connect URL(" << url << ") from ENV." << std::endl;
@@ -178,17 +170,6 @@ Destroy a team with team id
 
 Arguments:
     team(int): team id to be destroyed
-    )");
-
-    m.def("barrier_all", &shmem_barrier_all, py::call_guard<py::gil_scoped_release>(), R"(
-Do barrier operation on global team with default stream.
-    )");
-
-    m.def("barrier_team", &shmem_barrier, py::call_guard<py::gil_scoped_release>(), py::arg("team"), R"(
-Do barrier operation on specified team with default stream
-
-Arguments:
-    team(int): team id
     )");
 
     m.def("my_pe", &shmem_team_my_pe, py::call_guard<py::gil_scoped_release>(), py::arg("team"), R"(

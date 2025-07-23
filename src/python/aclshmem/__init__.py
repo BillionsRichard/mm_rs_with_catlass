@@ -17,16 +17,14 @@ import torch_npu
 current_path = os.path.abspath(__file__)
 current_dir = os.path.dirname(current_path)
 sys.path.append(current_dir)
-libs_path = os.path.join(current_dir, 'lib')
-for lib in ["libaclshmem_host.so"]:
+libs_path = os.path.join(os.getenv('SHMEM_HOME_PATH', current_dir), 'shmem/lib')
+for lib in ["libshmem.so"]:
     ctypes.CDLL(os.path.join(libs_path, lib))
 
-from ._pyaclshmem import set_logger_level, aclshmem_init, aclshmem_finialize, aclshmem_malloc, aclshmem_free, \
-    aclshmem_ptr, my_pe, pe_count, mte_set_ub_params, team_split_strided, team_translate_pe, team_destroy, \
-    barrier_all, barrier_team
+from ._pyaclshmem import aclshmem_init, aclshmem_finialize, aclshmem_malloc, aclshmem_free, \
+    aclshmem_ptr, my_pe, pe_count, mte_set_ub_params, team_split_strided, team_translate_pe, team_destroy
 
 __all__ = [
-    'set_logger_level',
     'aclshmem_init',
     'aclshmem_finialize',
     'aclshmem_malloc',
@@ -37,7 +35,5 @@ __all__ = [
     'mte_set_ub_params',
     'team_split_strided',
     'team_translate_pe',
-    'team_destroy',
-    'barrier_all',
-    'barrier_team'
+    'team_destroy'
 ]
