@@ -130,6 +130,7 @@ int32_t shmemi_heap_init(shmem_init_attr_t *attributes)
     }
     if (shm::g_ipport != nullptr) {
         delete[] shm::g_ipport;
+        shm::g_ipport = nullptr;
         attributes->ip_port = nullptr;
     } else {
         SHM_LOG_WARN("my_rank:" << attributes->my_rank << " shm::g_ipport is released in advance!");
