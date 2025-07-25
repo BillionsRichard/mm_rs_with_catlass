@@ -24,29 +24,26 @@ extern void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64
 extern void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
 extern void test_finalize(aclrtStream stream, int device_id);
 
-#define TEST_FUNC(NAME, TYPE)                                                                                           \
-    extern void TestUB##NAME##NonContiguousPut(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr);       \
-    extern void test_ub_##NAME##_non_contiguous_get(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr)
+#define TEST_FUNC(NAME, TYPE)                                                                                                                   \
+    extern void test_ub_##NAME##_non_contiguous_put(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr, int repeat, int length);  \
+    extern void test_ub_##NAME##_non_contiguous_get(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr, int repeat, int length)
 
 SHMEM_FUNC_TYPE_HOST(TEST_FUNC);
+
+constexpr int input_repeat = 32;
+constexpr int input_length = 32;
 
 #define TEST_UB_NON_CONTIGUOUS_PUT_GET(NAME, TYPE)                                                                              \
     static void TestUB##NAME##NonContiguousPutGet(aclrtStream stream, uint8_t *gva, uint32_t rank_id, uint32_t rank_size)       \
     {                                                                                                                           \
-        int row = 16;                                                                                                           \
-        int col = 32;                                                                                                           \
-        int total_size = row * col;                                                                                             \
+        int rank_flag = rank_id * 10; /* Used as input data*/                                                                   \
+        int total_size = input_repeat * input_length;                                                                           \
         size_t input_size = total_size * sizeof(TYPE);                                                                          \
                                                                                                                                 \
         std::vector<TYPE> input(total_size, 0);                                                                                 \
-        for (int i = 0; i < row; i++) {                                                                                         \
-            for (int j = 0; j < col / 2; j++) {                                                                                 \
-                input[i * col + j] = static_cast<TYPE>(rank_id * 10);                                                           \
-            }                                                                                                                   \
-        }                                                                                                                       \
-        for (int i = 0; i < row; i++) {                                                                                         \
-            for (int j = col / 2; j < col; j++) {                                                                               \
-                input[i * col + j] = static_cast<TYPE>(rank_id * 10) + static_cast<TYPE>(1);                                    \
+        for (int i = 0; i < input_repeat; i++) {                                                                                \
+            for (int j = 0; j < input_length; j++) {                                                                            \
+                input[i * input_length + j] = static_cast<TYPE>(rank_flag) + static_cast<TYPE>(i);                              \
             }                                                                                                                   \
         }                                                                                                                       \
                                                                                                                                 \
@@ -56,51 +53,20 @@ SHMEM_FUNC_TYPE_HOST(TEST_FUNC);
                                                                                                                                 \
         uint32_t block_dim = 1;                                                                                                 \
         void *ptr = shmem_malloc(total_size * sizeof(TYPE));                                                                    \
-        TestUB##NAME##NonContiguousPut(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);                                  \
+        test_ub_##NAME##_non_contiguous_put(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr, input_repeat, input_length); \
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                                           \
-        sleep(2);                                                                                                               \
                                                                                                                                 \
         ASSERT_EQ(aclrtMemcpy(input.data(), input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);                        \
-                                                                                                                                \
-        std::string p_name = "[Process " + std::to_string(rank_id) + "] ";                                                      \
-        if (rank_id == 0) {                                                                                                     \
-            std::cout << p_name << std::endl;                                                                                   \
-            for (int i = 0; i < total_size; i++) {                                                                              \
-                std::cout << static_cast<float>(input[i]) << " ";                                                               \
-                if (i % col == col - 1) {                                                                                       \
-                    std::cout << std::endl;                                                                                     \
-                }                                                                                                               \
-            }                                                                                                                   \
-        }                                                                                                                       \
-                                                                                                                                \
-        test_ub_##NAME##_non_contiguous_get(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);                             \
+        test_ub_##NAME##_non_contiguous_get(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr, input_repeat / 2, input_length); \
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                                           \
-        sleep(2);                                                                                                               \
                                                                                                                                 \
         ASSERT_EQ(aclrtMemcpy(input.data(), input_size, dev_ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);                    \
-                                                                                                                                \
-        if (rank_id == 0) {                                                                                                     \
-            std::cout << p_name << std::endl;                                                                                   \
-            for (int i = 0; i < total_size; i++) {                                                                              \
-                std::cout << static_cast<float>(input[i]) << " ";                                                               \
-                if (i % col == col - 1) {                                                                                       \
-                    std::cout << std::endl;                                                                                     \
-                }                                                                                                               \
-            }                                                                                                                   \
-        }                                                                                                                       \
-                                                                                                                                \
-        /* for gtest */                                                                                                         \ 
+        /* result check */                                                                                                      \
         int32_t flag = 0;                                                                                                       \
-        for (int i = 0; i < row; i++) {                                                                                         \
-            for (int j = 0; j < col / 2; j++) {                                                                                 \
+        for (int i = 0; i < input_repeat / 4; i++) {                                                                            \
+            for (int j = 0; j < input_length; j++) {                                                                            \
                 int golden = rank_id % rank_size;                                                                               \
-                if (input[i * col + j] != static_cast<TYPE>(golden * 10)) flag = 1;                                             \
-            }                                                                                                                   \
-        }                                                                                                                       \
-        for (int i = 0; i < row; i++) {                                                                                         \
-            for (int j = col / 2; j < col; j++) {                                                                               \
-                int golden = rank_id % rank_size;                                                                               \
-                if (input[i * col + j] != static_cast<TYPE>(golden * 10) + static_cast<TYPE>(1)) flag = 1;                      \
+                if (input[i * input_length + j] != static_cast<TYPE>(rank_flag) + static_cast<TYPE>(i * 4)) flag = 1;           \
             }                                                                                                                   \
         }                                                                                                                       \
         ASSERT_EQ(flag, 0);                                                                                                     \
