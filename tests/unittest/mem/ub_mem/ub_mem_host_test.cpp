@@ -15,6 +15,8 @@ extern void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64
 extern void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
 extern void test_finalize(aclrtStream stream, int device_id);
 
+const int test_mul = 10;
+
 #define TEST_FUNC(NAME, TYPE)                                                                           \
 extern void test_ub_##NAME##_put(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr);     \
 extern void test_ub_##NAME##_get(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr)
@@ -29,7 +31,7 @@ static void test_ub_##NAME##_put_get(aclrtStream stream, uint8_t *gva, uint32_t 
                                                                                                                 \
     std::vector<TYPE> input(total_size, 0);                                                                     \
     for (int i = 0; i < total_size; i++) {                                                                      \
-        input[i] = static_cast<TYPE>(rank_id * 10);                                                             \
+        input[i] = static_cast<TYPE>(rank_id * test_mul);                                                       \
     }                                                                                                           \
                                                                                                                 \
     void *dev_ptr;                                                                                              \
@@ -45,12 +47,14 @@ static void test_ub_##NAME##_put_get(aclrtStream stream, uint8_t *gva, uint32_t 
                                                                                                                 \
     ASSERT_EQ(aclrtMemcpy(input.data(), input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);            \
                                                                                                                 \
-    std::string p_name = "[Process " + std::to_string(rank_id) + "] ";                                          \
+#ifdef DEBUG                                                                                                    \
+    std::string p_name = "[Process " + std::to_string(rank_id) + " for DEBUG] ";                                \
     std::cout << p_name;                                                                                        \
     for (int i = 0; i < total_size; i++) {                                                                      \
         std::cout << static_cast<float>(input[i]) << " ";                                                       \
     }                                                                                                           \
     std::cout << std::endl;                                                                                     \
+#endif                                                                                                          \
                                                                                                                 \
     test_ub_##NAME##_get(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);                                \
     ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                               \
@@ -58,6 +62,7 @@ static void test_ub_##NAME##_put_get(aclrtStream stream, uint8_t *gva, uint32_t 
                                                                                                                 \
     ASSERT_EQ(aclrtMemcpy(input.data(), input_size, dev_ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);        \
                                                                                                                 \
+#ifdef DEBUG                                                                                                    \
     if (rank_id == 0) {                                                                                         \
         std::cout << p_name;                                                                                    \
         for (int i = 0; i < total_size; i++) {                                                                  \
@@ -65,12 +70,13 @@ static void test_ub_##NAME##_put_get(aclrtStream stream, uint8_t *gva, uint32_t 
         }                                                                                                       \
         std::cout << std::endl;                                                                                 \
     }                                                                                                           \
+#endif                                                                                                          \
                                                                                                                 \
-    /* for gtest */                                                                                             \
+    /* result check */                                                                                          \
     int32_t flag = 0;                                                                                           \
     for (int i = 0; i < total_size; i++) {                                                                      \
         int golden = rank_id % rank_size;                                                                       \
-        if (input[i] != static_cast<TYPE>(golden * 10)) flag = 1;                                               \
+        if (input[i] != static_cast<TYPE>(golden * test_mul)) flag = 1;                                         \
     }                                                                                                           \
     ASSERT_EQ(flag, 0);                                                                                         \
 }

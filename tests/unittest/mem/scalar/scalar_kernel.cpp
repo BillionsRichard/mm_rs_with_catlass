@@ -20,12 +20,13 @@ public:                                                                         
         gva_gm = (__gm__ TYPE *)gva;                                                    \
         dev_gm = (__gm__ TYPE *)dev;                                                    \
                                                                                         \
-        rank = smem_shm_get_global_rank();                                              \
-        rank_size = smem_shm_get_global_rank_size();                                    \
+        rank = shmem_my_pe();                                                           \
+        rank_size = shmem_n_pes();                                                      \
     }                                                                                   \
     __aicore__ inline void Process()                                                    \
     {                                                                                   \
         shmem_##NAME##_p(gva_gm, *dev_gm, (rank + 1) % rank_size);                      \
+        shmemx_barrier_all_vec();                                                       \
     }                                                                                   \
 private:                                                                                \
     __gm__ TYPE *gva_gm;                                                                \   
@@ -64,13 +65,14 @@ public:                                                                         
         gva_gm = (__gm__ TYPE *)gva;                                                    \
         dev_gm = (__gm__ TYPE *)dev;                                                    \
                                                                                         \
-        rank = smem_shm_get_global_rank();                                              \
-        rank_size = smem_shm_get_global_rank_size();                                    \
+        rank = shmem_my_pe();                                                           \
+        rank_size = shmem_n_pes();                                                      \
     }                                                                                   \
     __aicore__ inline void Process()                                                    \
     {                                                                                   \
         TYPE val = shmem_##NAME##_g(gva_gm, (rank + 1) % rank_size);                    \
         *dev_gm = val;                                                                  \
+        shmemx_barrier_all_vec();                                                       \
     }                                                                                   \
 private:                                                                                \
     __gm__ TYPE *gva_gm;                                                                \   

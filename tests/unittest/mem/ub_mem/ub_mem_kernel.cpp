@@ -22,8 +22,8 @@ public:                                                                         
         gva_gm = (__gm__ TYPE *)gva;                                                                                                        \
         dev_gm = (__gm__ TYPE *)dev;                                                                                                        \
                                                                                                                                             \
-        rank = smem_shm_get_global_rank();                                                                                                  \
-        rank_size = smem_shm_get_global_rank_size();                                                                                        \
+        rank = shmem_my_pe();                                                                                                  \
+        rank_size = shmem_n_pes();                                                                                        \
                                                                                                                                             \
         /* set GM Buffer */                                                                                                                 \                                                                                                        
         src_gm.SetGlobalBuffer(dev_gm);                                                                                                     \
@@ -85,16 +85,16 @@ void test_ub_##NAME##_put(uint32_t block_dim, void* stream, uint8_t* gva, uint8_
 SHMEM_FUNC_TYPE_KERNEL(TEST_UB_PUT);
 
 #define KERNEL_UB_GET_NUM(NAME, TYPE)                                                                                                               \
-class KernelUB##NAME##GetNum {                                                                                                                      \
+class kernel_ub_##NAME##_get_num {                                                                                                                  \
 public:                                                                                                                                             \
-    __aicore__ inline KernelUB##NAME##GetNum() {}                                                                                                   \
+    __aicore__ inline kernel_ub_##NAME##_get_num() {}                                                                                               \
     __aicore__ inline void Init(GM_ADDR gva, GM_ADDR dev)                                                                                           \
     {                                                                                                                                               \
         gva_gm = (__gm__ TYPE *)gva;                                                                                                                \
         dev_gm = (__gm__ TYPE *)dev;                                                                                                                \
                                                                                                                                                     \
-        rank = smem_shm_get_global_rank();                                                                                                          \
-        rank_size = smem_shm_get_global_rank_size();                                                                                                \
+        rank = shmem_my_pe();                                                                                                                       \
+        rank_size = shmem_n_pes();                                                                                                                  \
                                                                                                                                                     \
         /* set GM Buffer */                                                                                                                         \
         src_gm.SetGlobalBuffer(gva_gm);                                                                                                             \
@@ -139,12 +139,12 @@ private:                                                                        
 
 SHMEM_FUNC_TYPE_KERNEL(KERNEL_UB_GET_NUM);
 
-#define UB_GET_NUM_TEST(NAME, TYPE)                                                     \
-extern "C" __global__ __aicore__ void UB##NAME##GetNumTest(GM_ADDR gva, GM_ADDR dev)    \
-{                                                                                       \
-    KernelUB##NAME##GetNum op;                                                          \
-    op.Init(gva, dev);                                                                  \
-    op.Process();                                                                       \
+#define UB_GET_NUM_TEST(NAME, TYPE)                                                         \
+extern "C" __global__ __aicore__ void ub_##NAME##_get_num_test(GM_ADDR gva, GM_ADDR dev)    \
+{                                                                                           \
+    kernel_ub_##NAME##_get_num op;                                                          \
+    op.Init(gva, dev);                                                                      \
+    op.Process();                                                                           \
 }
 
 SHMEM_FUNC_TYPE_KERNEL(UB_GET_NUM_TEST);
@@ -152,7 +152,7 @@ SHMEM_FUNC_TYPE_KERNEL(UB_GET_NUM_TEST);
 #define TEST_UB_GET(NAME, TYPE)                                                             \
 void test_ub_##NAME##_get(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev)     \
 {                                                                                           \
-    UB##NAME##GetNumTest<<<block_dim, nullptr, stream>>>(gva, dev);                         \
+    ub_##NAME##_get_num_test<<<block_dim, nullptr, stream>>>(gva, dev);                     \
 }
 
 SHMEM_FUNC_TYPE_KERNEL(TEST_UB_GET);

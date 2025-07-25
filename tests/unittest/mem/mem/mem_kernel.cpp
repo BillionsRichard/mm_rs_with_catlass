@@ -3,6 +3,10 @@
 #include "shmem_api.h"
 #include "../utils/func_type.h"
 
+const int nmem = 16;
+const int ub_size = 256;
+const int buffer_size = 4096;
+
 #define KERNEL_PUT_NUM(NAME, TYPE)                                                                                              \
 class kernel_##NAME##_put_num {                                                                                                 \
 public:                                                                                                                         \
@@ -12,20 +16,21 @@ public:                                                                         
         gva_gm = (__gm__ TYPE *)gva;                                                                                            \
         dev_gm = (__gm__ TYPE *)dev;                                                                                            \
                                                                                                                                 \
-        rank = smem_shm_get_global_rank();                                                                                      \
-        rank_size = smem_shm_get_global_rank_size();                                                                            \
+        rank = shmem_my_pe();                                                                                                   \
+        rank_size = shmem_n_pes();                                                                                              \
                                                                                                                                 \
         /* 1x4096 Bytes Buffer */                                                                                               \           
-        pipe.InitBuffer(buf_queue, 1,4096);                                                                                     \
+        pipe.InitBuffer(buf_queue, 1, buffer_size);                                                                             \
     }                                                                                                                           \
     __aicore__ inline void Process()                                                                                            \
     {                                                                                                                           \
         AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                                  \
         __ubuf__ TYPE *buf = (__ubuf__ TYPE *)buf_tensor.address_.bufferAddr;                                                   \
-        shmem_mte_put_mem_nbi(gva_gm, dev_gm, buf, (uint32_t)256, rank_size / 2 * 16, rank, EVENT_ID0);                         \
+        shmem_mte_put_mem_nbi(gva_gm, dev_gm, buf, (uint32_t)ub_size, rank_size / 2 * nmem, rank, EVENT_ID0);                   \
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                             \
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                            \
-        shmem_put_##NAME##_mem_nbi(gva_gm + rank_size / 2 * 16, dev_gm + rank_size / 2 * 16, rank_size / 2 * 16, rank);         \
+        shmem_put_##NAME##_mem_nbi(gva_gm + rank_size / 2 * nmem, dev_gm + rank_size / 2 * nmem, rank_size / 2 * nmem, rank);   \
+        shmemx_barrier_all_vec();                                                                                               \
         buf_queue.FreeTensor(buf_tensor);                                                                                       \
     }                                                                                                                           \
 private:                                                                                                                        \
@@ -68,11 +73,11 @@ public:                                                                         
         gva_gm = (__gm__ TYPE *)gva;                                                                                                \
         dev_gm = (__gm__ TYPE *)dev;                                                                                                \
                                                                                                                                     \
-        rank = smem_shm_get_global_rank();                                                                                          \
-        rank_size = smem_shm_get_global_rank_size();                                                                                \
+        rank = shmem_my_pe();                                                                                                       \
+        rank_size = shmem_n_pes();                                                                                                  \
                                                                                                                                     \
         /* 1x4096 Bytes Buffer */                                                                                                   \
-        pipe.InitBuffer(buf_queue, 1, 4096);                                                                                        \
+        pipe.InitBuffer(buf_queue, 1, buffer_size);                                                                                 \
     }                                                                                                                               \
     __aicore__ inline void Process()                                                                                                \
     {                                                                                                                               \
@@ -80,17 +85,18 @@ public:                                                                         
         __ubuf__ TYPE *buf = (__ubuf__ TYPE *)buf_tensor.address_.bufferAddr;                                                       \
                                                                                                                                     \
         for (int i = 0; i < rank_size / 2; i++) {                                                                                   \
-            shmem_mte_get_mem_nbi(dev_gm + 16 * i, gva_gm, buf, (uint32_t)256, 16, i % rank_size, EVENT_ID0);                       \
+            shmem_mte_get_mem_nbi(dev_gm + nmem * i, gva_gm, buf, (uint32_t)ub_size, nmem, i % rank_size, EVENT_ID0);               \
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                             \
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                            \
         }                                                                                                                           \
                                                                                                                                     \
         for (int i = rank_size / 2; i < rank_size; i++) {                                                                           \
-            shmem_get_##NAME##_mem_nbi(dev_gm + 16 * i, gva_gm, 16, i % rank_size);                                                 \          
+            shmem_get_##NAME##_mem_nbi(dev_gm + nmem * i, gva_gm, nmem, i % rank_size);                                             \          
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                             \
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                            \
         }                                                                                                                           \
                                                                                                                                     \
+        shmemx_barrier_all_vec();                                                                                                   \
         buf_queue.FreeTensor(buf_tensor);                                                                                           \
     }                                                                                                                               \
 private:                                                                                                                            \

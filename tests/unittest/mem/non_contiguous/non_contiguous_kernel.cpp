@@ -12,6 +12,10 @@
 #include "shmem_api.h"
 #include "../utils/func_type.h"
 
+const int nmem = 16;
+const int ub_size = 256;
+const int buffer_size = 4096;
+
 #define KERNEL_PUT_NUM_NON_CONTIGUOUS(NAME, TYPE)                                                                               \
 class kernel_##NAME##_put_num_non_contiguous {                                                                                  \
 public:                                                                                                                         \
@@ -21,11 +25,11 @@ public:                                                                         
         gva_gm = (__gm__ TYPE *)gva;                                                                                            \
         dev_gm = (__gm__ TYPE *)dev;                                                                                            \
                                                                                                                                 \
-        rank = smem_shm_get_global_rank();                                                                                      \
-        rank_size = smem_shm_get_global_rank_size();                                                                            \
+        rank = shmem_my_pe();                                                                                                   \
+        rank_size = shmem_n_pes();                                                                                              \
                                                                                                                                 \
         /* 1x4096 Bytes Buffer */                                                                                               \           
-        pipe.InitBuffer(buf_queue, 1, 4096);                                                                                    \
+        pipe.InitBuffer(buf_queue, 1, buffer_size);                                                                             \
     }                                                                                                                           \
     __aicore__ inline void Process()                                                                                            \
     {                                                                                                                           \
@@ -33,13 +37,14 @@ public:                                                                         
         __ubuf__ TYPE *buf = (__ubuf__ TYPE *)buf_tensor.address_.bufferAddr;                                                   \
         non_contiguous_copy_param copy_params;                                                                                  \
         copy_params.repeat = rank_size;                                                                                         \
-        copy_params.length = 8;                                                                                                 \
-        copy_params.src_ld = 16;                                                                                                \
-        copy_params.dst_ld = 16;                                                                                                \
-        shmem_mte_put_mem_nbi(gva_gm, dev_gm, buf, (uint32_t)256, copy_params, rank, EVENT_ID0);                                \
+        copy_params.length = nmem / 2;                                                                                          \
+        copy_params.src_ld = nmem;                                                                                              \
+        copy_params.dst_ld = nmem;                                                                                              \
+        shmem_mte_put_mem_nbi(gva_gm, dev_gm, buf, (uint32_t)ub_size, copy_params, rank, EVENT_ID0);                            \
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                             \
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                            \
         shmem_put_##NAME##_mem_nbi(gva_gm + rank_size / 2, dev_gm + rank_size / 2, copy_params, rank);                          \
+        shmemx_barrier_all_vec();                                                                                               \
         buf_queue.FreeTensor(buf_tensor);                                                                                       \
     }                                                                                                                           \
 private:                                                                                                                        \
@@ -82,11 +87,11 @@ public:                                                                         
         gva_gm = (__gm__ TYPE *)gva;                                                                                                \
         dev_gm = (__gm__ TYPE *)dev;                                                                                                \
                                                                                                                                     \
-        rank = smem_shm_get_global_rank();                                                                                          \
-        rank_size = smem_shm_get_global_rank_size();                                                                                \
+        rank = shmem_my_pe();                                                                                                       \
+        rank_size = shmem_n_pes();                                                                                                  \
                                                                                                                                     \
         /* 1x4096 Bytes Buffer */                                                                                                   \
-        pipe.InitBuffer(buf_queue, 1, 4096);                                                                                        \
+        pipe.InitBuffer(buf_queue, 1, buffer_size);                                                                                 \
     }                                                                                                                               \
     __aicore__ inline void Process()                                                                                                \
     {                                                                                                                               \
@@ -95,17 +100,18 @@ public:                                                                         
                                                                                                                                     \
         non_contiguous_copy_param copy_params;                                                                                      \
         copy_params.repeat = rank_size;                                                                                             \
-        copy_params.length = 8;                                                                                                     \
-        copy_params.src_ld = 16;                                                                                                    \
-        copy_params.dst_ld = 16;                                                                                                    \
+        copy_params.length = nmem / 2;                                                                                              \
+        copy_params.src_ld = nmem;                                                                                                  \
+        copy_params.dst_ld = nmem;                                                                                                  \
                                                                                                                                     \
-        shmem_mte_get_mem_nbi(dev_gm, gva_gm, buf, (uint32_t)256, copy_params, rank, EVENT_ID0);                                    \
+        shmem_mte_get_mem_nbi(dev_gm, gva_gm, buf, (uint32_t)ub_size, copy_params, rank, EVENT_ID0);                                \
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                 \
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                \
         shmem_get_##NAME##_mem_nbi(dev_gm + rank_size / 2, gva_gm + rank_size / 2, copy_params, rank);                              \          
         AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                 \
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                \
                                                                                                                                     \
+        shmemx_barrier_all_vec();                                                                                                   \
         buf_queue.FreeTensor(buf_tensor);                                                                                           \
     }                                                                                                                               \
 private:                                                                                                                            \
