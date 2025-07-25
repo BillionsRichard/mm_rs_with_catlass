@@ -24,104 +24,99 @@ extern void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64
 extern void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
 extern void test_finalize(aclrtStream stream, int device_id);
 
-const int nmem = 16;
-const int test_offset = 10;
-
-#define TEST_FUNC(NAME, TYPE)                                                                                           \
-extern void test_g2g_##NAME##_non_contiguous_put(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr);     \
-extern void test_g2g_##NAME##_non_contiguous_get(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr)
+#define TEST_FUNC(NAME, TYPE)                                                                                                                       \
+    extern void test_g2g_##NAME##_non_contiguous_put(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr, int repeat, int length);     \
+    extern void test_g2g_##NAME##_non_contiguous_get(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr, int repeat, int length)
 
 SHMEM_FUNC_TYPE_HOST(TEST_FUNC);
 
-#define TEST_G2G_NON_CONTIGUOUS_PUT_GET(NAME, TYPE)                                                                             \
-static void test_g2g_##NAME##_non_contiguous_put_get(aclrtStream stream, uint8_t *gva, uint32_t rank_id, uint32_t rank_size)    \
-{                                                                                                                               \
-    int total_size = nmem * (int)rank_size * 2;                                                                                 \
-    size_t input_size = total_size * sizeof(TYPE);                                                                              \
-                                                                                                                                \
-    std::vector<TYPE> input(total_size, 0);                                                                                     \
-    for (int i = 0; i < rank_size; i++) {                                                                                       \
-        for (int j = 0; j < nmem / 2; ++j) {                                                                                    \
-            input[i * nmem + j] = static_cast<TYPE>(rank_id * test_offset);                                                     \
-        }                                                                                                                       \
-        for (int j = nmem / 2; j < nmem; ++j) {                                                                                 \
-            input[i * nmem + j] = static_cast<TYPE>(rank_id * test_offset + 1);                                                 \
-        }                                                                                                                       \
-    }                                                                                                                           \
-                                                                                                                                \
-    void *dev_ptr;                                                                                                              \
-    ASSERT_EQ(aclrtMalloc(&dev_ptr, input_size, ACL_MEM_MALLOC_NORMAL_ONLY), 0);                                                \
-                                                                                                                                \
-    ASSERT_EQ(aclrtMemcpy(dev_ptr, input_size, input.data(), input_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);                        \
-                                                                                                                                \
-    uint32_t block_dim = 1;                                                                                                     \
-    void *ptr = shmem_malloc(input_size);                                                                                       \
-    test_g2g_##NAME##_non_contiguous_put(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);                                \
-    ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                                               \
-                                                                                                                                \
-    ASSERT_EQ(aclrtMemcpy(input.data(), input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);                            \
-                                                                                                                                \
-#ifdef DEBUG                                                                                                                    \
-    std::string p_name = "[Process " + std::to_string(rank_id) + " for DEBUG] ";                                                \
-    std::cout << p_name;                                                                                                        \
-    for (int i = 0; i < total_size; i++) {                                                                                      \
-        std::cout << static_cast<float>(input[i]) << " ";                                                                       \
-    }                                                                                                                           \
-    std::cout << std::endl;                                                                                                     \
-#endif                                                                                                                          \
-                                                                                                                                \
-    test_g2g_##NAME##_non_contiguous_get(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);                                \     
-    ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                                               \
-                                                                                                                                \
-    ASSERT_EQ(aclrtMemcpy(input.data(), input_size, dev_ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);                        \
-                                                                                                                                \
-#ifdef DEBUG                                                                                                                    \
-    std::cout << p_name;                                                                                                        \
-    for (int i = 0; i < total_size; i++) {                                                                                      \
-        std::cout << static_cast<float>(input[i]) << " ";                                                                       \
-    }                                                                                                                           \
-    std::cout << std::endl;                                                                                                     \
-#endif                                                                                                                          \
-    /* result check */                                                                                                          \
-    int32_t flag = 0;                                                                                                           \
-    for (int i = 0; i < rank_size; i++){                                                                                        \  
-        for (int j = 0; j < nmem / 2; ++j) {                                                                                    \
-            int stage = rank_id * test_offset;                                                                                  \
-            if (input[i * nmem + j] != static_cast<TYPE>(stage)) flag = 1;                                                      \
-        }                                                                                                                       \
-        for (int j = nmem / 2; j < nmem; ++j) {                                                                                 \
-            int stage = rank_id * test_offset + 1;                                                                              \
-            if (input[i * nmem + j] != static_cast<TYPE>(stage)) flag = 1;                                                      \
-        }                                                                                                                       \
-    }                                                                                                                           \
-    ASSERT_EQ(flag, 0);                                                                                                         \
-}
+constexpr int input_repeat = 16;
+constexpr int input_length = 32;
+
+#define TEST_G2G_NON_CONTIGUOUS_PUT_GET(NAME, TYPE)                                                                                 \
+    static void test_g2g_##NAME##_non_contiguous_put_get(aclrtStream stream, uint8_t *gva, uint32_t rank_id, uint32_t rank_size)    \
+    {                                                                                                                               \
+        int rank_flag = rank_id * 10; /* Used as input data*/                                                                       \
+        int total_size = input_repeat * input_length;                                                                               \
+        size_t input_size = total_size * sizeof(TYPE);                                                                              \
+                                                                                                                                    \
+        std::vector<TYPE> input(total_size, 0);                                                                                     \
+        for (int i = 0; i < input_repeat; i++) {                                                                                    \
+            for (int j = 0; j < input_length; j++) {                                                                                \
+                input[i * input_length + j] = static_cast<TYPE>(rank_flag) + static_cast<TYPE>(i);                                  \
+            }                                                                                                                       \
+        }                                                                                                                           \
+                                                                                                                                    \
+        void *dev_ptr;                                                                                                              \
+        ASSERT_EQ(aclrtMalloc(&dev_ptr, input_size, ACL_MEM_MALLOC_NORMAL_ONLY), 0);                                                \
+        ASSERT_EQ(aclrtMemcpy(dev_ptr, input_size, input.data(), input_size, ACL_MEMCPY_HOST_TO_DEVICE), 0);                        \
+                                                                                                                                    \
+        uint32_t block_dim = 1;                                                                                                     \
+        void *ptr = shmem_malloc(total_size * sizeof(TYPE));                                                                        \
+        test_g2g_##NAME##_non_contiguous_put(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr, input_repeat, input_length);    \
+        ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                                               \
+                                                                                                                                    \
+        ASSERT_EQ(aclrtMemcpy(input.data(), input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);                            \
+                                                                                                                                    \
+    #ifdef DEBUG                                                                                                                    \
+        std::string p_name = "[Process " + std::to_string(rank_id) + " for DEBUG] ";                                                \
+        std::cout << p_name;                                                                                                        \
+        for (int i = 0; i < total_size; i++) {                                                                                      \
+            std::cout << static_cast<float>(input[i]) << " ";                                                                       \
+        }                                                                                                                           \
+        std::cout << std::endl;                                                                                                     \
+    #endif                                                                                                                          \
+                                                                                                                                    \
+        test_g2g_##NAME##_non_contiguous_get(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr, input_repeat / 2, input_length);\
+        ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                                               \
+                                                                                                                                    \
+        ASSERT_EQ(aclrtMemcpy(input.data(), input_size, dev_ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);                        \
+                                                                                                                                    \
+    #ifdef DEBUG                                                                                                                    \
+        std::cout << p_name;                                                                                                        \
+        for (int i = 0; i < total_size; i++) {                                                                                      \
+            std::cout << static_cast<float>(input[i]) << " ";                                                                       \
+        }                                                                                                                           \
+        std::cout << std::endl;                                                                                                     \
+    #endif                                                                                                                          \
+        /* result check */                                                                                                          \
+        int32_t flag = 0;                                                                                                           \
+        for (int i = 0; i < input_repeat / 4; i++) {                                                                                \
+            for (int j = 0; j < input_length; j++) {                                                                                \
+                int golden = rank_id % rank_size;                                                                                   \
+                if (input[i * input_length + j] != static_cast<TYPE>(rank_flag) + static_cast<TYPE>(i * 4)) flag = 1;               \
+            }                                                                                                                       \
+        }                                                                                                                           \
+        ASSERT_EQ(flag, 0);                                                                                                         \
+    }
 
 SHMEM_FUNC_TYPE_HOST(TEST_G2G_NON_CONTIGUOUS_PUT_GET);
 
-#define TEST_G2G_SHMEM_NON_CONTIGUOUS(NAME,TYPE)                                                                \
-void test_g2g_##NAME##_shmem_non_contiguous(int rank_id, int n_ranks, uint64_t local_mem_size) {                \
-    int32_t device_id = rank_id % test_gnpu_num + test_first_npu;                                               \
-    aclrtStream stream;                                                                                         \
-    test_init(rank_id, n_ranks, local_mem_size, &stream);                                                       \
-    ASSERT_NE(stream, nullptr);                                                                                 \
-                                                                                                                \
-    test_g2g_##NAME##_non_contiguous_put_get(stream, (uint8_t *)shm::g_state.heap_base, rank_id, n_ranks);      \
-    std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;                                \
-    test_finalize(stream, device_id);                                                                           \
-    if (::testing::Test::HasFailure()){                                                                         \
-        exit(1);                                                                                                \
-    }                                                                                                           \
-}
+#define TEST_G2G_SHMEM_NON_CONTIGUOUS(NAME,TYPE)                                                                    \
+    void test_g2g_##NAME##_shmem_non_contiguous(int rank_id, int n_ranks, uint64_t local_mem_size) {                \
+        int32_t device_id = rank_id % test_gnpu_num + test_first_npu;                                               \
+        aclrtStream stream;                                                                                         \
+        test_init(rank_id, n_ranks, local_mem_size, &stream);                                                       \
+        ASSERT_NE(stream, nullptr);                                                                                 \
+                                                                                                                    \
+        test_g2g_##NAME##_non_contiguous_put_get(stream, (uint8_t *)shm::g_state.heap_base, rank_id, n_ranks);      \
+    #ifdef DEBUG                                                                                                    \
+        std::cout << "[TEST for DEBUG] begin to exit...... rank_id: " << rank_id << std::endl;                      \
+    #endif                                                                                                          \
+        test_finalize(stream, device_id);                                                                           \
+        if (::testing::Test::HasFailure()){                                                                         \
+            exit(1);                                                                                                \
+        }                                                                                                           \
+    }
 
 SHMEM_FUNC_TYPE_HOST(TEST_G2G_SHMEM_NON_CONTIGUOUS);
 
-#define TESTAPI(NAME, TYPE)                                                                     \
-TEST(TestMemApi, TestG2G##NAME##ShmemNonContiguous)                                             \
-{                                                                                               \
-    const int process_count = test_gnpu_num;                                                    \
-    uint64_t local_mem_size = 1024UL * 1024UL * 1024;                                           \
-    test_mutil_task(test_g2g_##NAME##_shmem_non_contiguous, local_mem_size, process_count);     \
-}
+#define TESTAPI(NAME, TYPE)                                                                         \
+    TEST(TestMemApi, TestG2G##NAME##ShmemNonContiguous)                                             \
+    {                                                                                               \
+        const int process_count = test_gnpu_num;                                                    \
+        uint64_t local_mem_size = 1024UL * 1024UL * 1024;                                           \
+        test_mutil_task(test_g2g_##NAME##_shmem_non_contiguous, local_mem_size, process_count);     \
+    }
 
 SHMEM_FUNC_TYPE_HOST(TESTAPI);

@@ -44,7 +44,7 @@
             non_contiguous_copy_param copy_params;                                                                                      \
             /* Test all overloaded interfaces, divide task into 4 pieces. */                                                            \
             int task_repeat = repeat / 4;                                                                                               \
-            copy_params.repeat = task_repeat / 2;   /* Only copy even lines. */                                                          \
+            copy_params.repeat = task_repeat / 2;   /* Only copy even lines. */                                                         \
             copy_params.length = length;                                                                                                \
             copy_params.src_ld = 2 * length;                                                                                            \
             copy_params.dst_ld = length;                                                                                                \
