@@ -23,6 +23,10 @@ const int ub_size = 256;
             gva_gm = (__gm__ TYPE *)gva;                                                                                            \
             dev_gm = (__gm__ TYPE *)dev;                                                                                            \
                                                                                                                                     \
+            /* set GM Buffer */                                                                                                     \
+            src_gm.SetGlobalBuffer(dev_gm);                                                                                         \
+            dst_gm.SetGlobalBuffer(gva_gm);                                                                                         \
+                                                                                                                                    \
             rank = shmem_my_pe();                                                                                                   \
             rank_size = shmem_n_pes();                                                                                              \
                                                                                                                                     \
@@ -34,9 +38,13 @@ const int ub_size = 256;
             AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                                  \
             uintptr_t addr = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);                                                \
             __ubuf__ TYPE *buf = (__ubuf__ TYPE *)addr;                                                                             \
+                                                                                                                                    \
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                             \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                            \
+                                                                                                                                    \
             non_contiguous_copy_param copy_params;                                                                                  \
             /* Test all overloaded interfaces, divide task into 4 pieces. */                                                        \
-            int task_repeat = repeat / 2;                                                                                           \
+            int task_repeat = repeat / 4;                                                                                           \
             copy_params.repeat = task_repeat / 2;   /* Only copy even lines. */                                                     \
             copy_params.length = length;                                                                                            \
             copy_params.src_ld = 2 * length;                                                                                        \
@@ -44,10 +52,14 @@ const int ub_size = 256;
                                                                                                                                     \
             int src_offset = task_repeat * length;                                                                                  \
             int dst_offset = task_repeat / 2 * length;                                                                              \
-            shmem_mte_put_mem_nbi(gva_gm, dev_gm, buf, (uint32_t)ub_size, copy_params, (rank + 1) % rank_size, EVENT_ID0);          \
-            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                             \
-            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                            \
-            shmem_put_##NAME##_mem_nbi(gva_gm + dst_offset, dev_gm + src_offset, copy_params, (rank + 1) % rank_size);              \
+            shmem_mte_put_mem_nbi(gva_gm + dst_offset * 0, dev_gm + src_offset * 0, buf, (uint32_t)ub_size, copy_params, (rank + 1) % rank_size, EVENT_ID0);        \
+            AscendC::PipeBarrier<PIPE_ALL>();                                                                                       \
+            shmem_mte_put_mem_nbi(dst_gm[dst_offset * 1], src_gm[src_offset * 1], buf_tensor, copy_params, (rank + 1) % rank_size, EVENT_ID0);                      \
+            AscendC::PipeBarrier<PIPE_ALL>();                                                                                       \
+            shmem_put_##NAME##_mem_nbi(gva_gm + dst_offset * 2, dev_gm + src_offset * 2, copy_params, (rank + 1) % rank_size);      \
+            AscendC::PipeBarrier<PIPE_ALL>();                                                                                       \
+            shmem_put_##NAME##_mem_nbi(dst_gm[dst_offset * 3], src_gm[src_offset * 3], copy_params, (rank + 1) % rank_size);        \
+                                                                                                                                    \
             shmemx_barrier_all_vec();                                                                                               \
             buf_queue.FreeTensor(buf_tensor);                                                                                       \
         }                                                                                                                           \
@@ -57,6 +69,7 @@ const int ub_size = 256;
                                                                                                                                     \
         __gm__ TYPE *gva_gm;                                                                                                        \
         __gm__ TYPE *dev_gm;                                                                                                        \
+        AscendC::GlobalTensor<TYPE> src_gm, dst_gm;                                                                                 \
                                                                                                                                     \
         int64_t rank;                                                                                                               \
         int64_t rank_size;                                                                                                          \
@@ -91,6 +104,10 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_NON_CONTIGUOUS_PUT);
             gva_gm = (__gm__ TYPE *)gva;                                                                                                \
             dev_gm = (__gm__ TYPE *)dev;                                                                                                \
                                                                                                                                         \
+            /* set GM Buffer */                                                                                                         \
+            src_gm.SetGlobalBuffer(gva_gm);                                                                                             \
+            dst_gm.SetGlobalBuffer(dev_gm);                                                                                             \
+                                                                                                                                        \
             rank = shmem_my_pe();                                                                                                       \
             rank_size = shmem_n_pes();                                                                                                  \
                                                                                                                                         \
@@ -105,7 +122,7 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_NON_CONTIGUOUS_PUT);
                                                                                                                                         \
             non_contiguous_copy_param copy_params;                                                                                      \
             /* Test all overloaded interfaces, divide task into 4 pieces. */                                                            \
-            int task_repeat = repeat / 2;                                                                                               \
+            int task_repeat = repeat / 4;                                                                                               \
             copy_params.repeat = task_repeat / 2;   /* Only copy even lines. */                                                         \
             copy_params.length = length;                                                                                                \
             copy_params.src_ld = 2 * length;                                                                                            \
@@ -114,10 +131,14 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_NON_CONTIGUOUS_PUT);
             int src_offset = task_repeat * length;                                                                                      \
             int dst_offset = task_repeat / 2 * length;                                                                                  \
                                                                                                                                         \
-            shmem_mte_get_mem_nbi(dev_gm, gva_gm, buf, (uint32_t)ub_size, copy_params, (rank + 1) % rank_size, EVENT_ID0);              \
-            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                 \
-            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                \
-            shmem_get_##NAME##_mem_nbi(dev_gm + dst_offset, gva_gm + src_offset, copy_params, (rank + 1) % rank_size);                  \
+            shmem_mte_get_mem_nbi(dev_gm + dst_offset * 0, gva_gm + src_offset * 0, buf, (uint32_t)ub_size, copy_params, (rank + 1) % rank_size, EVENT_ID0);        \
+            AscendC::PipeBarrier<PIPE_ALL>();                                                                                           \
+            shmem_mte_get_mem_nbi(dst_gm[dst_offset * 1], src_gm[src_offset * 1], buf_tensor, copy_params, (rank + 1) % rank_size, EVENT_ID0);                      \
+            AscendC::PipeBarrier<PIPE_ALL>();                                                                                           \
+            shmem_get_##NAME##_mem_nbi(dev_gm + dst_offset * 2, gva_gm + src_offset * 2, copy_params, (rank + 1) % rank_size);          \
+            AscendC::PipeBarrier<PIPE_ALL>();                                                                                           \
+            shmem_get_##NAME##_mem_nbi(dst_gm[dst_offset * 3], src_gm[src_offset * 3], copy_params, (rank + 1) % rank_size);            \
+                                                                                                                                        \
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                 \
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                \
                                                                                                                                         \
@@ -129,6 +150,7 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_NON_CONTIGUOUS_PUT);
         AscendC::TQue<AscendC::TPosition::VECIN, 2> buf_queue;                                                                          \
         __gm__ TYPE *gva_gm;                                                                                                            \
         __gm__ TYPE *dev_gm;                                                                                                            \
+        AscendC::GlobalTensor<TYPE> src_gm, dst_gm;                                                                                     \
                                                                                                                                         \
         int64_t rank;                                                                                                                   \
         int64_t rank_size;                                                                                                              \

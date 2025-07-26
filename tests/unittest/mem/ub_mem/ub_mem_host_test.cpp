@@ -43,13 +43,11 @@ SHMEM_FUNC_TYPE_HOST(TEST_FUNC);
         void *ptr = shmem_malloc(total_size * sizeof(TYPE));                                                        \
         test_ub_##NAME##_put(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);                                \
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                               \
-        sleep(2);                                                                                                   \
                                                                                                                     \
         ASSERT_EQ(aclrtMemcpy(input.data(), input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);            \
                                                                                                                     \
         test_ub_##NAME##_get(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);                                \
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                               \
-        sleep(2);                                                                                                   \
                                                                                                                     \
         ASSERT_EQ(aclrtMemcpy(input.data(), input_size, dev_ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);        \
                                                                                                                     \

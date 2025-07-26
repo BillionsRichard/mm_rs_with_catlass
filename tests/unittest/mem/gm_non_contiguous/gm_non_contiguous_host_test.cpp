@@ -94,7 +94,7 @@ SHMEM_FUNC_TYPE_HOST(TEST_NON_CONTIGUOUS_PUT_GET);
 SHMEM_FUNC_TYPE_HOST(TEST_SHMEM_NON_CONTIGUOUS);
 
 #define TESTAPI(NAME, TYPE)                                                                     \
-    TEST(TestMemApi, Test##NAME##ShmemNonContiguous)                                            \
+    TEST(TestMemApi, TestShmemGM##NAME##NonContiguous)                                            \
     {                                                                                           \
         const int process_count = test_gnpu_num;                                                \
         uint64_t local_mem_size = 1024UL * 1024UL * 1024;                                       \

@@ -24,7 +24,7 @@ extern void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64
 extern void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
 extern void test_finalize(aclrtStream stream, int device_id);
 
-const int nmem = 16;
+const int input_length = 16;
 const int test_offset = 10;
 
 #define TEST_FUNC(NAME, TYPE)                                                                               \
@@ -36,11 +36,11 @@ SHMEM_FUNC_TYPE_HOST(TEST_FUNC);
 #define TEST_PUT_GET(NAME, TYPE)                                                                                            \
     static void test_##NAME##_put_get(aclrtStream stream, uint8_t *gva, uint32_t rank_id, uint32_t rank_size)               \
     {                                                                                                                       \
-        int total_size = nmem * (int)rank_size;                                                                             \
+        int total_size = input_length * (int)rank_size;                                                                     \
         size_t input_size = total_size * sizeof(TYPE);                                                                      \
                                                                                                                             \
         std::vector<TYPE> input(total_size, 0);                                                                             \
-        for (int i = 0; i < nmem; i++) {                                                                                    \
+        for (int i = 0; i < input_length; i++) {                                                                            \
             input[i] = static_cast<TYPE>(rank_id + test_offset);                                                            \
         }                                                                                                                   \
                                                                                                                             \
@@ -64,7 +64,7 @@ SHMEM_FUNC_TYPE_HOST(TEST_FUNC);
         /* result check */                                                                                                  \
         int32_t flag = 0;                                                                                                   \
         for (int i = 0; i < total_size; i++){                                                                               \
-            int stage = i / nmem;                                                                                           \
+            int stage = i / input_length;                                                                                   \
             if (input[i] != static_cast<TYPE>(stage + test_offset)) flag = 1;                                               \
         }                                                                                                                   \
         ASSERT_EQ(flag, 0);                                                                                                 \
@@ -80,7 +80,7 @@ SHMEM_FUNC_TYPE_HOST(TEST_PUT_GET);
         ASSERT_NE(stream, nullptr);                                                                 \
                                                                                                     \
         test_##NAME##_put_get(stream, (uint8_t *)shm::g_state.heap_base, rank_id, n_ranks);         \
-        std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;      \
+        std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;                \
         test_finalize(stream, device_id);                                                           \
         if (::testing::Test::HasFailure()){                                                         \
             exit(1);                                                                                \
@@ -90,7 +90,7 @@ SHMEM_FUNC_TYPE_HOST(TEST_PUT_GET);
 SHMEM_FUNC_TYPE_HOST(TEST_SHMEM_MEM);
 
 #define TESTAPI(NAME, TYPE)                                                         \
-    TEST(TestMemApi, Test##NAME##ShmemMem)                                          \
+    TEST(TestMemApi, TestShmemGM##NAME##Mem)                                        \
     {                                                                               \
         const int process_count = test_gnpu_num;                                    \
         uint64_t local_mem_size = 1024UL * 1024UL * 1024;                           \
