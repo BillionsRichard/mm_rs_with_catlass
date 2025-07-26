@@ -47,30 +47,11 @@ SHMEM_FUNC_TYPE_HOST(TEST_FUNC);
                                                                                                                     \
         ASSERT_EQ(aclrtMemcpy(input.data(), input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);            \
                                                                                                                     \
-    #ifdef DEBUG                                                                                                    \
-        std::string p_name = "[Process " + std::to_string(rank_id) + " for DEBUG] ";                                \
-        std::cout << p_name;                                                                                        \
-        for (int i = 0; i < total_size; i++) {                                                                      \
-            std::cout << static_cast<float>(input[i]) << " ";                                                       \
-        }                                                                                                           \
-        std::cout << std::endl;                                                                                     \
-    #endif                                                                                                          \
-                                                                                                                    \
         test_ub_##NAME##_get(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);                                \
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                               \
         sleep(2);                                                                                                   \
                                                                                                                     \
         ASSERT_EQ(aclrtMemcpy(input.data(), input_size, dev_ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);        \
-                                                                                                                    \
-    #ifdef DEBUG                                                                                                    \
-        if (rank_id == 0) {                                                                                         \
-            std::cout << p_name;                                                                                    \
-            for (int i = 0; i < total_size; i++) {                                                                  \
-                std::cout << static_cast<float>(input[i]) << " ";                                                   \
-            }                                                                                                       \
-            std::cout << std::endl;                                                                                 \
-        }                                                                                                           \
-    #endif                                                                                                          \
                                                                                                                     \
         /* result check */                                                                                          \
         int32_t flag = 0;                                                                                           \
@@ -91,9 +72,7 @@ SHMEM_FUNC_TYPE_HOST(TEST_UB_PUT_GET);
         ASSERT_NE(stream, nullptr);                                                             \
                                                                                                 \
         test_ub_##NAME##_put_get(stream, (uint8_t *)shm::g_state.heap_base, rank_id, n_ranks);  \
-    #ifdef DEBUG                                                                                \
-        std::cout << "[TEST for DEBUG] begin to exit...... rank_id: " << rank_id << std::endl;  \
-    #endif                                                                                      \
+        std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;  \
         test_finalize(stream, device_id);                                                       \
         if (::testing::Test::HasFailure()){                                                     \
             exit(1);                                                                            \

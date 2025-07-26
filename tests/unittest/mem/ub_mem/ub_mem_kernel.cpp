@@ -38,7 +38,8 @@
             int local_size = 128;                                                                                                               \
                                                                                                                                                 \
             AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                                              \
-            __ubuf__ TYPE *buf = (__ubuf__ TYPE *)buf_tensor.address_.bufferAddr;                                                               \
+            uintptr_t addr = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);                                                            \
+            __ubuf__ TYPE *buf = (__ubuf__ TYPE *)addr;                                                                                         \
             AscendC::DataCopy(buf_tensor, src_gm, total_size);                                                                                  \
                                                                                                                                                 \
             AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);                                                                         \
@@ -109,7 +110,8 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_UB_PUT);
             int local_size = 128;                                                                                                                       \
                                                                                                                                                         \
             AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                                                      \
-            __ubuf__ TYPE *buf = (__ubuf__ TYPE *)buf_tensor.address_.bufferAddr;                                                                       \
+            uintptr_t addr = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);                                                                    \
+            __ubuf__ TYPE *buf = (__ubuf__ TYPE *)addr;                                                                                                 \
                                                                                                                                                         \
             shmem_mte_get_mem_nbi(buf, gva_gm, local_size, (rank + 1) % rank_size, EVENT_ID0);                                                          \
             shmem_mte_get_mem_nbi(buf_tensor[local_size * 1], src_gm[local_size * 1], local_size, (rank + 1) % rank_size, EVENT_ID0);                   \

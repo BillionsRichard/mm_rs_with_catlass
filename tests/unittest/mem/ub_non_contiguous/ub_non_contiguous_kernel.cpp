@@ -35,7 +35,8 @@
         __aicore__ inline void Process(int repeat, int length)                                                                          \
         {                                                                                                                               \
             AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                                      \
-            __ubuf__ TYPE *buf = (__ubuf__ TYPE *)buf_tensor.address_.bufferAddr;                                                       \
+            uintptr_t addr = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);                                                    \
+            __ubuf__ TYPE *buf = (__ubuf__ TYPE *)addr;                                                                                 \
             AscendC::DataCopy(buf_tensor, src_gm, repeat * length);                                                                     \
                                                                                                                                         \
             AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE3>(EVENT_ID0);                                                                 \
@@ -113,7 +114,8 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_UB_NON_CONTIGUOUS_PUT);
         __aicore__ inline void Process(int repeat, int length)                                                                          \
         {                                                                                                                               \
             AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                                      \
-            __ubuf__ TYPE *buf = (__ubuf__ TYPE *)buf_tensor.address_.bufferAddr;                                                       \
+            uintptr_t addr = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);                                                    \
+            __ubuf__ TYPE *buf = (__ubuf__ TYPE *)addr;                                                                                 \
                                                                                                                                         \
             non_contiguous_copy_param copy_params;                                                                                      \
             /* Test all overloaded interfaces, divide task into 4 pieces. */                                                            \

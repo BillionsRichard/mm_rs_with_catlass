@@ -50,7 +50,7 @@ const int nmem = 16;
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                             \
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                            \
             shmem_put_##NAME##_mem_nbi(dst_gm[dst_offset], src_gm[src_offset], copy_params, (rank + 1) % rank_size);                \
-            shmem_barrier_all_vec();                                                                                                \
+            shmemx_barrier_all_vec();                                                                                               \
             buf_queue.FreeTensor(buf_tensor);                                                                                       \
         }                                                                                                                           \
     private:                                                                                                                        \
@@ -67,20 +67,20 @@ const int nmem = 16;
 
 SHMEM_FUNC_TYPE_KERNEL(KERNEL_G2G_PUT_NUM_NON_CONTIGUOUS);
 
-#define PUT_G2G_NON_CONTIGUOUS_NUM_TEST(NAME, TYPE)                                                                 \
-    extern "C" __global__ __aicore__ void put_g2g_##NAME##_non_contiguous_num_test(GM_ADDR gva, GM_ADDR dev)        \
-    {                                                                                                               \
-        kernel_g2g_##NAME##_put_num_non_contiguous op;                                                              \
-        op.Init(gva, dev);                                                                                          \
-        op.Process();                                                                                               \
+#define PUT_G2G_NON_CONTIGUOUS_NUM_TEST(NAME, TYPE)                                                                                         \
+    extern "C" __global__ __aicore__ void put_g2g_##NAME##_non_contiguous_num_test(GM_ADDR gva, GM_ADDR dev, int repeat, int length)        \
+    {                                                                                                                                       \
+        kernel_g2g_##NAME##_put_num_non_contiguous op;                                                                                      \
+        op.Init(gva, dev);                                                                                                                  \
+        op.Process(repeat, length);                                                                                                         \
     }
 
 SHMEM_FUNC_TYPE_KERNEL(PUT_G2G_NON_CONTIGUOUS_NUM_TEST);
 
-#define TEST_G2G_NON_CONTIGUOUS_PUT(NAME, TYPE)                                                                 \
-    void test_g2g_##NAME##_non_contiguous_put(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev)     \
-    {                                                                                                           \
-        put_g2g_##NAME##_non_contiguous_num_test<<<block_dim, nullptr, stream>>>(gva, dev);                     \
+#define TEST_G2G_NON_CONTIGUOUS_PUT(NAME, TYPE)                                                                                         \
+    void test_g2g_##NAME##_non_contiguous_put(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev, int repeat, int length)     \
+    {                                                                                                                                   \
+        put_g2g_##NAME##_non_contiguous_num_test<<<block_dim, nullptr, stream>>>(gva, dev, repeat, length);                             \
     }
 
 SHMEM_FUNC_TYPE_KERNEL(TEST_G2G_NON_CONTIGUOUS_PUT);
@@ -104,7 +104,7 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_G2G_NON_CONTIGUOUS_PUT);
             /* 1x4096 Bytes Buffer */                                                                                                   \
             pipe.InitBuffer(buf_queue, 1, 4096);                                                                                        \
         }                                                                                                                               \
-        __aicore__ inline void Process()                                                                                                \
+        __aicore__ inline void Process(int repeat, int length)                                                                          \
         {                                                                                                                               \
             AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                                      \
                                                                                                                                         \
@@ -119,7 +119,7 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_G2G_NON_CONTIGUOUS_PUT);
             int src_offset = task_repeat * length;                                                                                      \
             int dst_offset = task_repeat / 2 * length;                                                                                  \
                                                                                                                                         \
-            shmem_mte_get_mem_nbi(src_gm, dst_gm, buf_tensor, copy_params, (rank + 1) % rank_size, EVENT_ID0);                          \
+            shmemx_mte_get_mem_nbi(src_gm, dst_gm, buf_tensor, copy_params, (rank + 1) % rank_size, EVENT_ID0);                         \
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                 \
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                \
             shmem_get_##NAME##_mem_nbi(src_gm[dst_offset], dst_gm[src_offset], copy_params, (rank + 1) % rank_size);                    \
@@ -143,20 +143,20 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_G2G_NON_CONTIGUOUS_PUT);
 
 SHMEM_FUNC_TYPE_KERNEL(KERNEL_G2G_GET_NUM_NON_CONTIGUOUS);
 
-#define GET_G2G_NON_CONTIGUOUS_NUM_TEST(NAME,TYPE)                                                              \
-    extern "C" __global__ __aicore__ void get_g2g_##NAME##_non_contiguous_num_test(GM_ADDR gva, GM_ADDR dev)    \
-    {                                                                                                           \
-        kernel_g2g_##NAME##_get_num_non_contiguous op;                                                          \
-        op.Init(gva, dev);                                                                                      \
-        op.Process();                                                                                           \
+#define GET_G2G_NON_CONTIGUOUS_NUM_TEST(NAME,TYPE)                                                                                      \
+    extern "C" __global__ __aicore__ void get_g2g_##NAME##_non_contiguous_num_test(GM_ADDR gva, GM_ADDR dev, int repeat, int length)    \
+    {                                                                                                                                   \
+        kernel_g2g_##NAME##_get_num_non_contiguous op;                                                                                  \
+        op.Init(gva, dev);                                                                                                              \
+        op.Process(repeat, length);                                                                                                     \
     }
 
 SHMEM_FUNC_TYPE_KERNEL(GET_G2G_NON_CONTIGUOUS_NUM_TEST);
 
-#define TEST_G2G_NON_CONTIGUOUS_GET(NAME, TYPE)                                                                 \
-    void test_g2g_##NAME##_non_contiguous_get(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev)     \
-    {                                                                                                           \
-        get_g2g_##NAME##_non_contiguous_num_test<<<block_dim, nullptr, stream>>>(gva, dev);                     \
+#define TEST_G2G_NON_CONTIGUOUS_GET(NAME, TYPE)                                                                                         \
+    void test_g2g_##NAME##_non_contiguous_get(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev, int repeat, int length)     \
+    {                                                                                                                                   \
+        get_g2g_##NAME##_non_contiguous_num_test<<<block_dim, nullptr, stream>>>(gva, dev, repeat, length);                             \
     }
 
 SHMEM_FUNC_TYPE_KERNEL(TEST_G2G_NON_CONTIGUOUS_GET);

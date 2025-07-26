@@ -52,11 +52,6 @@ SHMEM_FUNC_TYPE_HOST(PUT_ONE_NUM_DO);
                                                                                                                             \
         EXPECT_EQ(aclrtMemcpy(y_host, 1 * sizeof(TYPE), ptr, 1 * sizeof(TYPE), ACL_MEMCPY_DEVICE_TO_HOST), 0);              \
                                                                                                                             \
-    #ifdef DEBUG                                                                                                            \
-        std::string p_name = "[Process " + std::to_string(rank_id) + " for DEBUG] ";                                        \
-        std::cout << p_name << "-----[PUT]------ " << static_cast<float>(y_host[0]) << " ----" << std::endl;                \
-    #endif                                                                                                                  \
-                                                                                                                            \
         /* result check */                                                                                                  \
         int32_t flag = 0;                                                                                                   \
         if (y_host[0] != static_cast<TYPE>(test_offset + (rank_id + rank_size - 1) % rank_size)) flag = 1;                  \
@@ -65,9 +60,6 @@ SHMEM_FUNC_TYPE_HOST(PUT_ONE_NUM_DO);
         EXPECT_EQ(aclrtSynchronizeStream(stream), 0);                                                                       \
                                                                                                                             \
         EXPECT_EQ(aclrtMemcpy(y_host, 1 * sizeof(TYPE), dev_ptr, 1 * sizeof(TYPE), ACL_MEMCPY_DEVICE_TO_HOST), 0);          \
-                                                                                                                            \
-        p_name = "[Process " + std::to_string(rank_id) + " for DEBUG] ";                                                    \
-        std::cout << p_name << "-----[GET]------ " << static_cast<float>(y_host[0]) << " ----" << std::endl;                \
                                                                                                                             \
         /* result check */                                                                                                  \
         flag = 0;                                                                                                           \
@@ -90,9 +82,7 @@ SHMEM_FUNC_TYPE_HOST(TEST_SCALAR_PUT_GET);
         int status = test_##NAME##_scalar_put_get(stream, rank_id, n_ranks);                    \
         ASSERT_EQ(status, 0);                                                                   \
                                                                                                 \
-    #ifdef DEBUG                                                                                \
-        std::cout << "[TEST for DEBUG] begin to exit...... rank_id: " << rank_id << std::endl;  \
-    #endif                                                                                      \
+        std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;  \
         test_finalize(stream, device_id);                                                       \
         if (::testing::Test::HasFailure()){                                                     \
             exit(1);                                                                            \

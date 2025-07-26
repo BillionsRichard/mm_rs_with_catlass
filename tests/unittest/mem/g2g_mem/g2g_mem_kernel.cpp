@@ -40,7 +40,7 @@ const int nmem = 16;
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                             \
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                            \
             shmem_put_##NAME##_mem_nbi(dst_gm[rank_size / 2 * nmem], src_gm[rank_size / 2 * nmem], rank_size / 2 * nmem, rank);     \
-            shmem_barrier_all_vec();                                                                                                \
+            shmemx_barrier_all_vec();                                                                                               \
             buf_queue.FreeTensor(buf_tensor);                                                                                       \
         }                                                                                                                           \
     private:                                                                                                                        \
@@ -110,7 +110,7 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_G2G_PUT);
                 AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                            \
             }                                                                                                                           \
                                                                                                                                         \
-            shmem_barrier_all_vec();                                                                                                    \
+            shmemx_barrier_all_vec();                                                                                                   \
             buf_queue.FreeTensor(buf_tensor);                                                                                           \
         }                                                                                                                               \
     private:                                                                                                                            \

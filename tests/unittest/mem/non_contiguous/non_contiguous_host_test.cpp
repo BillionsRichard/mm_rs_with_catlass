@@ -58,27 +58,11 @@ constexpr int input_length = 16;
                                                                                                                                 \
         ASSERT_EQ(aclrtMemcpy(input.data(), input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);                        \
                                                                                                                                 \
-    #ifdef DEBUG                                                                                                                \
-        std::string p_name = "[Process " + std::to_string(rank_id) + " for DEBUG] ";                                            \
-        std::cout << p_name;                                                                                                    \
-        for (int i = 0; i < total_size; i++) {                                                                                  \
-            std::cout << static_cast<float>(input[i]) << " ";                                                                   \
-        }                                                                                                                       \
-        std::cout << std::endl;                                                                                                 \
-    #endif                                                                                                                      \
-                                                                                                                                \
         test_##NAME##_non_contiguous_get(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr, input_repeat / 2, input_length);\
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                                           \
                                                                                                                                 \
         ASSERT_EQ(aclrtMemcpy(input.data(), input_size, dev_ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);                    \
                                                                                                                                 \
-    #ifdef DEBUG                                                                                                                \
-        std::cout << p_name;                                                                                                    \
-        for (int i = 0; i < total_size; i++) {                                                                                  \
-            std::cout << static_cast<float>(input[i]) << " ";                                                                   \
-        }                                                                                                                       \
-        std::cout << std::endl;                                                                                                 \
-    #endif                                                                                                                      \
         /* result check */                                                                                                      \
         int32_t flag = 0;                                                                                                       \
         for (int i = 0; i < input_repeat / 4; i++) {                                                                            \
@@ -100,9 +84,7 @@ SHMEM_FUNC_TYPE_HOST(TEST_NON_CONTIGUOUS_PUT_GET);
         ASSERT_NE(stream, nullptr);                                                                             \
                                                                                                                 \
         test_##NAME##_non_contiguous_put_get(stream, (uint8_t *)shm::g_state.heap_base, rank_id, n_ranks);      \
-    #ifdef DEBUG                                                                                                \
-        std::cout << "[TEST for DEBUG] begin to exit...... rank_id: " << rank_id << std::endl;                  \
-    #endif                                                                                                      \
+        std::cout << "[TEST] begin to exit...... rank_id: " << rank_id << std::endl;                  \
         test_finalize(stream, device_id);                                                                       \
         if (::testing::Test::HasFailure()){                                                                     \
             exit(1);                                                                                            \
