@@ -24,7 +24,8 @@ const int ub_size = 256;
         __aicore__ inline void Process()                                                                                            \
         {                                                                                                                           \
             AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                                  \
-            __ubuf__ TYPE *buf = (__ubuf__ TYPE *)buf_tensor.address_.bufferAddr;                                                   \
+            uintptr_t addr = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);                                                \
+            __ubuf__ TYPE *buf = (__ubuf__ TYPE *)addr;                                                                             \
             shmem_mte_put_mem_nbi(gva_gm, dev_gm, buf, (uint32_t)ub_size, rank_size / 2 * nmem, rank, EVENT_ID0);                   \
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                             \
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                            \
@@ -81,7 +82,8 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_PUT);
         __aicore__ inline void Process()                                                                                                \
         {                                                                                                                               \
             AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                                      \
-            __ubuf__ TYPE *buf = (__ubuf__ TYPE *)buf_tensor.address_.bufferAddr;                                                       \
+            uintptr_t addr = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);                                                    \
+            __ubuf__ TYPE *buf = (__ubuf__ TYPE *)addr;                                                                                 \
                                                                                                                                         \
             for (int i = 0; i < rank_size / 2; i++) {                                                                                   \
                 shmem_mte_get_mem_nbi(dev_gm + nmem * i, gva_gm, buf, (uint32_t)ub_size, nmem, i % rank_size, EVENT_ID0);               \
