@@ -26,6 +26,7 @@ target_include_directories(shmem_unittest_host PRIVATE
     ${PROJECT_SOURCE_DIR}/src/host
     ${PROJECT_SOURCE_DIR}/src/device
     ${PROJECT_SOURCE_DIR}/3rdparty/googletest/include
+    ${PROJECT_SOURCE_DIR}/3rdparty/catlass/examples/common
 )
 
 add_executable(shmem_unittest $<TARGET_OBJECTS:shmem_unittest_kernel> $<TARGET_OBJECTS:shmem_unittest_host>)
