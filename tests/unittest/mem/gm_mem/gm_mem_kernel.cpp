@@ -31,10 +31,14 @@ const int ub_size = 256;
             uintptr_t addr = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);                                                \
             __ubuf__ TYPE *buf = (__ubuf__ TYPE *)addr;                                                                             \
             shmem_mte_put_mem_nbi(gva_gm, dev_gm, buf, (uint32_t)ub_size, rank_size * length / 4, rank, EVENT_ID0);                 \
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                             \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                            \
             shmem_mte_put_mem_nbi(dst_gm[rank_size * length / 4], src_gm[rank_size * length / 4], buf_tensor, rank_size * length / 4, rank, EVENT_ID0);   \
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                             \
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                            \
             shmem_put_##NAME##_mem_nbi(gva_gm + rank_size * length / 2, dev_gm + rank_size * length / 2, rank_size * length / 4, rank);   \
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                             \
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                            \
             shmem_put_##NAME##_mem_nbi(dst_gm[rank_size * length * 3 / 4], src_gm[rank_size * length * 3 / 4], rank_size * length / 4, rank);     \
             shmemx_barrier_all_vec();                                                                                               \
             buf_queue.FreeTensor(buf_tensor);                                                                                       \
@@ -98,6 +102,8 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_PUT);
                                                                                                                                             \
             for (int i = 0; i < rank_size / 2; i++) {                                                                                       \
                 shmem_mte_get_mem_nbi(dev_gm + length * i, gva_gm, buf, (uint32_t)ub_size, length / 2, i % rank_size, EVENT_ID0);           \
+                AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                 \
+                AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                \
                 shmem_mte_get_mem_nbi(dst_gm[length * i + length / 2], src_gm, buf_tensor, length / 2, i % rank_size, EVENT_ID0);           \
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                 \
                 AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                \
@@ -105,6 +111,8 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_PUT);
                                                                                                                                             \
             for (int i = rank_size / 2; i < rank_size; i++) {                                                                               \
                 shmem_get_##NAME##_mem_nbi(dev_gm + length * i, gva_gm, length, i % rank_size);                                             \
+                AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                 \
+                AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                \
                 shmem_get_##NAME##_mem_nbi(dst_gm[length * i + length / 2], src_gm, length / 2, i % rank_size);                             \
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                 \
                 AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(EVENT_ID0);                                                                \
