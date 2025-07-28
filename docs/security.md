@@ -1,4 +1,51 @@
 # 安全加固
+
+## 通信矩阵
+
+|组件|tcp store|
+|----------------|--------|
+|源设备|tcp client|
+|源IP|device IP|
+|源端口|操作系统自动分配，分配范围由操作系统的自身配置决定|
+|目的设备|tcp server|
+|目的IP|设备地址IP|
+|目的端口（侦听）|用户指定，端口号1025~65535|
+|协议|TCP|
+|端口说明|server与client TCP协议消息接口|
+|侦听端口是否可更改|是|
+|认证方式|支持，由初始化入参指定是否开启|
+|加密方式|无|
+|所属平面|管理面|
+|版本|所有版本|
+|特殊场景|无|
+
+说明：
+支持通过环境变量 `MEMFABRIC_HYBRID_TLS_ENABLE`和`MEMFABRIC_HYBRID_TLS_INFO` 配置TLS秘钥证书等，进行tls安全连接。系统启动后，建议删除本地秘钥证书等信息敏感文件。
+用户通过json字符串形式从环境变量 MEMFABRIC_HYBRID_TLS_INFO 传入tlsOption相关参数。
+例如，在终端输入：
+```
+配置关闭tls:
+export MEMFABRIC_HYBRID_TLS_ENABLE=0
+配置打开tls:
+export MEMFABRIC_HYBRID_TLS_ENABLE=1(或者不设置MEMFABRIC_HYBRID_TLS_ENABLE环境变量)
+export MEMFABRIC_HYBRID_TLS_INFO=$'\
+{
+    "tlsCaPath": "/etc/ssl/certs/",
+    "tlsCert": "/etc/ssl/certs/server.crt",
+    "tlsPk": "/etc/ssl/private/server.key",
+    "tlsPkPwd": "/etc/ssl/private/key_pwd.txt",
+    "tlsCrlPath": "/etc/ssl/crl/",
+    "tlsCrlFile": [ "server_crl.pem" ],
+    "tlsCaFile": [ "ca.pem" ]，
+    "packagePath": "/etc/lib"
+}'
+```
+| 环境变量 | 说明                                         |
+|------|--------------------------------------------|
+| MEMFABRIC_HYBRID_TLS_ENABLE  | 只支持配置0和1。其中0代表关闭tls，1代表打开tls。不配置的时候默认打开tls |
+| MEMFABRIC_HYBRID_TLS_INFO  | tls相关参数配置，json格式字符串。当tls打开时，必须配置MEMFABRIC_HYBRID_TLS_INFO           |
+
+
 ## 加固须知
 
 本文中列出的安全加固措施为基本的加固建议项。用户应根据自身业务，重新审视整个系统的网络安全加固措施。用户应按照所在组织的安全策略进行相关配置，包括并不局限于软件版本、口令复杂度要求、安全配置（协议、加密套件、密钥长度等）， 权限配置、防火墙设置等。必要时可参考业界优秀加固方案和安全专家的建议。
@@ -10,7 +57,6 @@ root是Linux系统中的超级特权用户，具有所有Linux系统资源的访
 ## 内存地址随机化机制安全加固
 
 ASLR（address space layout randomization）开启后能增强漏洞攻击防护能力，建议用户将/proc/sys/kernel/randomize_va_space里面的值设置为2，开启该功能。
-
 
 
 # 公网地址

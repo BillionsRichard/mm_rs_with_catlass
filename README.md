@@ -56,6 +56,12 @@ GLIBC >= 2.28
     ```
     出现提示`xxx install success!`则安装成功
 
+shmem 默认开启tls通信加密。如果想关闭，需要启动前手动设置环境变量：
+```
+export MEMFABRIC_HYBRID_TLS_ENABLE=0
+```
+具体细节详见安全声明章节
+
 执行一个样例matmul_allreduce算子。  
 1.在shmem/目录编译:
 

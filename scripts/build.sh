@@ -128,7 +128,7 @@ function fn_build_memfabric()
     fi
 
     cd $THIRD_PARTY_DIR
-    git clone -b br_hdk_patch https://gitee.com/ascend/memfabric_hybrid.git
+    git clone https://gitee.com/ascend/memfabric_hybrid.git
     cd memfabric_hybrid
     git submodule init
     git submodule update --recursive
