@@ -17,14 +17,17 @@ extern "C" SHMEM_GLOBAL void quiet_order(uint64_t config, GM_ADDR addr, int rank
         shmemi_store<uint64_t>(base, 0xAA);
         shmem_quiet();
         shmemi_store<uint64_t>(base + 32, 0xBB);
+        dcci_cacheline((__gm__ uint8_t *)(base + 32));
     }
 
     if (rank_id == 1) {
         uint64_t seen_b;
         __gm__ uint64_t *remote = shmemi_ptr(base, 0);
         do {
+            dcci_cacheline((__gm__ uint8_t *)(remote + 32));
             seen_b = shmemi_load<uint64_t>(remote + 32);
         } while (seen_b != 0xBB);
+        dcci_cacheline((__gm__ uint8_t *)(remote));
         uint64_t seen_a = shmemi_load<uint64_t>(remote);
 
         shmemi_store<uint64_t>(base + 33, seen_b);
@@ -40,14 +43,17 @@ extern "C" SHMEM_GLOBAL void fence_order(uint64_t config, GM_ADDR addr, int rank
         shmemi_store<uint64_t>(base, a_val);
         shmem_fence();
         shmemi_store<uint64_t>(base + 16, b_val);
+        dcci_cacheline((__gm__ uint8_t *)(base + 16));
     }
 
     if (rank_id == 1) {
         uint64_t seen_b;
         __gm__ uint64_t *remote = shmemi_ptr(base, 0);
         do {
+            dcci_cacheline((__gm__ uint8_t *)(remote + 16));
             seen_b = shmemi_load<uint64_t>(remote + 16);
         } while (seen_b != 84);
+        dcci_cacheline((__gm__ uint8_t *)remote);
         uint64_t seen_a = shmemi_load<uint64_t>(remote);
 
         shmemi_store<uint64_t>(base + 17, seen_b);

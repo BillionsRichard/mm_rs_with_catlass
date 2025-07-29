@@ -128,13 +128,13 @@ function fn_build_memfabric()
     fi
 
     cd $THIRD_PARTY_DIR
-    git clone https://gitee.com/ascend/memfabric_hybrid.git
+    git clone -b master https://gitee.com/ascend/memfabric_hybrid.git
     cd memfabric_hybrid
     git submodule init
     git submodule update --recursive
     mkdir build
     cd build 
-    cmake -DBUILD_PYTHON=OFF -DBUILD_OPEN_ABI=OFF -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
+    cmake -DBUILD_PYTHON=ON -DBUILD_OPEN_ABI=OFF -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
     make install -j4
     ls -l ../output/smem
     echo "Memfabric_hybrid is successfully installed to $THIRD_PARTY_DIR/memfabric_hybrid"
