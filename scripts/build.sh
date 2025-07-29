@@ -27,6 +27,7 @@ mkdir -p $THIRD_PARTY_DIR
 RELEASE_DIR=$PROJECT_ROOT/ci/release
 
 BUILD_TYPE=Release
+PYEXPAND_TYPE=OFF
 
 COMPILE_OPTIONS=""
 
@@ -134,7 +135,7 @@ function fn_build_memfabric()
     git submodule update --recursive
     mkdir build
     cd build 
-    cmake -DBUILD_PYTHON=ON -DBUILD_OPEN_ABI=OFF -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
+    cmake -DBUILD_PYTHON=$PYEXPAND_TYPE -DBUILD_OPEN_ABI=OFF -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
     make install -j4
     ls -l ../output/smem
     echo "Memfabric_hybrid is successfully installed to $THIRD_PARTY_DIR/memfabric_hybrid"
@@ -219,6 +220,10 @@ while [[ $# -gt 0 ]]; do
             BUILD_TYPE=Debug
             fn_build_googletest
             COMPILE_OPTIONS="${COMPILE_OPTIONS} -DUSE_UNIT_TEST=ON"
+            shift
+            ;;
+        -python_extension)
+            PYEXPAND_TYPE=ON
             shift
             ;;
         -gendoc)
