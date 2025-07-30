@@ -101,6 +101,7 @@ python3 ./scripts/gen_data.py \
 # Start Process
 echo "PROJECT_ROOT: $PROJECT_ROOT"
 echo "Test Case, M: ${M}, K: ${K}, N: ${N}"
+export MEMFABRIC_HYBRID_TLS_ENABLE=0
 export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${PROJECT_ROOT}/3rdparty/memfabric_hybrid/output/smem/lib64:${PROJECT_ROOT}/3rdparty/memfabric_hybrid/output/hybm/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 for (( idx =0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
     ${PROJECT_ROOT}/build/bin/matmul_allreduce "$RANK_SIZE" "$idx" "$IPPORT" "$FIRST_NPU" "$M" "$K" "$N" $DATA_DIR &
