@@ -47,8 +47,8 @@ SHMEM_DEVICE void shmemi_barrier_core_soft() {
     while (shift < size) {
         int next = (idx + shift) % size;
 
-        shmemi_signal((__gm__ int32_t *)(sync_array + next * SHMEM_LOG_MAX_AIV_PER_NPU + offset), count);
-        shmemi_wait((__gm__ int32_t *)(sync_array + idx * SHMEM_LOG_MAX_AIV_PER_NPU + offset), count);
+        shmemi_signal_set((__gm__ int32_t *)(sync_array + next * SHMEM_LOG_MAX_AIV_PER_NPU + offset), count);
+        shmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)(sync_array + idx * SHMEM_LOG_MAX_AIV_PER_NPU + offset), count);
 
         shift *= 2;
         offset++;
@@ -178,10 +178,10 @@ SHMEM_DEVICE void shmemi_barrier_npu_v1(shmemi_team_t *team) {
         int next_pe = start + next_pe_in_team * stride;
 
         // signal next pe
-        shmemi_signal((__gm__ int32_t *)(sync_array + my_pe), next_pe, count);
+        shmemi_signal_set((__gm__ int32_t *)(sync_array + my_pe), next_pe, count);
 
         // wait pre pe
-        shmemi_wait((__gm__ int32_t *)(sync_array + pre_pe), count);
+        shmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)(sync_array + pre_pe), count);
         
         shift *= 2;
     } 
@@ -217,7 +217,7 @@ SHMEM_DEVICE void shmemi_barrier_npu_v2(shmemi_team_t *team) {
             int next_pe = start + next_pe_in_team * stride;
 
             // signal next pe
-            shmemi_signal((__gm__ int32_t *)(sync_array + my_pe), next_pe, count);
+            shmemi_signal_set((__gm__ int32_t *)(sync_array + my_pe), next_pe, count);
         }
 
         for (int i = vec_id + 1; i < k; i += vec_size) {
@@ -225,7 +225,7 @@ SHMEM_DEVICE void shmemi_barrier_npu_v2(shmemi_team_t *team) {
             int pre_pe = start + pre_pe_in_team * stride;
 
             // wait pre pe
-            shmemi_wait((__gm__ int32_t *)(sync_array + pre_pe), count);
+            shmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)(sync_array + pre_pe), count);
         }
         
         shift *= k;
@@ -259,11 +259,11 @@ SHMEM_DEVICE void shmemi_barrier_npu_v3(shmemi_team_t *team) {
     for (int i = vec_id; i < size; i += k) {
         if (i == my_pe_in_team) {
             // write local
-            shmemi_signal((__gm__ int32_t *)sync_array, count);
+            shmemi_signal_set((__gm__ int32_t *)sync_array, count);
         } else {
             // read remote
             int remote_pe = start + i * stride;
-            shmemi_wait((__gm__ int32_t *)shmemi_ptr(sync_array, remote_pe), count);
+            shmemi_signal_wait_until_eq_for_barrier((__gm__ int32_t *)shmemi_ptr(sync_array, remote_pe), count);
         }
     }
 

@@ -12,29 +12,15 @@
 
 #include "shmemi_device_quiet.h"
 
-template<typename T>
-SHMEM_DEVICE void shmemi_signal(__gm__ T *addr, T val) {
+SHMEM_DEVICE void shmemi_signal_set(__gm__ int32_t *addr, int32_t val) {    
     shmemi_store(addr, val);
 
     // flush data cache to GM after signal to ensure it is visiable to other ranks 
     dcci_cacheline((__gm__ uint8_t *)addr);
 }
 
-template<typename T>
-SHMEM_DEVICE void shmemi_signal(__gm__ T *addr, int pe, T val) {
-    shmemi_signal(shmemi_ptr(addr, pe), val);
-}
-
-template<typename T>
-SHMEM_DEVICE void shmemi_wait(__gm__ T *addr, T val) {
-    do {
-        // always flush data cache to avoid reading staled data
-        dcci_cacheline((__gm__ uint8_t *)addr);
-    } while (shmemi_load(addr) != val);
-}
-
 SHMEM_DEVICE void shmemi_signal_set(__gm__ int32_t *addr, int pe, int32_t val) {
-    shmemi_signal(addr, pe, val);
+    shmemi_signal_set(shmemi_ptr(addr, pe), val);
 }
 
 SHMEM_DEVICE void shmemi_signal_add(__gm__ int32_t *addr, int pe, int32_t val) {
@@ -46,6 +32,23 @@ SHMEM_DEVICE void shmemi_signal_add(__gm__ int32_t *addr, int pe, int32_t val) {
     set_st_atomic_cfg(ATOMIC_S32, ATOMIC_SUM);
     st_atomic<int32_t>(val, shmemi_ptr(addr, pe));
     dcci_atomic();
+}
+
+SHMEM_DEVICE int32_t shmemi_signal_wait_until_eq_for_barrier(__gm__ int32_t *sig_addr, int32_t cmp_val) {
+    do {
+        dcci_cacheline((__gm__ uint8_t *)sig_addr);
+
+        if (*sig_addr == cmp_val) {
+            return *sig_addr;
+        }
+
+        if (*sig_addr == cmp_val + 1) {
+            return *sig_addr;
+        }
+    } while (true);
+
+    // never reach
+    return -1;
 }
 
 // Atomicity of SHMEM_SIGNAL_SET not guaranteed
