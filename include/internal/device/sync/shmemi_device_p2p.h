@@ -42,6 +42,7 @@ SHMEM_DEVICE int32_t shmemi_signal_wait_until_eq_for_barrier(__gm__ int32_t *sig
             return *sig_addr;
         }
 
+        // in case when peer pe enters next barrier
         if (*sig_addr == cmp_val + 1) {
             return *sig_addr;
         }
