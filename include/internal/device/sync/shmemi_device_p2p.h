@@ -50,8 +50,6 @@ SHMEM_DEVICE void shmemi_signal_add(__gm__ int32_t *addr, int pe, int32_t val) {
 
 // Atomicity of SHMEM_SIGNAL_SET not guaranteed
 SHMEM_DEVICE void shmemix_signal_op(__gm__ int32_t *sig_addr, int32_t signal, int sig_op, int pe) {
-    shmemi_quiet();
-
     switch (sig_op) {
         case SHMEM_SIGNAL_SET:
             shmemi_signal_set(sig_addr, pe, signal);
