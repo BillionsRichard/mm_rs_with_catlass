@@ -99,9 +99,7 @@ SHMEM_DEVICE void all_gather_origin(__gm__ T* input, __gm__ T* output, __gm__ T*
         AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0);
         times += 1;
         flag = times + magic;
-        AscendC::PipeBarrier<PIPE_ALL>();
         shmemx_signal_op(gva_sync_gm + flag_offset, flag, SHMEM_SIGNAL_SET, my_rank);
-        AscendC::PipeBarrier<PIPE_ALL>();
         return;
     }
 
@@ -256,6 +254,7 @@ SHMEM_DEVICE void all_gather_small_data(uint64_t fftsAddr, __gm__ T* input, __gm
     const int64_t x = aivIndex / core_per_rank;
 
     // Sync Ensure Corresponding Tasks Done.
+    shmem_quiet();
     shmemi_barrier_core_soft();
 
     shmemx_signal_op(gva_sync_gm + flag_offset, magic, SHMEM_SIGNAL_SET, my_rank);

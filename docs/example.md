@@ -54,6 +54,7 @@ SHMEM_DEVICE void all_gather_small_data(uint64_t fftsAddr, __gm__ T* input, __gm
     const int64_t x = aivIndex / core_per_rank;
 
     // Sync Ensure Corresponding Tasks Done.
+    shmem_fence();
     shmemx_signal_op(gva_sync_gm + flag_offset, magic, SHMEM_SIGNAL_SET, my_rank);
 
     for (int64_t i = 0; i < aivNum; i++) {
