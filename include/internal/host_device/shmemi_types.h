@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-#define SHMEM_MAX_RANKS 2048
+#define SHMEM_MAX_RANKS 1024
 #define SHMEM_MAX_TEAMS 32
 
 /* arch related */

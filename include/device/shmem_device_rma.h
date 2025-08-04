@@ -61,7 +61,6 @@
     SHMEM_DEVICE void shmem_##NAME##_p(__gm__ TYPE* dst, const TYPE value, int pe)          \
     {                                                                                       \
         auto ptr = shmem_ptr(dst, pe);                                                      \
-        if (ptr == nullptr) return;                                                         \
         __gm__ TYPE* addr_gm = reinterpret_cast<__gm__ TYPE*>(ptr);                         \
                                                                                             \
         *addr_gm = value;                                                                   \

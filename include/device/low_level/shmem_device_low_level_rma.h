@@ -18,25 +18,15 @@ constexpr int ub_limit = 192 * 1024;
 
 /**
  * @brief Translate an local symmetric address to remote symmetric address on the specified PE.
- *        Firstly, check whether the input address is legal on local PE. Then translate it into remote address 
- *        on specified PE. Otherwise, returns a null pointer.
  *
  * @param ptr               [in] Symmetric address on local PE.
  * @param pe                [in] The number of the remote PE.
- * @return If the input address is legal, returns a remote symmetric address on the specified PE that can be 
- *         accessed using memory loads and stores. Otherwise, a null pointer is returned.
+ * @return A remote symmetric address on the specified PE that can be accessed using memory loads and stores.
  */
 SHMEM_DEVICE __gm__ void* shmem_ptr(__gm__ void* ptr, int pe)
 {
     // Get Global State
     __gm__ shmemi_device_host_state_t *device_state = shmemi_get_state();
-
-    // Check whether ptr belongs to this rank.
-    uint64_t lower_bound = (uint64_t)device_state->p2p_heap_base[shmem_my_pe()];
-    uint64_t upper_bound = lower_bound + device_state->heap_size;
-    if (uint64_t(ptr) < lower_bound || uint64_t(ptr) >= upper_bound || pe < 0 || pe >= SHMEM_MAX_RANKS) {
-        return nullptr;
-    }
 
     // Back to root address
     uint64_t offset = reinterpret_cast<uint64_t>(ptr) - reinterpret_cast<uint64_t>(device_state->heap_base);
@@ -63,7 +53,6 @@ template <typename T>
 SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ub_size, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr(src, pe);
-    if (ptr == nullptr) return;
     __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
 
     // block_size: dataMove Unit
@@ -108,7 +97,6 @@ template <typename T>
 SHMEM_DEVICE void shmem_mte_get_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ub_size, const non_contiguous_copy_param& copy_params, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr(src, pe);
-    if (ptr == nullptr) return;
     __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
 
     AscendC::GlobalTensor<T> src_tensor;
@@ -158,7 +146,6 @@ template <typename T>
 SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
-    if (ptr == nullptr) return;
 
     AscendC::GlobalTensor<T> remote_buff;
     remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
@@ -204,7 +191,6 @@ template <typename T>
 SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, const non_contiguous_copy_param& copy_params, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
-    if (ptr == nullptr) return;
 
     AscendC::GlobalTensor<T> remote_buff;
     remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
@@ -249,7 +235,6 @@ template <typename T>
 SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ub_size, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr(dst, pe);
-    if (ptr == nullptr) return;
     __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
 
     // block_size: dataMove Unit
@@ -294,7 +279,6 @@ template <typename T>
 SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T* buf, uint32_t ub_size, const non_contiguous_copy_param& copy_params, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr(dst, pe);
-    if (ptr == nullptr) return;
     __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
 
     AscendC::GlobalTensor<T> src_tensor;
@@ -344,7 +328,6 @@ template <typename T>
 SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
-    if (ptr == nullptr) return;
 
     AscendC::GlobalTensor<T> remote_buff;
     remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
@@ -390,7 +373,6 @@ template <typename T>
 SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::GlobalTensor<T> src, AscendC::LocalTensor<T> buf, const non_contiguous_copy_param& copy_params, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
-    if (ptr == nullptr) return;
 
     AscendC::GlobalTensor<T> remote_buff;
     remote_buff.SetGlobalBuffer(reinterpret_cast<__gm__ T*>(ptr));
@@ -433,7 +415,6 @@ template <typename T>
 SHMEM_DEVICE void shmem_mte_get_mem_nbi(__ubuf__ T* dst, __gm__ T* src, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr(src, pe);
-    if (ptr == nullptr) return;
 
     // Check if Process will out of UB address.
     uint64_t ub_offset = reinterpret_cast<uint64_t>(dst);
@@ -459,7 +440,6 @@ template <typename T>
 SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::LocalTensor<T> dst, AscendC::GlobalTensor<T> src, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
-    if (ptr == nullptr) return;
 
     // Check if Process will out of UB address.
     uint64_t ub_offset = reinterpret_cast<uint64_t>(dst.GetPhyAddr());
@@ -487,7 +467,6 @@ template <typename T>
 SHMEM_DEVICE void shmem_mte_get_mem_nbi(__ubuf__ T* dst, __gm__ T* src, const non_contiguous_copy_param& copy_params, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr(src, pe);
-    if (ptr == nullptr) return;
     __gm__ T* remote_ptr = reinterpret_cast<__gm__ T*>(ptr);
 
     // Check if Process will out of UB address.
@@ -527,7 +506,6 @@ template <typename T>
 SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::LocalTensor<T> dst, AscendC::GlobalTensor<T> src, const non_contiguous_copy_param& copy_params, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr((__gm__ void *)src.GetPhyAddr(), pe);
-    if (ptr == nullptr) return;
 
     // Check if Process will out of UB address.
     uint64_t ub_offset = reinterpret_cast<uint64_t>(dst.GetPhyAddr());
@@ -563,7 +541,6 @@ template <typename T>
 SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __ubuf__ T* src, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr(dst, pe);
-    if (ptr == nullptr) return;
 
     // Check if Process will out of UB address.
     uint64_t ub_offset = reinterpret_cast<uint64_t>(src);
@@ -589,7 +566,6 @@ template <typename T>
 SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::LocalTensor<T> src, uint32_t elem_size, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
-    if (ptr == nullptr) return;
 
     // Check if Process will out of UB address.
     uint64_t ub_offset = reinterpret_cast<uint64_t>(src.GetPhyAddr());
@@ -617,7 +593,6 @@ template <typename T>
 SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __ubuf__ T* src, const non_contiguous_copy_param& copy_params, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr(dst, pe);
-    if (ptr == nullptr) return;
 
     // Check if Process will out of UB address.
     uint64_t ub_offset = reinterpret_cast<uint64_t>(src);
@@ -658,7 +633,6 @@ template <typename T>
 SHMEM_DEVICE void shmem_mte_put_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::LocalTensor<T> src, const non_contiguous_copy_param& copy_params, int pe, AscendC::TEventID EVENT_ID)
 {
     auto ptr = shmem_ptr((__gm__ void *)dst.GetPhyAddr(), pe);
-    if (ptr == nullptr) return;
 
     // Check if Process will out of UB address.
     uint64_t ub_offset = reinterpret_cast<uint64_t>(src.GetPhyAddr());
