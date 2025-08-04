@@ -33,8 +33,9 @@ const int ub_size = 256;
             /* 1x4096 Bytes Buffer */                                                                                               \
             pipe.InitBuffer(buf_queue, 1, 4096);                                                                                    \
         }                                                                                                                           \
-        __aicore__ inline void Process(int repeat, int length)                                                                      \
+        __aicore__ inline void Process(int repeat, int length, uint64_t config)                                                     \
         {                                                                                                                           \
+            shmemx_set_ffts_config(config);                                                                                         \
             AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                                  \
             uintptr_t addr = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);                                                \
             __ubuf__ TYPE *buf = (__ubuf__ TYPE *)addr;                                                                             \
@@ -80,20 +81,20 @@ const int ub_size = 256;
 
 SHMEM_FUNC_TYPE_KERNEL(KERNEL_PUT_NUM_NON_CONTIGUOUS);
 
-#define PUT_NON_CONTIGUOUS_NUM_TEST(NAME, TYPE)                                                                                         \
-    extern "C" __global__ __aicore__ void put_##NAME##_non_contiguous_num_test(GM_ADDR gva, GM_ADDR dev, int repeat, int length)        \
-    {                                                                                                                                   \
-        kernel_##NAME##_put_num_non_contiguous op;                                                                                      \
-        op.Init(gva, dev);                                                                                                              \
-        op.Process(repeat, length);                                                                                                     \
+#define PUT_NON_CONTIGUOUS_NUM_TEST(NAME, TYPE)                                                                                                          \
+    extern "C" __global__ __aicore__ void put_##NAME##_non_contiguous_num_test(GM_ADDR gva, GM_ADDR dev, int repeat, int length, uint64_t config)        \
+    {                                                                                                                                                    \
+        kernel_##NAME##_put_num_non_contiguous op;                                                                                                       \
+        op.Init(gva, dev);                                                                                                                               \
+        op.Process(repeat, length, config);                                                                                                              \
     }
 
 SHMEM_FUNC_TYPE_KERNEL(PUT_NON_CONTIGUOUS_NUM_TEST);
 
-#define TEST_NON_CONTIGUOUS_PUT(NAME, TYPE)                                                                                         \
-    void test_##NAME##_non_contiguous_put(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev, int repeat, int length)     \
-    {                                                                                                                               \
-        put_##NAME##_non_contiguous_num_test<<<block_dim, nullptr, stream>>>(gva, dev, repeat, length);                             \
+#define TEST_NON_CONTIGUOUS_PUT(NAME, TYPE)                                                                                                          \
+    void test_##NAME##_non_contiguous_put(uint32_t block_dim, void* stream, uint64_t config, uint8_t* gva, uint8_t* dev, int repeat, int length)     \
+    {                                                                                                                                                \
+        put_##NAME##_non_contiguous_num_test<<<block_dim, nullptr, stream>>>(gva, dev, repeat, length, config);                                      \
     }
 
 SHMEM_FUNC_TYPE_KERNEL(TEST_NON_CONTIGUOUS_PUT);
@@ -117,8 +118,9 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_NON_CONTIGUOUS_PUT);
             /* 1x4096 Bytes Buffer */                                                                                                   \
             pipe.InitBuffer(buf_queue, 1, 4096);                                                                                        \
         }                                                                                                                               \
-        __aicore__ inline void Process(int repeat, int length)                                                                          \
+        __aicore__ inline void Process(int repeat, int length, uint64_t config)                                                         \
         {                                                                                                                               \
+            shmemx_set_ffts_config(config);                                                                                             \
             AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                                      \
             uintptr_t addr = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);                                                    \
             __ubuf__ TYPE *buf = (__ubuf__ TYPE *)addr;                                                                                 \
@@ -164,20 +166,20 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_NON_CONTIGUOUS_PUT);
 
 SHMEM_FUNC_TYPE_KERNEL(KERNEL_GET_NUM_NON_CONTIGUOUS);
 
-#define GET_NON_CONTIGUOUS_NUM_TEST(NAME,TYPE)                                                                                      \
-    extern "C" __global__ __aicore__ void get_##NAME##_non_contiguous_num_test(GM_ADDR gva, GM_ADDR dev, int repeat, int length)    \
-    {                                                                                                                               \
-        kernel_##NAME##_get_num_non_contiguous op;                                                                                  \
-        op.Init(gva, dev);                                                                                                          \
-        op.Process(repeat, length);                                                                                                 \
+#define GET_NON_CONTIGUOUS_NUM_TEST(NAME,TYPE)                                                                                                       \
+    extern "C" __global__ __aicore__ void get_##NAME##_non_contiguous_num_test(GM_ADDR gva, GM_ADDR dev, int repeat, int length, uint64_t config)    \
+    {                                                                                                                                                \
+        kernel_##NAME##_get_num_non_contiguous op;                                                                                                   \
+        op.Init(gva, dev);                                                                                                                           \
+        op.Process(repeat, length, config);                                                                                                          \
     }
 
 SHMEM_FUNC_TYPE_KERNEL(GET_NON_CONTIGUOUS_NUM_TEST);
 
-#define TEST_NON_CONTIGUOUS_GET(NAME, TYPE)                                                                                         \
-    void test_##NAME##_non_contiguous_get(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev, int repeat, int length)     \
-    {                                                                                                                               \
-        get_##NAME##_non_contiguous_num_test<<<block_dim, nullptr, stream>>>(gva, dev, repeat, length);                             \
+#define TEST_NON_CONTIGUOUS_GET(NAME, TYPE)                                                                                                          \
+    void test_##NAME##_non_contiguous_get(uint32_t block_dim, void* stream, uint64_t config, uint8_t* gva, uint8_t* dev, int repeat, int length)     \
+    {                                                                                                                                                \
+        get_##NAME##_non_contiguous_num_test<<<block_dim, nullptr, stream>>>(gva, dev, repeat, length, config);                                      \
     }
 
 SHMEM_FUNC_TYPE_KERNEL(TEST_NON_CONTIGUOUS_GET);

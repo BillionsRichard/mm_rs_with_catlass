@@ -24,9 +24,9 @@ extern void test_mutil_task(std::function<void(int, int, uint64_t)> func, uint64
 extern void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *st);
 extern void test_finalize(aclrtStream stream, int device_id);
 
-#define TEST_FUNC(NAME, TYPE)                                                                                                                       \
-    extern void test_##NAME##_non_contiguous_put(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr, int repeat, int length);         \
-    extern void test_##NAME##_non_contiguous_get(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr, int repeat, int length)
+#define TEST_FUNC(NAME, TYPE)                                                                                                                                        \
+    extern void test_##NAME##_non_contiguous_put(uint32_t block_dim, void* stream, uint64_t config, uint8_t* gva, uint8_t* dev_ptr, int repeat, int length);         \
+    extern void test_##NAME##_non_contiguous_get(uint32_t block_dim, void* stream, uint64_t config, uint8_t* gva, uint8_t* dev_ptr, int repeat, int length)
 
 SHMEM_FUNC_TYPE_HOST(TEST_FUNC);
 
@@ -53,12 +53,12 @@ constexpr int input_length = 16;
                                                                                                                                 \
         uint32_t block_dim = 1;                                                                                                 \
         void *ptr = shmem_malloc(total_size * sizeof(TYPE));                                                                    \
-        test_##NAME##_non_contiguous_put(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr, input_repeat, input_length);    \
+        test_##NAME##_non_contiguous_put(block_dim, stream, shmemx_get_ffts_config(), (uint8_t *)ptr, (uint8_t *)dev_ptr, input_repeat, input_length);    \
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                                           \
                                                                                                                                 \
         ASSERT_EQ(aclrtMemcpy(input.data(), input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);                        \
                                                                                                                                 \
-        test_##NAME##_non_contiguous_get(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr, input_repeat / 2, input_length);\
+        test_##NAME##_non_contiguous_get(block_dim, stream, shmemx_get_ffts_config(), (uint8_t *)ptr, (uint8_t *)dev_ptr, input_repeat / 2, input_length);\
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                                           \
                                                                                                                                 \
         ASSERT_EQ(aclrtMemcpy(input.data(), input_size, dev_ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);                    \

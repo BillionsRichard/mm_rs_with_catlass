@@ -27,9 +27,9 @@ extern void test_finalize(aclrtStream stream, int device_id);
 const int input_length = 16;
 const int test_offset = 10;
 
-#define TEST_FUNC(NAME, TYPE)                                                                               \
-    extern void test_##NAME##_put(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr);        \
-    extern void test_##NAME##_get(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev_ptr)
+#define TEST_FUNC(NAME, TYPE)                                                                                                \
+    extern void test_##NAME##_put(uint32_t block_dim, void* stream, uint64_t config, uint8_t* gva, uint8_t* dev_ptr);        \
+    extern void test_##NAME##_get(uint32_t block_dim, void* stream, uint64_t config, uint8_t* gva, uint8_t* dev_ptr)
 
 SHMEM_FUNC_TYPE_HOST(TEST_FUNC);
 
@@ -51,12 +51,12 @@ SHMEM_FUNC_TYPE_HOST(TEST_FUNC);
                                                                                                                             \
         uint32_t block_dim = 1;                                                                                             \
         void *ptr = shmem_malloc(input_size);                                                                               \
-        test_##NAME##_put(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);                                           \
+        test_##NAME##_put(block_dim, stream, shmemx_get_ffts_config(), (uint8_t *)ptr, (uint8_t *)dev_ptr);                 \
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                                       \
                                                                                                                             \
         ASSERT_EQ(aclrtMemcpy(input.data(), input_size, ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);                    \
                                                                                                                             \
-        test_##NAME##_get(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);                                           \
+        test_##NAME##_get(block_dim, stream, shmemx_get_ffts_config(), (uint8_t *)ptr, (uint8_t *)dev_ptr);                 \
         ASSERT_EQ(aclrtSynchronizeStream(stream), 0);                                                                       \
                                                                                                                             \
         ASSERT_EQ(aclrtMemcpy(input.data(), input_size, dev_ptr, input_size, ACL_MEMCPY_DEVICE_TO_HOST), 0);                \

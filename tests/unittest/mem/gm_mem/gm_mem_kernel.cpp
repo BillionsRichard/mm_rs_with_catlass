@@ -25,8 +25,9 @@ const int ub_size = 256;
             /* 1x4096 Bytes Buffer */                                                                                               \
             pipe.InitBuffer(buf_queue, 1, 4096);                                                                                    \
         }                                                                                                                           \
-        __aicore__ inline void Process()                                                                                            \
+        __aicore__ inline void Process(uint64_t config)                                                                             \
         {                                                                                                                           \
+            shmemx_set_ffts_config(config);                                                                                         \
             AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                                  \
             uintptr_t addr = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);                                                \
             __ubuf__ TYPE *buf = (__ubuf__ TYPE *)addr;                                                                             \
@@ -57,20 +58,20 @@ const int ub_size = 256;
 
 SHMEM_FUNC_TYPE_KERNEL(KERNEL_PUT_NUM);
 
-#define PUT_NUM_TEST(NAME, TYPE)                                                                \
-    extern "C" __global__ __aicore__ void put_##NAME##_num_test(GM_ADDR gva, GM_ADDR dev)       \
-    {                                                                                           \
-        kernel_##NAME##_put_num op;                                                             \
-        op.Init(gva, dev);                                                                      \
-        op.Process();                                                                           \
+#define PUT_NUM_TEST(NAME, TYPE)                                                                            \
+    extern "C" __global__ __aicore__ void put_##NAME##_num_test(GM_ADDR gva, GM_ADDR dev, uint64_t config)  \
+    {                                                                                                       \
+        kernel_##NAME##_put_num op;                                                                         \
+        op.Init(gva, dev);                                                                                  \
+        op.Process(config);                                                                                 \
     }
 
 SHMEM_FUNC_TYPE_KERNEL(PUT_NUM_TEST);
 
-#define TEST_PUT(NAME, TYPE)                                                                \
-    void test_##NAME##_put(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev)    \
-    {                                                                                       \
-        put_##NAME##_num_test<<<block_dim, nullptr, stream>>>(gva, dev);                    \
+#define TEST_PUT(NAME, TYPE)                                                                                \
+    void test_##NAME##_put(uint32_t block_dim, void* stream, uint64_t config, uint8_t* gva, uint8_t* dev)   \
+    {                                                                                                       \
+        put_##NAME##_num_test<<<block_dim, nullptr, stream>>>(gva, dev, config);                            \
     }
 
 SHMEM_FUNC_TYPE_KERNEL(TEST_PUT);
@@ -94,8 +95,9 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_PUT);
             /* 1x4096 Bytes Buffer */                                                                                                       \
             pipe.InitBuffer(buf_queue, 1, 4096);                                                                                            \
         }                                                                                                                                   \
-        __aicore__ inline void Process()                                                                                                    \
+        __aicore__ inline void Process(uint64_t config)                                                                                     \
         {                                                                                                                                   \
+            shmemx_set_ffts_config(config);                                                                                                 \
             AscendC::LocalTensor<TYPE> buf_tensor = buf_queue.AllocTensor<TYPE>();                                                          \
             uintptr_t addr = static_cast<uintptr_t>(buf_tensor.address_.bufferAddr);                                                        \
             __ubuf__ TYPE *buf = (__ubuf__ TYPE *)addr;                                                                                     \
@@ -134,20 +136,20 @@ SHMEM_FUNC_TYPE_KERNEL(TEST_PUT);
 
 SHMEM_FUNC_TYPE_KERNEL(KERNEL_GET_NUM);
 
-#define GET_NUM_TEST(NAME,TYPE)                                                             \
-    extern "C" __global__ __aicore__ void get_##NAME##_num_test(GM_ADDR gva, GM_ADDR dev)   \
-    {                                                                                       \
-        kernel_##NAME##_get_num op;                                                         \
-        op.Init(gva, dev);                                                                  \
-        op.Process();                                                                       \
+#define GET_NUM_TEST(NAME,TYPE)                                                                               \
+    extern "C" __global__ __aicore__ void get_##NAME##_num_test(GM_ADDR gva, GM_ADDR dev, uint64_t config)    \
+    {                                                                                                         \
+        kernel_##NAME##_get_num op;                                                                           \
+        op.Init(gva, dev);                                                                                    \
+        op.Process(config);                                                                                   \
     }
 
 SHMEM_FUNC_TYPE_KERNEL(GET_NUM_TEST);
 
-#define TEST_GET(NAME, TYPE)                                                                \
-    void test_##NAME##_get(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev)    \
-    {                                                                                       \
-        get_##NAME##_num_test<<<block_dim, nullptr, stream>>>(gva, dev);                    \
+#define TEST_GET(NAME, TYPE)                                                                                 \
+    void test_##NAME##_get(uint32_t block_dim, void* stream, uint64_t config, uint8_t* gva, uint8_t* dev)    \
+    {                                                                                                        \
+        get_##NAME##_num_test<<<block_dim, nullptr, stream>>>(gva, dev, config);                             \
     }
 
 SHMEM_FUNC_TYPE_KERNEL(TEST_GET);
