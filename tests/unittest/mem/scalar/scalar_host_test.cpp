@@ -26,9 +26,9 @@ extern void test_finalize(aclrtStream stream, int device_id);
 const size_t total_size = 1024;
 const float test_offset = 3.5f;
 
-#define PUT_ONE_NUM_DO(NAME, TYPE)                                                                          \
-    extern void put_##NAME##_one_num_do(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev);      \
-    extern void get_##NAME##_one_num_do(uint32_t block_dim, void* stream, uint8_t* gva, uint8_t* dev) 
+#define PUT_ONE_NUM_DO(NAME, TYPE)                                                                                           \
+    extern void put_##NAME##_one_num_do(uint32_t block_dim, void* stream, uint64_t config, uint8_t* gva, uint8_t* dev);      \
+    extern void get_##NAME##_one_num_do(uint32_t block_dim, void* stream, uint64_t config, uint8_t* gva, uint8_t* dev) 
 
 SHMEM_FUNC_TYPE_HOST(PUT_ONE_NUM_DO);
 
@@ -47,7 +47,7 @@ SHMEM_FUNC_TYPE_HOST(PUT_ONE_NUM_DO);
         TYPE value = static_cast<TYPE>(test_offset) + (TYPE)rank_id;                                                        \
         EXPECT_EQ(aclrtMemcpy(dev_ptr, 1 * sizeof(TYPE), &value, 1 * sizeof(TYPE), ACL_MEMCPY_DEVICE_TO_HOST), 0);          \
         void *ptr = shmem_malloc(total_size);                                                                               \
-        put_##NAME##_one_num_do(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);                                     \
+        put_##NAME##_one_num_do(block_dim, stream, shmemx_get_ffts_config(), (uint8_t *)ptr, (uint8_t *)dev_ptr);           \
         EXPECT_EQ(aclrtSynchronizeStream(stream), 0);                                                                       \
                                                                                                                             \
         EXPECT_EQ(aclrtMemcpy(y_host, 1 * sizeof(TYPE), ptr, 1 * sizeof(TYPE), ACL_MEMCPY_DEVICE_TO_HOST), 0);              \
@@ -56,7 +56,7 @@ SHMEM_FUNC_TYPE_HOST(PUT_ONE_NUM_DO);
         int32_t flag = 0;                                                                                                   \
         if (y_host[0] != static_cast<TYPE>(test_offset + (rank_id + rank_size - 1) % rank_size)) flag = 1;                  \
                                                                                                                             \
-        get_##NAME##_one_num_do(block_dim, stream, (uint8_t *)ptr, (uint8_t *)dev_ptr);                                     \
+        get_##NAME##_one_num_do(block_dim, stream, shmemx_get_ffts_config(), (uint8_t *)ptr, (uint8_t *)dev_ptr);           \
         EXPECT_EQ(aclrtSynchronizeStream(stream), 0);                                                                       \
                                                                                                                             \
         EXPECT_EQ(aclrtMemcpy(y_host, 1 * sizeof(TYPE), dev_ptr, 1 * sizeof(TYPE), ACL_MEMCPY_DEVICE_TO_HOST), 0);          \
