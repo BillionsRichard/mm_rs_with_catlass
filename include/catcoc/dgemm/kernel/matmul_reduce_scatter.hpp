@@ -254,7 +254,7 @@ public:
 
             // wait aic
             Catlass::Arch::CrossCoreWaitFlag(flagAicFinishStore[stageId]);
-
+            //TODO: do block dequant-op
             // Local matmul is completed, waiting until tasks on all devices are complete.
             shmemx_barrier_all_vec();
 
