@@ -206,7 +206,7 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_TENSOR_DETAILED);
 
 #define SHMEM_PUT_TYPENAME_MEM(NAME, TYPE)                                                                                      \
     /**                                                                                                                         \
-    * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.               \
+    * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.                 \
     *                                                                                                                           \
     * @param dst               [in] Pointer on Symmetric memory of the destination data.                                        \
     * @param src               [in] Pointer on local device of the source data.                                                 \
@@ -259,7 +259,7 @@ SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM_DETAILED);
 
 #define SHMEM_PUT_TYPENAME_MEM_TENSOR(NAME, TYPE)                                                                               \
     /**                                                                                                                         \
-    * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.               \
+    * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.                 \
     *                                                                                                                           \
     * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.                                   \
     * @param src               [in] GlobalTensor on local device of the source data.                                            \
@@ -414,7 +414,7 @@ SHMEM_TYPE_FUNC(SHMEM_GET_TYPENAME_MEM_UB_TENSOR_DETAILED);
 
 #define SHMEM_PUT_TYPENAME_MEM_UB(NAME, TYPE)                                                                                   \
     /**                                                                                                                         \
-    * @brief Asynchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.               \
+    * @brief Asynchronous interface. Copy contiguous data on local UB to symmetric address on the specified PE.                 \
     *                                                                                                                           \
     * @param dst               [in] Pointer on Symmetric memory of the destination data.                                        \
     * @param src               [in] Pointer on local UB of the source data.                                                     \
@@ -437,7 +437,7 @@ SHMEM_TYPE_FUNC(SHMEM_PUT_TYPENAME_MEM_UB);
 
 #define SHMEM_PUT_TYPENAME_MEM_UB_TENSOR(NAME, TYPE)                                                                            \
     /**                                                                                                                         \
-    * @brief Asynchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.               \
+    * @brief Asynchronous interface. Copy contiguous data on local UB to symmetric address on the specified PE.                 \
     *                                                                                                                           \
     * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.                                   \
     * @param src               [in] LocalTensor on local UB of the source data.                                                 \

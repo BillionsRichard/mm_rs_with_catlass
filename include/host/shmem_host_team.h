@@ -37,7 +37,7 @@ SHMEM_HOST_API int shmem_team_split_strided(shmem_team_t parent_team, int pe_sta
  * @param dest_team          [in] A team handle.
  *
  * @return The number of PEs in the specified team. 
- *         If the team handle is NVSHMEM_TEAM_INVALID, returns -1.
+ *         If the team handle is SHMEM_TEAM_INVALID, returns -1.
  */
 SHMEM_HOST_API int shmem_team_translate_pe(shmem_team_t src_team, int src_pe, shmem_team_t dest_team);
 
@@ -68,7 +68,7 @@ SHMEM_HOST_API int shmem_n_pes();
  * @param team              [in] A team handle.
  *
  * @return The number of the calling PE within the specified team. 
- *         If the team handle is NVSHMEM_TEAM_INVALID, returns -1.
+ *         If the team handle is SHMEM_TEAM_INVALID, returns -1.
  */
 SHMEM_HOST_API int shmem_team_my_pe(shmem_team_t team);
 
@@ -78,7 +78,7 @@ SHMEM_HOST_API int shmem_team_my_pe(shmem_team_t team);
  * @param team              [in] A team handle.
  *
  * @return The number of PEs in the specified team. 
- *         If the team handle is NVSHMEM_TEAM_INVALID, returns -1.
+ *         If the team handle is SHMEM_TEAM_INVALID, returns -1.
  */
 SHMEM_HOST_API int shmem_team_n_pes(shmem_team_t team);
 

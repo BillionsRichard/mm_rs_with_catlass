@@ -221,7 +221,7 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::GlobalTensor<T> dst, AscendC::G
 
 
 /**
- * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
+ * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
  *
  * @param dst               [in] Pointer on Symmetric memory of the destination data.
  * @param src               [in] Pointer on local device of the source data.
@@ -315,7 +315,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __gm__ T* src, __ubuf__ T
 
 
 /**
- * @brief Asynchronous interface. Copy a contiguous data on local PE to symmetric address on the specified PE.
+ * @brief Asynchronous interface. Copy contiguous data on local PE to symmetric address on the specified PE.
  *
  * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.
  * @param src               [in] GlobalTensor on local device of the source data.
@@ -528,8 +528,7 @@ SHMEM_DEVICE void shmem_mte_get_mem_nbi(AscendC::LocalTensor<T> dst, AscendC::Gl
 
 
 /**
- * @brief Asynchronous interface. Provide a high-performance way to copy non-contiguous data 
- *        on symmetric memory from the specified PE to address on the local UB.
+ * @brief Asynchronous interface. Copy contiguous data on local UB to symmetric address on the specified PE.
  *
  * @param dst               [in] Pointer on Symmetric memory of the destination data.
  * @param src               [in] Pointer on local UB of the source data.
@@ -554,7 +553,7 @@ SHMEM_DEVICE void shmem_mte_put_mem_nbi(__gm__ T* dst, __ubuf__ T* src, uint32_t
 
 
 /**
- * @brief Asynchronous interface. Copy a contiguous data on local UB to symmetric address on the specified PE.
+ * @brief Asynchronous interface. Copy contiguous data on local UB to symmetric address on the specified PE.
  *
  * @param dst               [in] GlobalTensor on Symmetric memory of the destination data.
  * @param src               [in] LocalTensor on local UB of the source data.

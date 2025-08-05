@@ -27,11 +27,11 @@ extern "C" {
 SHMEM_HOST_API void* shmem_ptr(void *ptr, int pe);
 
 /**
- * @brief Set necessary parameters for put\\get.
+ * @brief Set necessary parameters for put or get.
  *
  * @param offset                [in] The start address on UB.
- * @param ub_size                [in] The Size of Temp UB Buffer.
- * @param event_id               [in] Sync ID for put\\get interfaces.
+ * @param ub_size               [in] The Size of Temp UB Buffer.
+ * @param event_id              [in] Sync ID for put or get.
  * @return Returns 0 on success or an error code on failure.
  */
 SHMEM_HOST_API int shmem_mte_set_ub_params(uint64_t offset, uint32_t ub_size, uint32_t event_id);
