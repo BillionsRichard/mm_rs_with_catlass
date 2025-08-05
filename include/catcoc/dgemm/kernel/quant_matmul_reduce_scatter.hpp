@@ -323,7 +323,7 @@ public:
         AscendC::GlobalTensor<int32_t> gmBias;
         gmBias.SetGlobalBuffer(reinterpret_cast<__gm__ int32_t *>(params.ptrBias));
 
-        uint32_t M_per_rank = params.problemShape.m / params.rankSize;
+        uint32_t M_per_rank = params.problemShape.m() / params.rankSize;
         uint32_t N = params.problemShape.n();
         uint32_t M_global_offset = params.rankIdx * M_per_rank;
 
