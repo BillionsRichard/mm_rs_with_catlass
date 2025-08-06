@@ -128,7 +128,7 @@ def verify_result():
     args = parser.parse_args()
 
     output = tensor_from_file(args.output, dtype=args.out_dtype.torch_type)
-    golden = tensor_from_file(args.golden, dtype=args.out_dtype.torch_type)
+    golden = tensor_from_file(args.golden, dtype=torch.float32)
 
     rtol = get_rtol(dtype=args.out_dtype.torch_type, compute_times=args.k)
     result = precision_performance_analysis(OpTypes.COMPUTE_FLOAT,[golden],[output], rtol)
