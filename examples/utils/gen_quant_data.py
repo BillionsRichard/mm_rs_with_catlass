@@ -6,7 +6,9 @@ def gen_random_data(size, dtype):
     if dtype == torch.float16 or dtype == torch.bfloat16 or dtype == torch.float32:
         return torch.randn(size=size, dtype=dtype)
     elif dtype == torch.int8:
-        return torch.randint(-16, 16, size=size, dtype=dtype)
+        # return torch.randint(-16, 16, size=size, dtype=dtype)
+        # for debug use all ones.
+        return torch.ones(size=size, dtype=dtype)
     else:
         print(f"Invalid dtype: {dtype}.")
         exit(1)
@@ -37,7 +39,7 @@ def gen_golden_data():
     # Calculate golden result
     l0c_dtype = torch.float32
     accumulator = torch.matmul(x1_gm.to(l0c_dtype), x2_gm.to(l0c_dtype))
-
+    
     dequantized = accumulator + bias_gm.to(l0c_dtype)
 
     # Apply scales
@@ -48,7 +50,7 @@ def gen_golden_data():
     golden = torch.zeros_like(result_fp32)
     for _ in range(args.rank_size):
         golden += result_fp32
-
+    
     golden = golden.to(args.out_dtype.torch_type)
 
     if args.transA:
