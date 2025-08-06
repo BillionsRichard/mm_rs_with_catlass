@@ -36,7 +36,7 @@ public:
     using ReduceScatter = BlockEpilogueReduceScatter_;
     using ReduceScatterParams = typename ReduceScatter::Params;
 
-    using ElementD = bfloat16_t; // Final output type
+    using ElementD = float16_t; // Final output type
     using LayoutD = Catlass::layout::RowMajor;
 
     using BlockScheduler = BlockScheduler_;
@@ -61,7 +61,7 @@ public:
 
         GM_ADDR ptrC_accum; // int32
         LayoutC layoutC_accum;
-
+        
         GM_ADDR ptrD_out; // bfloat16
         LayoutD layoutD_out;
 
@@ -183,7 +183,7 @@ public:
                 auto rankOffsetA = problemShapeInRank.GetCoordMK() * Catlass::MakeCoord<uint32_t>(targetRankIdx, 0);
                 auto blockOffsetA = offsetCoord.GetCoordMK() + rankOffsetA;
                 auto blockOffsetB = offsetCoord.GetCoordKN();
-
+                
                 MatrixCoord blockOffsetStore;
                 AscendC::GlobalTensor<ElementC> gmStore;
                 Catlass::layout::RowMajor layoutStore;
@@ -197,11 +197,11 @@ public:
                     gmStore = gmC_workspace;
                     layoutStore = layoutC;
                 }
-
+                
                 int64_t offsetA = params.layoutA.GetOffset(blockOffsetA);
                 int64_t offsetB = params.layoutB.GetOffset(blockOffsetB);
                 int64_t offsetStore = layoutStore.GetOffset(blockOffsetStore);
-
+                
                 // Compute block-scoped matrix multiply-add
                 blockMmad(
                     gmA[offsetA], params.layoutA,
@@ -246,7 +246,7 @@ public:
         MatrixCoord commShape = MatrixCoord{blockPerComm, 1} * blockShapeMN;
         MatrixCoord dataLoopsMx = CeilDiv(commShape, commBlockShape);
         uint32_t dLoopsInRank = CeilDiv(dataLoopsMx.row() * dataLoopsMx.column(), params.rankSize);
-        CommScheduler commScheduler(params.rankIdx, params.rankSize, commCoreSplit,
+        CommScheduler commScheduler(params.rankIdx, params.rankSize, commCoreSplit, 
                                     commShape, commBlockShape, dLoopsInRank);
         MatrixCoord actualCommShapeInRank = commShape / Catlass::MakeCoord<uint32_t>(params.rankSize, 1);
 
@@ -323,8 +323,8 @@ public:
         AscendC::GlobalTensor<int32_t> gmBias;
         gmBias.SetGlobalBuffer(reinterpret_cast<__gm__ int32_t *>(params.ptrBias));
 
-        uint32_t M_per_rank = params.problemShape.m / params.rankSize;
-        uint32_t N = params.problemShape.n;
+        uint32_t M_per_rank = params.problemShape.m() / params.rankSize;
+        uint32_t N = params.problemShape.n();
         uint32_t M_global_offset = params.rankIdx * M_per_rank;
 
         // Each core handles a portion of the dequantization
@@ -334,16 +334,16 @@ public:
             uint32_t m_global = M_global_offset + m_local;
 
             int64_t offset_accum = params.layoutC_accum.GetOffset({m_local, n_local});
-            int32_t accum_val = gmC_accum[offset_accum];
+            int32_t accum_val = gmC_accum.GetValue(offset_accum);
 
-            float scale1 = gmScaleX1[m_global];
-            float scale2 = gmScaleX2[n_local];
-            int32_t bias = gmBias[n_local];
+            float scale1 = gmScaleX1.GetValue(m_global);
+            float scale2 = gmScaleX2.GetValue(n_local);
+            int32_t bias = gmBias.GetValue(n_local);
 
-            float dequant_val = (static_cast<float>(accum_val) + static_cast<float>(bias)) * scale1 * scale2;
-
+            float dequant_val = (static_cast<float>(accum_val) + static_cast<float>(bias)) * scale1 *scale2;
+            
             int64_t offset_out = params.layoutD_out.GetOffset({m_local, n_local});
-            gmD_out[offset_out] = ElementD(dequant_val);
+            gmD_out.SetValue(offset_out, dequant_val);
         }
         AscendC::PipeBarrier<PIPE_ALL>();
     }
