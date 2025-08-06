@@ -17,6 +17,7 @@ using Catlass::GemmCoord;
 template <
     class BlockMmad_,
     class BlockEpilogueReduceScatter_,
+    class BlockEpilogueDequant_,
     class BlockScheduler_,
     class BlockEpilogueScheduler_,
     uint32_t WORKSPACE_STAGES_
@@ -35,6 +36,8 @@ public:
 
     using ReduceScatter = BlockEpilogueReduceScatter_;
     using ReduceScatterParams = typename ReduceScatter::Params;
+    using Dequant = BlockEpilogueDequant_;
+    using DequantParams = typename Dequant::Params;
 
     using ElementD = bfloat16_t; // Final output type
     using LayoutD = Catlass::layout::RowMajor;
@@ -58,19 +61,13 @@ public:
         LayoutB layoutB;
         GM_ADDR ptrSymmetric;
         ReduceScatterParams reduceScatterParams;
+        DequantParams dequantParams;
 
         GM_ADDR ptrC_accum; // int32
         LayoutC layoutC_accum;
         
         GM_ADDR ptrD_out; // bfloat16
         LayoutD layoutD_out;
-
-        GM_ADDR ptrScaleX1; // float
-        LayoutA layoutScaleX1; // Assuming RowMajor-like layout for vector
-        GM_ADDR ptrScaleX2; // float
-        LayoutA layoutScaleX2;
-        GM_ADDR ptrBias; // int32
-        LayoutA layoutBias;
 
         uint32_t commInterval;
 
@@ -86,11 +83,9 @@ public:
             GM_ADDR ptrB_, LayoutB const &layoutB_,
             GM_ADDR ptrSymmetric_,
             ReduceScatterParams const &reduceScatterParams_,
+            DequantParams const &dequantParams_,
             GM_ADDR ptrC_accum_, LayoutC const &layoutC_accum_,
             GM_ADDR ptrD_out_, LayoutD const &layoutD_out_,
-            GM_ADDR ptrScaleX1_, LayoutA const &layoutScaleX1_,
-            GM_ADDR ptrScaleX2_, LayoutA const &layoutScaleX2_,
-            GM_ADDR ptrBias_, LayoutA const &layoutBias_,
             uint32_t commInterval_
         ) : problemShape(problemShape_),
             rankIdx(rank_), rankSize(rankSize_),
@@ -98,11 +93,9 @@ public:
             ptrB(ptrB_), layoutB(layoutB_),
             ptrSymmetric(ptrSymmetric_),
             reduceScatterParams(reduceScatterParams_),
+            dequantParams(dequantParams_),
             ptrC_accum(ptrC_accum_), layoutC_accum(layoutC_accum_),
             ptrD_out(ptrD_out_), layoutD_out(layoutD_out_),
-            ptrScaleX1(ptrScaleX1_), layoutScaleX1(layoutScaleX1_),
-            ptrScaleX2(ptrScaleX2_), layoutScaleX2(layoutScaleX2_),
-            ptrBias(ptrBias_), layoutBias(layoutBias_),
             commInterval(commInterval_) {}
     };
 
@@ -313,37 +306,32 @@ public:
             Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_MTE3>(flagAivFinishCompute[stageId]);
         }
 
-        // Final Dequantization Step
-        AscendC::GlobalTensor<ElementD> gmD_out;
-        gmD_out.SetGlobalBuffer(reinterpret_cast<__gm__ ElementD *>(params.ptrD_out));
-        AscendC::GlobalTensor<float> gmScaleX1;
-        gmScaleX1.SetGlobalBuffer(reinterpret_cast<__gm__ float *>(params.ptrScaleX1));
-        AscendC::GlobalTensor<float> gmScaleX2;
-        gmScaleX2.SetGlobalBuffer(reinterpret_cast<__gm__ float *>(params.ptrScaleX2));
-        AscendC::GlobalTensor<int32_t> gmBias;
-        gmBias.SetGlobalBuffer(reinterpret_cast<__gm__ int32_t *>(params.ptrBias));
+        // Final Dequantization Step, using the epilogue
+        Dequant dequantEpilogue(resource, params.dequantParams);
 
         uint32_t M_per_rank = params.problemShape.m() / params.rankSize;
         uint32_t N = params.problemShape.n();
-        uint32_t M_global_offset = params.rankIdx * M_per_rank;
+        GemmCoord problemShapeEpilogue{M_per_rank, N, 1};
 
-        // Each core handles a portion of the dequantization
-        for (uint32_t i = aicoreIndex; i < M_per_rank * N; i += aicoreNum) {
-            uint32_t m_local = i / N;
-            uint32_t n_local = i % N;
-            uint32_t m_global = M_global_offset + m_local;
+        uint32_t coreNum = AscendC::GetBlockNum();
+        uint32_t coreIdx = AscendC::GetBlockIdx();
 
-            int64_t offset_accum = params.layoutC_accum.GetOffset({m_local, n_local});
-            int32_t accum_val = gmC_accum[offset_accum];
+        // Use the epilogue's own tile scheduler to iterate over the output matrix
+        typename Dequant::EpilogueTileSwizzle tileScheduler(problemShapeEpilogue.GetCoordMN(), Dequant::TileShape::ToCoord());
+        uint32_t tileLoops = tileScheduler.GetLoops();
 
-            float scale1 = gmScaleX1.GetValue(m_global);
-            float scale2 = gmScaleX2.GetValue(n_local);
-            int32_t bias = gmBias.GetValue(n_local);
-
-            float dequant_val = (static_cast<float>(accum_val) + static_cast<float>(bias)) * scale1 * scale2;
+        for(uint32_t i = coreIdx; i < tileLoops; i += coreNum) {
+            auto tileCoord = tileScheduler.GetTileCoord(i);
+            auto actualTileShape = tileScheduler.GetActualTileShape(tileCoord);
             
-            int64_t offset_out = params.layoutD_out.GetOffset({m_local, n_local});
-            gmD_out.SetValue(offset_out, static_cast<ElementD>(dequant_val));
+            // The epilogue call must be adapted to its own scheduling logic
+            dequantEpilogue(
+                problemShapeEpilogue, 
+                GemmCoord(tileCoord.row(), tileCoord.column(), 0), 
+                GemmCoord(actualTileShape.row(), actualTileShape.column(), 1), 
+                gmC_accum, 
+                params.layoutC_accum
+            );
         }
         AscendC::PipeBarrier<PIPE_ALL>();
     }
