@@ -12,6 +12,7 @@
 
 #include <string>
 #include <mutex>
+#include <dlfcn.h>
 #include "smem_shm.h"
 #include "common/shmemi_logger.h"
 
@@ -79,8 +80,16 @@ public:
             SHM_LOG_ERROR("function pointer g_smem_un_init is NULL");
             return;
         }
-        
-        return g_smem_un_init();
+
+        g_smem_un_init();
+
+        if (g_smem_handle) {
+            dlclose(g_smem_handle);
+            g_smem_handle = nullptr;
+            g_loaded = false;
+            SHM_LOG_INFO("dl close library in smem_un_init");
+        }
+        return; 
     }
 
     static inline const char *smem_get_last_err_msg()

@@ -34,7 +34,15 @@ inline std::string get_connect_url()
         return "";
     }
 
-    auto port_int = std::strtol(port, nullptr, 10) + 11;
+    char *endptr;
+    auto port_long = std::strtol(port, &endptr, 10);
+    // master port + 11 as non-master port.
+    if (endptr == port || *endptr != '\0' || port_long <= 0 || port_long > 65535 - 11) {
+        // SHM_LOG_ERROR is not available in this file, use std::cerr
+        std::cerr << "[ERROR] Invalid MASTER_PORT value from environment: " << port << std::endl;
+        return "";
+    }
+    auto port_int = port_long + 11;
     return std::string("tcp://").append(address).append(":").append(std::to_string(port_int));
 }
 

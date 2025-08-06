@@ -46,7 +46,9 @@ inline void device_team_destroy(int32_t team_idx)
     // device_ptr Free
     shmemi_team_t *device_team_ptr = g_state.team_pools[team_idx];
     if (device_team_ptr != nullptr) {
-        aclrtFree((void *) device_team_ptr);
+        if (aclrtFree((void *) device_team_ptr) != ACL_SUCCESS) {
+            SHM_LOG_ERROR("aclrtFree for device_team_ptr failed for team " << team_idx);
+        }
         g_state.team_pools[team_idx] = nullptr;
     }
 }
