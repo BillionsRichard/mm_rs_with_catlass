@@ -134,7 +134,7 @@ function fn_build_memfabric()
     git submodule init
     git submodule update --recursive
     bash script/compile_acc_links.sh $BUILD_TYPE OFF OFF
-    mkdir build
+    mkdir -p build
     cd build 
     cmake -DBUILD_PYTHON=$PYEXPAND_TYPE -DBUILD_OPEN_ABI=OFF -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
     make install -j4
