@@ -133,6 +133,7 @@ function fn_build_memfabric()
     cd memfabric_hybrid
     git submodule init
     git submodule update --recursive
+    bash script/compile_acc_links.sh $BUILD_TYPE OFF OFF
     mkdir build
     cd build 
     cmake -DBUILD_PYTHON=$PYEXPAND_TYPE -DBUILD_OPEN_ABI=OFF -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
