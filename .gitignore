@@ -47,3 +47,6 @@ output/
 
 # log文件
 *.log
+sync_config.jsonc
+req_prompt.txt
+.env

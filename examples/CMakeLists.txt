@@ -37,13 +37,13 @@ function(catcoc_example_add_executable TARGET)
 
     add_custom_command(
         OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${TARGET}
-        COMMAND ${CCEC} -O2 -std=c++17 -xcce --cce-aicore-arch=dav-c220
+        COMMAND ${CCEC} -O2  -std=c++17 -xcce --cce-aicore-arch=dav-c220
                         -mllvm -cce-aicore-stack-size=0x8000
                         -mllvm -cce-aicore-function-stack-size=0x8000
                         -mllvm -cce-aicore-record-overflow=true
                         -mllvm -cce-aicore-addr-transform
                         -mllvm -cce-aicore-dcci-insert-for-scalar=false
-                        -DL2_CACHE_HINT
+                        # -DL2_CACHE_HINT
                         -MD -MF ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.d
                         -I${CMAKE_SOURCE_DIR}/include
                         -I${CMAKE_SOURCE_DIR}/3rdparty/catlass/include
