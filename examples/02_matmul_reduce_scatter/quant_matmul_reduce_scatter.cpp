@@ -284,6 +284,7 @@ int main(int argc, char **argv)
     // Allocate intermediate and final output buffers
     uint8_t *cAccumDevice;
     ACL_CHECK(aclrtMalloc((void **)(&cAccumDevice), cAccumSize, ACL_MEM_MALLOC_HUGE_FIRST));
+    ACL_CHECK(aclrtMemset(cAccumDevice, cAccumSize, 0, cAccumSize));
     uint8_t *dOutDevice, *dOutHost;
     ACL_CHECK(aclrtMalloc((void **)(&dOutDevice), dOutSize, ACL_MEM_MALLOC_HUGE_FIRST));
     ACL_CHECK(aclrtMallocHost((void **)(&dOutHost), dOutSize));
