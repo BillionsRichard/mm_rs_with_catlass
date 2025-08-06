@@ -1,13 +1,13 @@
 #!/bin/bash
-# eg. bash run.sh 0,1      # 在 0/1 卡上运行，rank size = 2
-# eg. bash run.sh 1,3,5,7  # 在 1/3/5/6 卡上运行，rank size = 4
+# eg. bash run_quant.sh 0,1      # 在 0/1 卡上运行，rank size = 2
+# eg. bash run_quant.sh 1,3,5,7  # 在 1/3/5/6 卡上运行，rank size = 4
 
 CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 PROJECT_ROOT=$( dirname $( dirname $(dirname "$SCRIPT_DIR")))
 UTILS_PATH=${PROJECT_ROOT}/examples/utils
 
-CSV_FILE="${SCRIPT_DIR}/test_shapes.csv"
+CSV_FILE="${SCRIPT_DIR}/test_quant_shapes.csv"
 
 IFS=',' read -ra DEVICE_ID_LIST <<< "$1"
 RANK_SIZE=${#DEVICE_ID_LIST[@]}
