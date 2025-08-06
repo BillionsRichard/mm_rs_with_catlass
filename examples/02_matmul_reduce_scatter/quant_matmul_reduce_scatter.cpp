@@ -244,7 +244,7 @@ int main(int argc, char **argv)
     size_t scaleX2Size = static_cast<size_t>(n) * sizeof(float);
     size_t biasSize = static_cast<size_t>(n) * sizeof(int32_t);
     size_t cAccumSize = static_cast<size_t>(m) * n * sizeof(int32_t) / rankSize;
-    size_t dOutSize = static_cast<size_t>(m) * n * sizeof(bfloat16) / rankSize;
+    size_t dOutSize = static_cast<size_t>(m) * n * sizeof(bfloat16_t) / rankSize;
 
     // Allocate and copy x1
     uint8_t *x1Device, *x1Host;

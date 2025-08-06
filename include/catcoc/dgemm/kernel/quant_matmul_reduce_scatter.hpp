@@ -36,7 +36,7 @@ public:
     using ReduceScatter = BlockEpilogueReduceScatter_;
     using ReduceScatterParams = typename ReduceScatter::Params;
 
-    using ElementD = bfloat16; // Final output type
+    using ElementD = bfloat16_t; // Final output type
     using LayoutD = Catlass::layout::RowMajor;
 
     using BlockScheduler = BlockScheduler_;
@@ -343,7 +343,7 @@ public:
             float dequant_val = (static_cast<float>(accum_val) + static_cast<float>(bias)) * scale1 * scale2;
 
             int64_t offset_out = params.layoutD_out.GetOffset({m_local, n_local});
-            gmD_out[offset_out] = static_cast<ElementD>(dequant_val);
+            gmD_out[offset_out] = ElementD(dequant_val);
         }
         AscendC::PipeBarrier<PIPE_ALL>();
     }
