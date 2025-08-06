@@ -31,8 +31,11 @@ def gen_golden_data():
     # Generate quantized inputs
     x1_gm = gen_random_data([M, K], dtype=torch.int8)
     x2_gm = gen_random_data([K, N], dtype=torch.int8)
-    scale_x1_gm = torch.randn(M, dtype=torch.float32) * 0.01
-    scale_x2_gm = torch.randn(N, dtype=torch.float32) * 0.01
+    # scale_x1_gm = torch.randn(M, dtype=torch.float32) * 0.01
+    # scale_x2_gm = torch.randn(N, dtype=torch.float32) * 0.01
+    # for debug
+    scale_x1_gm = torch.ones(size=(M,), dtype=torch.float32) * 0.01
+    scale_x2_gm = torch.ones(size=(N,), dtype=torch.float32) * 0.01
     bias_gm = torch.zeros(N, dtype=torch.int32)
     c_gm = torch.zeros((M // args.rank_size, N), dtype=args.out_dtype.torch_type)
 
@@ -51,7 +54,7 @@ def gen_golden_data():
     for _ in range(args.rank_size):
         golden += result_fp32
     
-    golden = golden.to(args.out_dtype.torch_type)
+    # golden = golden.to(args.out_dtype.torch_type)
 
     if args.transA:
         x1_gm = x1_gm.transpose(0, 1).contiguous()
