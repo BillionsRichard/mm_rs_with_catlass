@@ -28,17 +28,17 @@ message(STATUS "PYBIND11_DIR = ${PYBIND11_DIR}")
 list(APPEND CMAKE_PREFIX_PATH ${PYBIND11_DIR})
 find_package(pybind11 REQUIRED)
 
-pybind11_add_module(_pyaclshmem pyshmem.cpp)
-set_target_properties(_pyaclshmem PROPERTIES CXX_STANDARD 17)
-target_include_directories(_pyaclshmem PRIVATE
+pybind11_add_module(_pyshmem pyshmem.cpp)
+set_target_properties(_pyshmem PROPERTIES CXX_STANDARD 17)
+target_include_directories(_pyshmem PRIVATE
         ${PROJECT_SOURCE_DIR}/include/
 )
-target_link_libraries(_pyaclshmem PRIVATE
+target_link_libraries(_pyshmem PRIVATE
         shmem
 )
 
-set(TARGET_INSTALL_DIR ${PROJECT_SOURCE_DIR}/src/python/aclshmem)
-install(TARGETS _pyaclshmem
+set(TARGET_INSTALL_DIR ${PROJECT_SOURCE_DIR}/src/python/shmem)
+install(TARGETS _pyshmem
         LIBRARY DESTINATION ${TARGET_INSTALL_DIR}/
         PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
 )

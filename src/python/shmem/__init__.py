@@ -21,15 +21,15 @@ libs_path = os.path.join(os.getenv('SHMEM_HOME_PATH', current_dir), 'shmem/lib')
 for lib in ["libshmem.so"]:
     ctypes.CDLL(os.path.join(libs_path, lib))
 
-from ._pyaclshmem import aclshmem_init, aclshmem_finialize, aclshmem_malloc, aclshmem_free, \
-    aclshmem_ptr, my_pe, pe_count, mte_set_ub_params, team_split_strided, team_translate_pe, team_destroy
+from ._pyshmem import shmem_init, shmem_finialize, shmem_malloc, shmem_free, \
+    shmem_ptr, my_pe, pe_count, mte_set_ub_params, team_split_strided, team_translate_pe, team_destroy
 
 __all__ = [
-    'aclshmem_init',
-    'aclshmem_finialize',
-    'aclshmem_malloc',
-    'aclshmem_free',
-    'aclshmem_ptr',
+    'shmem_init',
+    'shmem_finialize',
+    'shmem_malloc',
+    'shmem_free',
+    'shmem_ptr',
     'my_pe',
     'pe_count',
     'mte_set_ub_params',

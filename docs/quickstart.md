@@ -99,3 +99,45 @@ run.sh脚本提供-ranks -ipport -test_filter等参数自定义执行用例的�
 # 8卡，ip:port 127.0.0.1:8666，运行所有*Init*用例
 bash scripts/run.sh -ranks 8 -ipport tcp://127.0.0.1:8666 -test_filter Init
 ```
+
+## python侧test用例
+
+1. 在scripts目录下编译的时候，带上build python的选项
+
+```sh
+bash build.sh -python_extension
+```
+
+2. 在install目录下，source环境变量
+
+```sh
+source set_env.sh
+```
+
+3. 在src/python目录下，进行setup，获取到wheel安装包
+
+```sh
+python3 setup.py bdist_wheel
+```
+
+4. 在src/python/dist目录下，安装wheel包
+
+```sh
+pip3 install shmem-xxx.whl --force-reinstall
+```
+
+5. 设置是否开启TLS认证，若不开启TLS认证，请使用如下环境变量，否则请传入TLS认证所需的对应信息
+
+```sh
+export MEMFABRIC_HYBRID_TLS_ENABLE=0 //不开启TLS认证
+```
+```sh
+export MEMFABRIC_HYBRID_TLD_INFO=xxx //开启TLS认证
+```
+
+6. 使用torchrun运行测试demo
+
+```sh
+torchrun --nproco-per-node=k test.py // k为想运行的ranksize
+```
+看到日志中打印出“test.py running success!”即为demo运行成功

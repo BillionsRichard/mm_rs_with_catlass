@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <vector>
+#include <iostream>
 
 #include "shmem_api.h"
 
@@ -68,9 +69,9 @@ int shmem_initialize(int rank, int world_size, int64_t mem_size)
 }
 }
 
-PYBIND11_MODULE(_pyaclshmem, m)
+PYBIND11_MODULE(_pyshmem, m)
 {
-    m.def("aclshmem_init", &shm::shmem_initialize, py::call_guard<py::gil_scoped_release>(), py::arg("mype"),
+    m.def("shmem_init", &shm::shmem_initialize, py::call_guard<py::gil_scoped_release>(), py::arg("mype"),
           py::arg("npes"), py::arg("mem_size"), R"(
 Initialize share memory module.
 
@@ -82,39 +83,39 @@ Returns:
     returns zero on success. On error, -1 is returned.
     )");
 
-    m.def("aclshmem_finialize", &shmem_finalize, py::call_guard<py::gil_scoped_release>(),
+    m.def("shmem_finialize", &shmem_finalize, py::call_guard<py::gil_scoped_release>(),
           R"(
 Finalize share memory module.
     )");
 
     m.def(
-        "aclshmem_malloc",
+        "shmem_malloc",
         [](size_t size) {
             auto ptr = shmem_malloc(size);
             if (ptr == nullptr) {
-                throw std::runtime_error("aclshmem_malloc failed");
+                throw std::runtime_error("shmem_malloc failed");
             }
             return (intptr_t)ptr;
         },
         py::call_guard<py::gil_scoped_release>(), py::arg("size"),
         R"(
 Allocates size bytes and returns a pointer to the allocated memory. The memory is not initialized. If size is 0, then
-aclshmem_malloc() returns NULL.
+shmem_malloc() returns NULL.
     )");
 
     m.def(
-        "aclshmem_free",
+        "shmem_free",
         [](intptr_t ptr) {
             auto mem = (void *)ptr;
             shmem_free(mem);
         },
         py::call_guard<py::gil_scoped_release>(), py::arg("ptr"),
         R"(
-Frees the memory space pointed to by ptr, which must have been returned by a previous call to aclshmem_malloc.
+Frees the memory space pointed to by ptr, which must have been returned by a previous call to shmem_malloc.
     )");
 
     m.def(
-        "aclshmem_ptr", [](intptr_t ptr, int pe) { return (intptr_t)shmem_ptr((void *)ptr, pe); },
+        "shmem_ptr", [](intptr_t ptr, int pe) { return (intptr_t)shmem_ptr((void *)ptr, pe); },
         py::call_guard<py::gil_scoped_release>(), py::arg("ptr"), py::arg("peer"), R"(
 Get address that may be used to directly reference dest on the specified PE.
 
@@ -170,7 +171,7 @@ Arguments:
     src_pe(int): source PE number
     dest_team(int): destination team id
 Returns:
-    On success, returns the specified PE’s number in the dest_team. On error, -1 is returned.
+    On success, returns the specified PE's number in the dest_team. On error, -1 is returned.
     )");
 
     m.def("team_destroy", &shmem_team_destroy, py::call_guard<py::gil_scoped_release>(), py::arg("team"), R"(
@@ -186,7 +187,7 @@ Get my PE number within a team, i.e. index of the PE
 Arguments:
     team(int): team id
 Returns:
-    On success, returns the PE’s number in the specified team. On error, -1 is returned.
+    On success, returns the PE's number in the specified team. On error, -1 is returned.
     )");
 
     m.def("pe_count", &shmem_team_n_pes, py::call_guard<py::gil_scoped_release>(), py::arg("team"), R"(
