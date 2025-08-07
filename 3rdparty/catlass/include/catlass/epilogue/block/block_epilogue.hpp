@@ -36,4 +36,5 @@ class BlockEpilogue {
 #include "catlass/epilogue/block/block_epilogue_gemv.hpp"
 #include "catlass/epilogue/block/block_epilogue_mla_tp1_softmax.hpp"
 #include "catlass/epilogue/block/block_epilogue_mla_tp1_rescale_o.hpp"
+#include "catlass/epilogue/block/block_epilogue_per_token_dequant_with_bias.hpp"
 #endif  // CATLASS_EPILOGUE_BLOCK_BLOCK_EPILOGUE_HPP

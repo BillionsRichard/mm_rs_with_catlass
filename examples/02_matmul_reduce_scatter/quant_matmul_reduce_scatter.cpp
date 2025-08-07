@@ -126,25 +126,35 @@ void ShmemQuantMatmulReduceScatter(
     using DequantPerTokenScaleType = Catlass::Gemm::GemmType<float, Catlass::layout::VectorLayout>;
     using DequantBiasType = Catlass::Gemm::GemmType<int32_t, Catlass::layout::VectorLayout>;
     using DequantDType = Catlass::Gemm::GemmType<half, LayoutD>;
-    using DequantDispatchPolicy = EpilogueAtlasA2PerTokenDequant<2>;
 
     using EpilogueTileShape = Catlass::MatrixShape<64, 128>;
     using ComputeType = Catlass::Gemm::GemmType<float, Catlass::layout::RowMajor>;
 
+    using TileRowBroadcastAdd = Tile::TileRowBroadcastMul<ArchTag, ComputeType, EpilogueTileShape>;
     using TileRowBroadcastMul = Tile::TileRowBroadcastMul<ArchTag, ComputeType, EpilogueTileShape>;
     using TileBroadcastOneBlk = Tile::TileBroadcastOneBlk<ArchTag, ComputeType, 64>;
     using TileOneBlkColumnBroadcastMul = Tile::TileOneBlkColumnBroadcastMul<ArchTag, ComputeType, EpilogueTileShape>;
 
     using TileCopy = Tile::TileCopy<Catlass::Arch::AtlasA2, DequantCType, DequantScaleType,
-                                                     DequantPerTokenScaleType, DequantDType>;
+                                                     DequantPerTokenScaleType, DequantBiasType, DequantDType>;
 
     using EpilogueTileSwizzle = Tile::EpilogueIdentityTileSwizzle;
 
-    using BlockEpilogueDequant = Block::BlockEpiloguePerTokenDequantWithBias<
-        DequantDispatchPolicy, DequantCType, DequantScaleType,
-        DequantPerTokenScaleType, DequantBiasType, DequantDType, TileRowBroadcastMul,
-        TileBroadcastOneBlk, TileOneBlkColumnBroadcastMul, TileCopy,
-        EpilogueTileSwizzle>;
+    using DequantDispatchPolicy = EpilogueAtlasA2PerTokenDequantWithBias<2>;
+    using BlockEpilogueDequant = Block::BlockEpilogue<
+        DequantDispatchPolicy,
+        DequantCType,
+        DequantScaleType,
+        DequantPerTokenScaleType,
+        DequantBiasType,
+        DequantDType,
+        TileRowBroadcastAdd,
+        TileRowBroadcastMul,
+        TileBroadcastOneBlk,
+        TileOneBlkColumnBroadcastMul,
+        TileCopy,
+        EpilogueTileSwizzle
+    >;
 
 
     constexpr uint32_t workspaceStages = 2;
