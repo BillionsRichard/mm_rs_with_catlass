@@ -79,41 +79,49 @@ inline bool WriteFile(const std::string &filePath, const void *buffer, size_t si
         return false;
     }
 
-    // lock
+    // Lock
     if (flock(fd, LOCK_EX) == -1) {
         ERROR_LOG("Failed to acquire lock for file: %s, error: %s", filePath.c_str(), strerror(errno));
         close(fd);
         return false;
     }
 
-    size_t written = 0;
-    size_t chunkSize = 4 * 1024 * 1024; // 4 MB
-    const char *data = static_cast<const char *>(buffer);
-
-    while (written < size) {
-        size_t remaining = size - written;
-        size_t toWrite = (remaining < chunkSize) ? remaining : chunkSize;
-
-        if (lseek(fd, offset + written, SEEK_SET) == -1) {
-            ERROR_LOG("Failed to seek in file: %s, error: %s", filePath.c_str(), strerror(errno));
-            flock(fd, LOCK_UN);
-            close(fd);
-            return false;
-        }
-
-        ssize_t bytesWritten = write(fd, data + written, toWrite);
-        if (bytesWritten != static_cast<ssize_t>(toWrite)) {
-            ERROR_LOG("Failed to write to file: %s, written %zd bytes out of %zu, error: %s",
-                      filePath.c_str(), bytesWritten, toWrite, strerror(errno));
-            flock(fd, LOCK_UN);
-            close(fd);
-            return false;
-        }
-
-        written += bytesWritten;
+    // Seek to the starting offset once before the loop
+    if (lseek(fd, offset, SEEK_SET) == -1) {
+        ERROR_LOG("Failed to seek in file: %s, error: %s", filePath.c_str(), strerror(errno));
+        flock(fd, LOCK_UN);
+        close(fd);
+        return false;
     }
 
-    // unlock
+    size_t totalWritten = 0;
+    const char *data = static_cast<const char *>(buffer);
+
+    while (totalWritten < size) {
+        ssize_t bytesWritten = write(fd, data + totalWritten, size - totalWritten);
+        
+        if (bytesWritten == -1) {
+            // Error occurred
+            if (errno == EINTR) {
+                // Interrupted by signal, try again
+                continue;
+            }
+            ERROR_LOG("Failed to write to file: %s, error: %s", filePath.c_str(), strerror(errno));
+            flock(fd, LOCK_UN);
+            close(fd);
+            return false;
+        }
+        
+        totalWritten += bytesWritten;
+    }
+
+    // Optional: Truncate the file if necessary
+    // if (ftruncate(fd, offset + totalWritten) == -1) {
+    //     ERROR_LOG("Failed to truncate file: %s, error: %s", filePath.c_str(), strerror(errno));
+    //     // Handle error, but unlocking and closing should still happen
+    // }
+
+    // Unlock and close
     flock(fd, LOCK_UN);
     close(fd);
     return true;

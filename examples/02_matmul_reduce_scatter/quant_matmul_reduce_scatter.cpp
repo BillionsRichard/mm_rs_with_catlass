@@ -171,9 +171,11 @@ void ShmemQuantMatmulReduceScatter(
     };
     
     // Per-channel dequant does not support bias, so we ignore it here
+    uint32_t m_per_rank = m / rankSize;
+    uint32_t scale_x1_offset = rank * m_per_rank;
     typename BlockEpilogueDequant::Params dequantParams{
         reinterpret_cast<__gm__ float *>(scale_x2), Catlass::layout::VectorLayout(n),
-        reinterpret_cast<__gm__ float *>(scale_x1), Catlass::layout::VectorLayout(m),
+        reinterpret_cast<__gm__ float *>(scale_x1) + scale_x1_offset, Catlass::layout::VectorLayout(m_per_rank),
         reinterpret_cast<__gm__ half *>(d_out), layoutD_out
     };
 

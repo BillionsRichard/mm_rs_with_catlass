@@ -22,6 +22,8 @@ EXEC_BIN=${PROJECT_ROOT}/build/bin/02_quant_matmul_reduce_scatter
 test_idx=0
 mkdir -p output
 tail -n +2 "$CSV_FILE" | while IFS=',' read -r M K N; do
+    pkill -9  02_quant_matmul
+    sleep 0.1
     let test_idx+=1
     echo "Processing test case: M=${M}, K=${K}, N=${N}"
 
