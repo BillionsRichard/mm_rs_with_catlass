@@ -360,7 +360,7 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtFree(cAccumDevice));
     ACL_CHECK(aclrtFree(dOutDevice));
 
-    std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
+    std::cout << "[TEST] begin to exit...... rankId: " << rankId << "\n";
     status = shmem_finalize();
     ACL_CHECK(aclrtDestroyStream(stream));
     ACL_CHECK(aclrtResetDevice(deviceId));
