@@ -314,23 +314,24 @@ public:
         GemmCoord problemShapeEpilogue{M_per_rank, N, 1};
 
         uint32_t coreNum = AscendC::GetBlockNum();
-        uint32_t coreIdx = AscendC::GetBlockIdx();
+        uint32_t coreIdx = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum();
 
         // Use the epilogue's own tile scheduler to iterate over the output matrix
-        typename Dequant::EpilogueTileSwizzle tileScheduler(problemShapeEpilogue.GetCoordMN(), Dequant::TileShape::ToCoord());
+        auto cord = Dequant::TileShape::ToCoord();
+        typename Dequant::EpilogueTileSwizzle tileScheduler(problemShapeEpilogue.GetCoordMN(), cord);
         uint32_t tileLoops = tileScheduler.GetLoops();
 
         for(uint32_t i = coreIdx; i < tileLoops; i += coreNum) {
             auto tileCoord = tileScheduler.GetTileCoord(i);
             auto actualTileShape = tileScheduler.GetActualTileShape(tileCoord);
-            
+            auto acc_offset = tileCoord * cord;
             // The epilogue call must be adapted to its own scheduling logic
             dequantEpilogue(
-                problemShapeEpilogue, 
+                GemmCoord(cord[0], cord[1], 1),
                 GemmCoord(tileCoord.row(), tileCoord.column(), 0), 
                 GemmCoord(actualTileShape.row(), actualTileShape.column(), 1), 
-                gmC_accum, 
-                params.layoutC_accum
+                gmC_accum[params.layoutC_accum.GetOffset(acc_offset)], 
+                params.layoutC_accum.GetTileLayout(actualTileShape)
             );
         }
         AscendC::PipeBarrier<PIPE_ALL>();
