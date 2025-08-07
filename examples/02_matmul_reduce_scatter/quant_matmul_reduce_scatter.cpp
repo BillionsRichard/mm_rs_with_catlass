@@ -14,6 +14,10 @@
 #include "catlass/gemm/dispatch_policy.hpp"
 #include "catlass/gemm/gemm_type.hpp"
 #include "catlass/layout/layout.hpp"
+#include "catlass/epilogue/block/block_epilogue.hpp"
+#include "catlass/epilogue/tile/tile_broadcast_mul.hpp"
+#include "catlass/epilogue/tile/tile_broadcast_one_blk.hpp"
+#include "catlass/epilogue/block/block_epilogue_per_token_dequant.hpp"
 
 // shmem_host
 #include "host/shmem_host_def.h"
@@ -115,11 +119,39 @@ void ShmemQuantMatmulReduceScatter(
         BlockScheduler
     >;
 
+    // Define types for PerTokenDequant Epilogue
+    using namespace Catlass::Epilogue;
+    using DequantCType = CType; // int32 accumulator
+    using DequantScaleType = Catlass::Gemm::GemmType<float, Catlass::layout::VectorLayout>;
+    using DequantPerTokenScaleType = Catlass::Gemm::GemmType<float, Catlass::layout::VectorLayout>;
+    using DequantDType = Catlass::Gemm::GemmType<half, LayoutD>;
+    using DequantDispatchPolicy = EpilogueAtlasA2PerTokenDequant<2>;
+
+    using EpilogueTileShape = Catlass::MatrixShape<64, 128>;
+    using ComputeType = Catlass::Gemm::GemmType<float, Catlass::layout::RowMajor>;
+
+    using TileRowBroadcastMul = Tile::TileRowBroadcastMul<ArchTag, ComputeType, EpilogueTileShape>;
+    using TileBroadcastOneBlk = Tile::TileBroadcastOneBlk<ArchTag, ComputeType, 64>;
+    using TileOneBlkColumnBroadcastMul = Tile::TileOneBlkColumnBroadcastMul<ArchTag, ComputeType, EpilogueTileShape>;
+
+    using TileCopy = Tile::TileCopy<Catlass::Arch::AtlasA2, DequantCType, DequantScaleType,
+                                                     DequantPerTokenScaleType, DequantDType>;
+
+    using EpilogueTileSwizzle = Tile::EpilogueIdentityTileSwizzle;
+
+    using BlockEpilogueDequant = Block::BlockEpilogue<
+        DequantDispatchPolicy, DequantCType, DequantScaleType,
+        DequantPerTokenScaleType, DequantDType, TileRowBroadcastMul,
+        TileBroadcastOneBlk, TileOneBlkColumnBroadcastMul, TileCopy,
+        EpilogueTileSwizzle>;
+
+
     constexpr uint32_t workspaceStages = 2;
     constexpr uint32_t commInterval = 10;
     using QuantMatmulReduceScatterKernel = DGemm::Kernel::QuantMatmulReduceScatter<
         BlockMmad,
         BlockEpilogueReduceScatter,
+        BlockEpilogueDequant,
         BlockScheduler,
         CommBlockScheduler,
         workspaceStages
@@ -137,6 +169,13 @@ void ShmemQuantMatmulReduceScatter(
         layoutPeerMemStore,
         matmulBlockScheduler
     };
+    
+    // Per-channel dequant does not support bias, so we ignore it here
+    typename BlockEpilogueDequant::Params dequantParams{
+        reinterpret_cast<__gm__ float *>(scale_x2), Catlass::layout::VectorLayout(n),
+        reinterpret_cast<__gm__ float *>(scale_x1), Catlass::layout::VectorLayout(m),
+        reinterpret_cast<__gm__ half *>(d_out), layoutD_out
+    };
 
     // Prepare params
     typename QuantMatmulReduceScatterKernel::Params params{
@@ -146,11 +185,9 @@ void ShmemQuantMatmulReduceScatter(
         x2, layoutB,
         symmetricPtr,
         reduceScatterParams,
+        dequantParams,
         c_accum, layoutC_accum,
         d_out, layoutD_out,
-        scale_x1, layout_scale_x1,
-        scale_x2, layout_scale_x2,
-        bias, layout_bias,
         commInterval
     };
 
@@ -323,7 +360,7 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtFree(cAccumDevice));
     ACL_CHECK(aclrtFree(dOutDevice));
 
-    std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
+    std::cout << "[TEST] begin to exit...... rankId: " << rankId << "\n";
     status = shmem_finalize();
     ACL_CHECK(aclrtDestroyStream(stream));
     ACL_CHECK(aclrtResetDevice(deviceId));
