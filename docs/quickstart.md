@@ -129,7 +129,7 @@ pip3 install shmem-xxx.whl --force-reinstall
 5. 设置是否开启TLS认证，若不开启TLS认证，请使用如下环境变量，否则请传入TLS认证所需的对应信息
 
 ```sh
-export MEMFABRIC_HYBRID_TLS_ENABLE=0 //不开启TLS认证
+export SMEM_CONF_STORE_TLS_ENABLE=0 //不开启TLS认证
 ```
 ```sh
 export MEMFABRIC_HYBRID_TLD_INFO=xxx //开启TLS认证

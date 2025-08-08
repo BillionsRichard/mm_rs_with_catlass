@@ -58,7 +58,7 @@ GLIBC >= 2.28
 
 shmem 默认开启tls通信加密。如果想关闭，需要启动前手动设置环境变量：
 ```
-export MEMFABRIC_HYBRID_TLS_ENABLE=0
+export SMEM_CONF_STORE_TLS_ENABLE=0
 ```
 具体细节详见安全声明章节
 

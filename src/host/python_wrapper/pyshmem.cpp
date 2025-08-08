@@ -28,23 +28,25 @@ inline std::string get_connect_url()
     if (address != nullptr && port != nullptr) {
         return std::string("tcp://").append(address).append(":").append(port);
     }
-
+    // use pta addr:port+11 if shmem env not set
     address = std::getenv("MASTER_ADDR");
     port = std::getenv("MASTER_PORT");
     if (address == nullptr || port == nullptr) {
+        std::cerr << "[ERROR] invlaid address and port" << std::endl;
         return "";
     }
 
     char *endptr;
+    const long usePtaPortOffset = 11;
     auto port_long = std::strtol(port, &endptr, 10);
     // master port + 11 as non-master port.
-    if (endptr == port || *endptr != '\0' || port_long <= 0 || port_long > 65535 - 11) {
+    if (endptr == port || *endptr != '\0' || port_long <= 0 || port_long > UINT16_MAX - usePtaPortOffset) {
         // SHM_LOG_ERROR is not available in this file, use std::cerr
         std::cerr << "[ERROR] Invalid MASTER_PORT value from environment: " << port << std::endl;
         return "";
     }
-    auto port_int = port_long + 11;
-    return std::string("tcp://").append(address).append(":").append(std::to_string(port_int));
+    port_long = port_long + usePtaPortOffset;
+    return std::string("tcp://").append(address).append(":").append(std::to_string(port_long));
 }
 
 int shmem_initialize(int rank, int world_size, int64_t mem_size)

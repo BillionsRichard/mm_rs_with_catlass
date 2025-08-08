@@ -137,7 +137,7 @@ function fn_build_memfabric()
     mkdir -p build
     cd build 
     cmake -DBUILD_PYTHON=$PYEXPAND_TYPE -DBUILD_OPEN_ABI=OFF -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
-    make install -j4
+    make install -j16
     ls -l ../output/smem
     echo "Memfabric_hybrid is successfully installed to $THIRD_PARTY_DIR/memfabric_hybrid"
     cd ${PROJECT_ROOT}
