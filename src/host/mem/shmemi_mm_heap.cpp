@@ -34,8 +34,8 @@ memory_heap::~memory_heap() noexcept
 
 void *memory_heap::allocate(uint64_t size) noexcept
 {
-    if (size == 0) {
-        SHM_LOG_ERROR("cannot allocate with size 0.");
+    if (size == 0 || size > shm::g_state.heap_size) {
+        SHM_LOG_ERROR("cannot allocate with size " << size);
         return nullptr;
     }
 
@@ -74,8 +74,8 @@ void *memory_heap::allocate(uint64_t size) noexcept
 
 void *memory_heap::aligned_allocate(uint64_t alignment, uint64_t size) noexcept
 {
-    if (size == 0 || alignment == 0) {
-        SHM_LOG_ERROR("alignment and size should not be zero.");
+    if (size == 0 || alignment == 0 || size > shm::g_state.heap_size) {
+        SHM_LOG_ERROR("invalid input, align=" << alignment << ", size=" << size);
         return nullptr;
     }
 

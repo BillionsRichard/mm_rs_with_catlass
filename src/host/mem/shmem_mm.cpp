@@ -40,12 +40,14 @@ void *shmem_malloc(size_t size)
     }
 
     void *ptr = shm::shm_memory_heap->allocate(size);
-    SHM_LOG_DEBUG("shmem_malloc(" << size << ") = " << ptr);
+    SHM_LOG_DEBUG("shmem_malloc(" << size << ")");
     auto ret = shm::shmemi_control_barrier_all();
     if (ret != 0) {
         SHM_LOG_ERROR("malloc mem barrier failed, ret: " << ret);
-        shm::shm_memory_heap->release(ptr);
-        ptr = nullptr;
+        if (ptr != nullptr) {
+            shm::shm_memory_heap->release(ptr);
+            ptr = nullptr;
+        }
     }
     return ptr;
 }
@@ -56,7 +58,7 @@ void *shmem_calloc(size_t nmemb, size_t size)
         SHM_LOG_ERROR("Memory Heap Not Initialized.");
         return nullptr;
     }
-    SHM_MULTIPLY_OVERFLOW_ASSERT(nmemb + size, size, SIZE_MAX, nullptr);
+    SHM_MULTIPLY_OVERFLOW_ASSERT(nmemb * size, size, shm::g_state.heap_size, nullptr);
 
     auto total_size = nmemb * size;
     auto ptr = shm::shm_memory_heap->allocate(total_size);
@@ -72,11 +74,13 @@ void *shmem_calloc(size_t nmemb, size_t size)
     auto ret = shm::shmemi_control_barrier_all();
     if (ret != 0) {
         SHM_LOG_ERROR("calloc mem barrier failed, ret: " << ret);
-        shm::shm_memory_heap->release(ptr);
-        ptr = nullptr;
+        if (ptr != nullptr) {
+            shm::shm_memory_heap->release(ptr);
+            ptr = nullptr;
+        }
     }
 
-    SHM_LOG_DEBUG("shmem_calloc(" << nmemb << ", " << size << ") = " << ptr);
+    SHM_LOG_DEBUG("shmem_calloc(" << nmemb << ", " << size << ")");
     return ptr;
 }
 
@@ -91,10 +95,12 @@ void *shmem_align(size_t alignment, size_t size)
     auto ret = shm::shmemi_control_barrier_all();
     if (ret != 0) {
         SHM_LOG_ERROR("shmem_align barrier failed, ret: " << ret);
-        shm::shm_memory_heap->release(ptr);
-        ptr = nullptr;
+        if (ptr != nullptr) {
+            shm::shm_memory_heap->release(ptr);
+            ptr = nullptr;
+        }
     }
-    SHM_LOG_DEBUG("shmem_align(" << alignment << ", " << size << ") = " << ptr);
+    SHM_LOG_DEBUG("shmem_align(" << alignment << ", " << size << ")");
     return ptr;
 }
 
@@ -104,11 +110,14 @@ void shmem_free(void *ptr)
         SHM_LOG_ERROR("Memory Heap Not Initialized.");
         return;
     }
+    if (ptr == nullptr) {
+        return;
+    }
 
     auto ret = shm::shm_memory_heap->release(ptr);
     if (ret != 0) {
-        SHM_LOG_ERROR("release for " << ptr << " failed: " << ret);
+        SHM_LOG_ERROR("release failed: " << ret);
     }
 
-    SHM_LOG_DEBUG("shmem_free(" << ptr << ") = " << ret);
+    SHM_LOG_DEBUG("shmem_free " << ret);
 }
