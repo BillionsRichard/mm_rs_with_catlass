@@ -88,7 +88,7 @@ EOF
 
     mkdir -p $OUTPUT_DIR/memfabric_hybrid/lib
     mkdir -p $OUTPUT_DIR/memfabric_hybrid/include
-    cp -r $THIRD_PARTY_DIR/memfabric_hybrid/output/hybm/lib/* $OUTPUT_DIR/memfabric_hybrid/lib
+    cp -r $THIRD_PARTY_DIR/memfabric_hybrid/output/hybm/lib64/* $OUTPUT_DIR/memfabric_hybrid/lib
     cp -r $THIRD_PARTY_DIR/memfabric_hybrid/output/smem/lib64/* $OUTPUT_DIR/memfabric_hybrid/lib
     cp -r $THIRD_PARTY_DIR/memfabric_hybrid/output/smem/include/smem $OUTPUT_DIR/memfabric_hybrid/include
 
@@ -133,7 +133,6 @@ function fn_build_memfabric()
     cd memfabric_hybrid
     git submodule init
     git submodule update --recursive
-    bash script/compile_acc_links.sh $BUILD_TYPE OFF OFF
     mkdir -p build
     cd build 
     cmake -DBUILD_PYTHON=$PYEXPAND_TYPE -DBUILD_OPEN_ABI=OFF -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
