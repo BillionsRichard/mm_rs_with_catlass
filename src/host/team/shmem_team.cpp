@@ -210,6 +210,12 @@ int32_t shmem_team_split_strided(
     shmemi_team_t my_team;
     shmemi_team_t *src_team = &shm::g_shmem_team_pool[parent_team];
 
+    if (pe_start >= SHMEM_MAX_RANKS || pe_stride >= SHMEM_MAX_RANKS || pe_size > SHMEM_MAX_RANKS) {
+        SHM_LOG_ERROR("create team failed, input invalid, pe_start:" << pe_start << " pe_size:" << pe_size <<
+            " pe_stride:" << pe_stride << " parent:" << shm::team_config2string(src_team));
+        return SHMEM_INVALID_PARAM;
+    }
+
     int32_t global_pe = src_team->mype;
     int32_t global_pe_start = src_team->start + pe_start * src_team->stride;
     int32_t global_pe_stride = src_team->stride * pe_stride;

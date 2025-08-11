@@ -13,6 +13,10 @@
 using namespace std;
 void* shmem_ptr(void *ptr, int32_t pe)
 {
+    if (pe < 0 || pe >= shmem_n_pes()) {
+        SHM_LOG_ERROR("shmem_ptr Failed. PE: " << shmem_my_pe() << " Got Ilegal PE !!");
+        return nullptr;
+    }
     uint64_t lower_bound = (uint64_t)shm::g_state.heap_base;
     uint64_t upper_bound = lower_bound + shm::g_state.heap_size;
     if (uint64_t(ptr) < lower_bound || uint64_t(ptr) >= upper_bound) {
