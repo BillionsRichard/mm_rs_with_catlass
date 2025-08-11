@@ -74,6 +74,12 @@ struct EpilogueAtlasA2PerTokenDequantWithBias {
     using ArchTag = Arch::AtlasA2;
     static constexpr uint32_t UB_STAGES = UB_STAGES_;
 };
+
+template <uint32_t UB_STAGES_>
+struct EpilogueAtlasA2PerTokenDequantWithBias {
+    using ArchTag = Arch::AtlasA2;
+    static constexpr uint32_t UB_STAGES = UB_STAGES_;
+};
 ////////////////////////////
 /// new add
 // For AtlasA2, GEMM

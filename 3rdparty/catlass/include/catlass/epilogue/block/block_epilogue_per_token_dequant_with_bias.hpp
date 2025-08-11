@@ -84,6 +84,7 @@ public:
     using CopyGmToUbC = typename TileCopy_::CopyGmToUbC;
     using CopyGmToUbScale = typename TileCopy_::CopyGmToUbX;
     using CopyGmToUbPerTokenScale = typename TileCopy_::CopyGmToUbY;
+    using CopyGmToUbBias = typename TileCopy_::CopyGmToUbZ;
     using CopyUbToGmD = typename TileCopy_::CopyUbToGmD;
 
     using EpilogueTileSwizzle = EpilogueTileSwizzle_;
@@ -290,7 +291,6 @@ public:
             auto layoutUbBias = LayoutBias::template MakeLayoutInUb<ElementBias>(biasTileShape);
 
             AscendC::WaitFlag<AscendC::HardEvent::V_MTE2>(eventUbBiasVMTE2List[ubListId]);
-            CopyGm2Ub<ArchTag, BiasType_> copyGmToUbBias;
             copyGmToUbBias(ubBias, gmTileBias, layoutUbBias, layoutGmTileBias);
             AscendC::SetFlag<AscendC::HardEvent::MTE2_V>(eventUbBiasMTE2VList[ubListId]);
 
@@ -375,6 +375,7 @@ private:
     CopyGmToUbC copyGmToUbC;
     CopyGmToUbScale copyGmToUbScale;
     CopyGmToUbPerTokenScale copyGmToUbPerTokenScale;
+    CopyGmToUbBias copyGmToUbBias;
     CopyUbToGmD copyUbToGmD;
 };
 

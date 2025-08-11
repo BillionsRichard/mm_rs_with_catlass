@@ -29,6 +29,50 @@ struct TileCopy {
 
 template <
     class ArchTag,
+    class CType,
+    class XType,
+    class YType,
+    class ZType,
+    class DType
+>
+struct TileCopy<ArchTag, CType, XType, YType, ZType, DType> {
+    using ElementC = typename CType::Element;
+    using ElementX = typename XType::Element;
+    using ElementY = typename YType::Element;
+    using ElementZ = typename ZType::Element;
+    using ElementD = typename DType::Element;
+
+    using CopyGmToUbC = CopyGm2Ub<ArchTag, CType>;
+    using CopyGmToUbX = CopyGm2Ub<ArchTag, XType>;
+    using CopyGmToUbY = CopyGm2Ub<ArchTag, YType>;
+    using CopyGmToUbZ = CopyGm2Ub<ArchTag, ZType>;
+    using CopyUbToGmD = CopyUb2Gm<ArchTag, DType>;
+};
+
+template <
+    class ArchTag,
+    class CType,
+    class XType,
+    class YType,
+    class ZType,
+    class DType
+>
+struct TileCopy<ArchTag, CType, XType, YType, ZType, DType> {
+    using ElementC = typename CType::Element;
+    using ElementX = typename XType::Element;
+    using ElementY = typename YType::Element;
+    using ElementZ = typename ZType::Element;
+    using ElementD = typename DType::Element;
+
+    using CopyGmToUbC = CopyGm2Ub<ArchTag, CType>;
+    using CopyGmToUbX = CopyGm2Ub<ArchTag, XType>;
+    using CopyGmToUbY = CopyGm2Ub<ArchTag, YType>;
+    using CopyGmToUbZ = CopyGm2Ub<ArchTag, ZType>;
+    using CopyUbToGmD = CopyUb2Gm<ArchTag, DType>;
+};
+
+template <
+    class ArchTag,
     /// GemmType for C matrix operand
     class CType,
     /// GemmType for X matrix operand

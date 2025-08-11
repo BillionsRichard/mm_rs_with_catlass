@@ -138,7 +138,7 @@ void ShmemQuantMatmulReduceScatter(
     using TileBroadcastOneBlk = Tile::TileBroadcastOneBlk<ArchTag, ComputeType, 64>;
     using TileOneBlkColumnBroadcastMul = Tile::TileOneBlkColumnBroadcastMul<ArchTag, ComputeType, EpilogueTileShape>;
 
-    using TileCopy = Tile::TileCopy<ArchTag, DequantCType, DequantScaleType, DequantPerTokenScaleType, DequantDType>;
+    using TileCopy = Tile::TileCopy<ArchTag, DequantCType, DequantScaleType, DequantPerTokenScaleType, DequantBiasType, DequantDType>;
 
     using EpilogueTileSwizzle = Tile::EpilogueIdentityTileSwizzle;
 
