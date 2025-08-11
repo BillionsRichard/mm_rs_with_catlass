@@ -10,6 +10,7 @@
 #include "catlass/layout/layout.hpp"
 #include "catlass/detail/callback.hpp"
 #include "catlass/epilogue/tile/tile_broadcast_mul.hpp"
+#include "catlass/epilogue/tile/tile_row_broadcast_add.hpp"
 
 namespace Catlass::Epilogue::Block {
 
@@ -83,7 +84,6 @@ public:
     using CopyGmToUbC = typename TileCopy_::CopyGmToUbC;
     using CopyGmToUbScale = typename TileCopy_::CopyGmToUbX;
     using CopyGmToUbPerTokenScale = typename TileCopy_::CopyGmToUbY;
-    using CopyGmToUbBias = typename TileCopy_::CopyGmToUbZ;
     using CopyUbToGmD = typename TileCopy_::CopyUbToGmD;
 
     using EpilogueTileSwizzle = EpilogueTileSwizzle_;
@@ -290,6 +290,7 @@ public:
             auto layoutUbBias = LayoutBias::template MakeLayoutInUb<ElementBias>(biasTileShape);
 
             AscendC::WaitFlag<AscendC::HardEvent::V_MTE2>(eventUbBiasVMTE2List[ubListId]);
+            CopyGm2Ub<ArchTag, BiasType_> copyGmToUbBias;
             copyGmToUbBias(ubBias, gmTileBias, layoutUbBias, layoutGmTileBias);
             AscendC::SetFlag<AscendC::HardEvent::MTE2_V>(eventUbBiasMTE2VList[ubListId]);
 
@@ -321,7 +322,7 @@ public:
             LayoutD layoutUbD{actualTileShape, ubTileStride};
 
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_V>(eventUbDMTE3VList[ubListId]);
-            AscendC::Cast(ubD, ubPerTokenMul, AscendC::RoundMode::CAST_RINT, TileShape::COUNT);
+            AscendC::Cast(ubD, ubPerTokenMul, AscendC::RoundMode::CAST_NONE, TileShape::COUNT);
             AscendC::SetFlag<AscendC::HardEvent::V_MTE3>(eventUbDVMTE3List[ubListId]);
 
             auto gmTileD = gmD[params.layoutD.GetOffset(tileOffset)];
@@ -374,7 +375,6 @@ private:
     CopyGmToUbC copyGmToUbC;
     CopyGmToUbScale copyGmToUbScale;
     CopyGmToUbPerTokenScale copyGmToUbPerTokenScale;
-    CopyGmToUbBias copyGmToUbBias;
     CopyUbToGmD copyUbToGmD;
 };
 
