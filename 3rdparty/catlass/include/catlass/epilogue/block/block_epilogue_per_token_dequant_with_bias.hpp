@@ -100,7 +100,7 @@ public:
     static_assert(
         (UB_STAGES * (TileShape::COUNT * sizeof(ElementC) + TileShape::COLUMN * sizeof(ElementScale)
                 + TileShape::ROW * sizeof(ElementPerTokenScale) + TileShape::COLUMN * sizeof(ElementBias) + TileShape::COUNT * sizeof(ElementD))
-            + (TileShape::COUNT + TileShape::COLUMN + TileShape::COUNT + TileShape::ROW + TileShape::COLUMN) * sizeof(float)
+            + (TileShape::COUNT * 3 + TileShape::COLUMN * 2 + TileShape::ROW) * sizeof(float)
             + TileShape::ROW * BYTE_PER_BLK)
         <= ArchTag::UB_SIZE,
         "TileShape is too large to fit in UB"
