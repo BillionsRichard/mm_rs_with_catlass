@@ -17,7 +17,7 @@
 #include "catlass/epilogue/block/block_epilogue.hpp"
 #include "catlass/epilogue/tile/tile_broadcast_mul.hpp"
 #include "catlass/epilogue/tile/tile_broadcast_one_blk.hpp"
-#include "catlass/epilogue/block/block_epilogue_per_token_dequant_with_bias.hpp"
+#include "catlass/epilogue/block/block_epilogue_per_token_dequant.hpp"
 
 // shmem_host
 #include "host/shmem_host_def.h"
@@ -124,7 +124,6 @@ void ShmemQuantMatmulReduceScatter(
     using DequantCType = CType; // int32 accumulator
     using DequantScaleType = Catlass::Gemm::GemmType<float, Catlass::layout::VectorLayout>;
     using DequantPerTokenScaleType = Catlass::Gemm::GemmType<float, Catlass::layout::VectorLayout>;
-    using DequantBiasType = Catlass::Gemm::GemmType<int32_t, Catlass::layout::VectorLayout>;
     using DequantDType = Catlass::Gemm::GemmType<half, LayoutD>;
     using DequantDispatchPolicy = EpilogueAtlasA2PerTokenDequant<2>;
 
@@ -140,9 +139,9 @@ void ShmemQuantMatmulReduceScatter(
 
     using EpilogueTileSwizzle = Tile::EpilogueIdentityTileSwizzle;
 
-    using BlockEpilogueDequant = Block::BlockEpiloguePerTokenDequantWithBias<
+    using BlockEpilogueDequant = Block::BlockEpilogue<
         DequantDispatchPolicy, DequantCType, DequantScaleType,
-        DequantPerTokenScaleType, DequantBiasType, DequantDType, TileRowBroadcastMul,
+        DequantPerTokenScaleType, DequantDType, TileRowBroadcastMul,
         TileBroadcastOneBlk, TileOneBlkColumnBroadcastMul, TileCopy,
         EpilogueTileSwizzle>;
 
@@ -171,13 +170,12 @@ void ShmemQuantMatmulReduceScatter(
         matmulBlockScheduler
     };
     
-    // Pass bias to the dequant epilogue
+    // Per-channel dequant does not support bias, so we ignore it here
     uint32_t m_per_rank = m / rankSize;
     uint32_t scale_x1_offset = rank * m_per_rank;
     typename BlockEpilogueDequant::Params dequantParams{
         reinterpret_cast<__gm__ float *>(scale_x2), Catlass::layout::VectorLayout(n),
         reinterpret_cast<__gm__ float *>(scale_x1) + scale_x1_offset, Catlass::layout::VectorLayout(m_per_rank),
-        reinterpret_cast<__gm__ int32_t *>(bias), Catlass::layout::VectorLayout(n),
         reinterpret_cast<__gm__ half *>(d_out), layoutD_out
     };
 
