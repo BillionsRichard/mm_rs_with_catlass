@@ -130,12 +130,12 @@ void ShmemQuantMatmulReduceScatter(
     using DequantDType = Catlass::Gemm::GemmType<half, LayoutD>;
     using DequantDispatchPolicy = EpilogueAtlasA2PerTokenDequantWithBias<2>;
 
-    using EpilogueTileShape = Catlass::MatrixShape<64, 128>;
+    using EpilogueTileShape = Catlass::MatrixShape<32, 128>;
     using ComputeType = Catlass::Gemm::GemmType<float, Catlass::layout::RowMajor>;
 
     using TileRowBroadcastAdd = Tile::TileRowBroadcastAdd<ArchTag, ComputeType, EpilogueTileShape>;
     using TileRowBroadcastMul = Tile::TileRowBroadcastMul<ArchTag, ComputeType, EpilogueTileShape>;
-    using TileBroadcastOneBlk = Tile::TileBroadcastOneBlk<ArchTag, ComputeType, 64>;
+    using TileBroadcastOneBlk = Tile::TileBroadcastOneBlk<ArchTag, ComputeType, EpilogueTileShape::ROW>;
     using TileOneBlkColumnBroadcastMul = Tile::TileOneBlkColumnBroadcastMul<ArchTag, ComputeType, EpilogueTileShape>;
 
     using TileCopy = Tile::TileCopy<ArchTag, DequantCType, DequantScaleType, DequantPerTokenScaleType, DequantBiasType, DequantDType>;

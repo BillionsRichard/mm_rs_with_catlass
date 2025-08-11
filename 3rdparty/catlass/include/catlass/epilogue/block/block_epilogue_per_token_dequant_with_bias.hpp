@@ -100,7 +100,7 @@ public:
     static_assert(
         (UB_STAGES * (TileShape::COUNT * sizeof(ElementC) + TileShape::COLUMN * sizeof(ElementScale)
                 + TileShape::ROW * sizeof(ElementPerTokenScale) + TileShape::COLUMN * sizeof(ElementBias) + TileShape::COUNT * sizeof(ElementD))
-            + (TileShape::COUNT * 3 + TileShape::COLUMN * 2 + TileShape::ROW) * sizeof(float)
+            + (TileShape::COUNT * 4 + TileShape::COLUMN * 2 + TileShape::ROW) * sizeof(float)
             + TileShape::ROW * BYTE_PER_BLK)
         <= ArchTag::UB_SIZE,
         "TileShape is too large to fit in UB"
@@ -182,7 +182,8 @@ public:
         ubOffset += TileShape::ROW * sizeof(float);
         ubPerTokenScaleFp32Brcb = resource.ubBuf.template GetBufferByByte<float>(ubOffset);
         ubOffset += TileShape::ROW * BYTE_PER_BLK;
-        ubPerTokenMul = ubMul;
+        ubPerTokenMul = resource.ubBuf.template GetBufferByByte<float>(ubOffset);
+        ubOffset += TileShape::COUNT * sizeof(float);
     }
 
     CATLASS_DEVICE
