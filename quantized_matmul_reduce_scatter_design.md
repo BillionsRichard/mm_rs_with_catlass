@@ -15,7 +15,7 @@ void QuantizedMatmulReduceScatter(
     GM_ADDR x2,           // 输入矩阵B: [K, N], int8  
     GM_ADDR scale_x1,     // per-token 量化缩放因子: [M], float32
     GM_ADDR scale_x2,     // per-channel 量化缩放因子: [N], float32
-    GM_ADDR bias,         // 偏置: [N], int32
+    GM_ADDR bias,         // (可选) 偏置: [N], int32
     GM_ADDR output,       // 输出矩阵: [M/rankSize, N], bfloat16
     GM_ADDR symmetricPtr, // 用于Rank间通信的共享内存工作空间 (workspace)
     uint32_t m, 
@@ -31,7 +31,7 @@ void QuantizedMatmulReduceScatter(
 | x2 | [K, N] | int8 | 量化后的输入矩阵B |
 | scale_x1 | [M] | float32 | x1的per-token量化缩放因子 |
 | scale_x2 | [N] | float32 | x2的per-channel量化缩放因子 |
-| bias | [N] | int32 | 偏置项 |
+| bias | [N] | int32 | (可选) 偏置项。如果传入空指针，则跳过此步骤。 |
 | output | [M/rankSize, N] | bfloat16 | 输出矩阵（每个rank保留部分） |
 | symmetricPtr | - | GM_ADDR | 用于Reduce-Scatter通信的共享内存工作区 |
 
@@ -53,11 +53,13 @@ graph TD
 
     subgraph "各Rank独立后处理"
         E --> G[INT32 Sliced Accumulator]
-        G --> H[Add Bias]
-        I[float32 scale_x1] --> J{Dequantize}
-        K[float32 scale_x2] --> J
-        H --> J
-        J --> L[bfloat16 Output]
+        L[int32 bias] --> H{Add Bias}
+        G --> H
+        H --> I[INT32 Accumulator with Bias]
+        J[float32 scale_x1] --> K{Dequantize}
+        M[float32 scale_x2] --> K
+        I --> K
+        K --> N[bfloat16 Output]
     end
 ```
 
@@ -75,8 +77,9 @@ accumulator_int32 = x1_int8 × x2_int8
 // 因此需要根据rankId正确偏移scale_x1指针。
 // rank_offset = rankId * (M / rankSize)
 // i_local = i_global - rank_offset
-dequantized_fp32 = accumulator_int32[i_local][j] + bias[j]
-result_fp32 = dequantized_fp32 * scale_x1[i_global] * scale_x2[j]
+// if bias is nullptr, bias_val = 0
+accumulator_with_bias_int32 = accumulator_int32[i_local][j] + bias_val[j]
+result_fp32 = accumulator_with_bias_int32 * scale_x1[i_global] * scale_x2[j]
 output_bfloat16 = cast_to_bfloat16(result_fp32)
 ```
 
