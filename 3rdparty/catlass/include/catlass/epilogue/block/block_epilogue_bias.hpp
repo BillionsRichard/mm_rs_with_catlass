@@ -100,7 +100,7 @@ public:
             auto tile_coord = tile_swizzle.GetTileCoord(i);
             auto actual_tile_shape = tile_swizzle.GetActualTileShape(tile_coord);
             auto tile_offset = tile_coord * TileShape::ToCoord();
-
+            
             // 1. Copy Accumulator Tile from GMEM to UBUF
             auto g_c_tile = g_c_in[layout_c_in.GetOffset(tile_offset)];
             auto layout_c_tile = layout_c_in.GetTileLayout(actual_tile_shape);
@@ -132,13 +132,13 @@ public:
 
             constexpr uint32_t rowNumPerCompute = maxRepeatTimes;
             constexpr uint32_t colNumPerCompute = BYTE_PER_VECTOR_FRACTAL / sizeof(ElementC);
-            for (uint32_t rowOffset = 0; rowOffset < actual_tile_shape.m(); rowOffset += rowNumPerCompute) {
-                uint32_t residueM = actual_tile_shape.m() - rowOffset;
+            for (uint32_t rowOffset = 0; rowOffset < actual_tile_shape[0]; rowOffset += rowNumPerCompute) {
+                uint32_t residueM = actual_tile_shape[0] - rowOffset;
                 uint8_t repeatTimes = static_cast<uint8_t>((residueM > rowNumPerCompute) ? rowNumPerCompute : residueM);
-                for (uint32_t colOffset = 0; colOffset < actual_tile_shape.n(); colOffset += colNumPerCompute) {
-                    uint32_t residueN = actual_tile_shape.n() - colOffset;
+                for (uint32_t colOffset = 0; colOffset < actual_tile_shape[1]; colOffset += colNumPerCompute) {
+                    uint32_t residueN = actual_tile_shape[1] - colOffset;
                     uint64_t mask = (residueN > colNumPerCompute) ? colNumPerCompute : residueN;
-
+                    
                     // In-place add: ub_c_ is both destination and first source
                     AscendC::Add(
                         ub_c_[rowOffset * TileShape::COLUMN + colOffset],
@@ -148,7 +148,7 @@ public:
                     );
                 }
             }
-
+            
             // 4. Copy Result Tile from UBUF to GMEM
             auto g_d_tile = g_d_out[params_.layout_c.GetOffset(tile_offset)];
             auto layout_d_tile = params_.layout_c.GetTileLayout(actual_tile_shape);
