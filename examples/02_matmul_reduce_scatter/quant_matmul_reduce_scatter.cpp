@@ -158,6 +158,7 @@ void ShmemQuantMatmulReduceScatter(
         BiasCType,
         BiasType,
         BiasDType,
+        // BiasTileAdd,
         BiasTileCopy,
         EpilogueTileSwizzle
     >;
