@@ -19,7 +19,6 @@
 #include "catlass/epilogue/tile/tile_broadcast_one_blk.hpp"
 #include "catlass/epilogue/block/block_epilogue_per_token_dequant.hpp"
 #include "catlass/epilogue/block/block_epilogue_bias.hpp"
-#include "catlass/epilogue/tile/tile_elemwise_add.hpp"
 
 // shmem_host
 #include "host/shmem_host_def.h"
@@ -153,15 +152,13 @@ void ShmemQuantMatmulReduceScatter(
     using BiasDType = CType;
     using BiasTileShape = Catlass::MatrixShape<64, 128>;
     using BiasDispatchPolicy = EpilogueAtlasA2BiasAdd<BiasTileShape>;
-    using ComputeCType = Catlass::Gemm::GemmType<int32_t, Catlass::layout::RowMajor>;
-    using BiasTileAdd = Tile::TileElemWiseAdd<ArchTag, ComputeCType, BiasTileShape::COUNT>;
     using BiasTileCopy = Tile::TileCopy<ArchTag, BiasCType, BiasType, BiasDType>;
     using BlockEpilogueBiasAdd = Block::BlockEpilogueBias<
         BiasDispatchPolicy,
         BiasCType,
         BiasType,
         BiasDType,
-        BiasTileAdd,
+        // BiasTileAdd,
         BiasTileCopy,
         EpilogueTileSwizzle
     >;

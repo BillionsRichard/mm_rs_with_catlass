@@ -320,15 +320,17 @@ public:
 
         // BiasAdd Step
         if (params.biasParams.ptr_bias != 0) {
-            BiasAdd biasAddEpilogue(resource, params.biasParams);
-            biasAddEpilogue(
-                problemShapeEpilogue,
-                GemmCoord{0, 0, 0},
-                problemShapeEpilogue,
-                gmC_accum,
-                params.layoutC_accum
-            );
-            AscendC::PipeBarrier<PIPE_ALL>();
+            {
+                BiasAdd biasAddEpilogue(resource, params.biasParams);
+                biasAddEpilogue(
+                    problemShapeEpilogue,
+                    GemmCoord{0, 0, 0},
+                    problemShapeEpilogue,
+                    gmC_accum,
+                    params.layoutC_accum
+                );
+                AscendC::PipeBarrier<PIPE_ALL>();
+            }
         }
 
         // Final Dequantization Step, using the epilogue
