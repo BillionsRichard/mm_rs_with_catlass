@@ -17,6 +17,7 @@ using Catlass::GemmCoord;
 template <
     class BlockMmad_,
     class BlockEpilogueReduceScatter_,
+    class BlockEpilogueBias_,
     class BlockEpilogueDequant_,
     class BlockScheduler_,
     class BlockEpilogueScheduler_,
@@ -36,6 +37,8 @@ public:
 
     using ReduceScatter = BlockEpilogueReduceScatter_;
     using ReduceScatterParams = typename ReduceScatter::Params;
+    using BiasAdd = BlockEpilogueBias_;
+    using BiasParams = typename BiasAdd::Params;
     using Dequant = BlockEpilogueDequant_;
     using DequantParams = typename Dequant::Params;
 
@@ -61,6 +64,7 @@ public:
         LayoutB layoutB;
         GM_ADDR ptrSymmetric;
         ReduceScatterParams reduceScatterParams;
+        BiasParams biasParams;
         DequantParams dequantParams;
 
         GM_ADDR ptrC_accum; // int32
@@ -83,6 +87,7 @@ public:
             GM_ADDR ptrB_, LayoutB const &layoutB_,
             GM_ADDR ptrSymmetric_,
             ReduceScatterParams const &reduceScatterParams_,
+            BiasParams const &biasParams_,
             DequantParams const &dequantParams_,
             GM_ADDR ptrC_accum_, LayoutC const &layoutC_accum_,
             GM_ADDR ptrD_out_, LayoutD const &layoutD_out_,
@@ -93,6 +98,7 @@ public:
             ptrB(ptrB_), layoutB(layoutB_),
             ptrSymmetric(ptrSymmetric_),
             reduceScatterParams(reduceScatterParams_),
+            biasParams(biasParams_),
             dequantParams(dequantParams_),
             ptrC_accum(ptrC_accum_), layoutC_accum(layoutC_accum_),
             ptrD_out(ptrD_out_), layoutD_out(layoutD_out_),
@@ -306,15 +312,27 @@ public:
             Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_MTE3>(flagAivFinishCompute[stageId]);
         }
 
-        // Final Dequantization Step, using the epilogue
-        Dequant dequantEpilogue(resource, params.dequantParams);
-
         uint32_t M_per_rank = params.problemShape.m() / params.rankSize;
         uint32_t N = params.problemShape.n();
         GemmCoord problemShapeEpilogue{M_per_rank, N, 1};
-
         uint32_t coreNum = AscendC::GetBlockNum();
         uint32_t coreIdx = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum();
+
+        // BiasAdd Step
+        if (params.biasParams.ptr_bias != 0) {
+            BiasAdd biasAddEpilogue(resource, params.biasParams);
+            biasAddEpilogue(
+                problemShapeEpilogue,
+                GemmCoord{0, 0, 0},
+                problemShapeEpilogue,
+                gmC_accum,
+                params.layoutC_accum
+            );
+            AscendC::PipeBarrier<PIPE_ALL>();
+        }
+
+        // Final Dequantization Step, using the epilogue
+        Dequant dequantEpilogue(resource, params.dequantParams);
 
         // Use the epilogue's own tile scheduler to iterate over the output matrix
         auto cord = Dequant::TileShape::ToCoord();
