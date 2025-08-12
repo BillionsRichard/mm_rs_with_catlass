@@ -15,7 +15,7 @@ void QuantizedMatmulReduceScatter(
     GM_ADDR x2,           // 输入矩阵B: [K, N], int8  
     GM_ADDR scale_x1,     // per-token 量化缩放因子: [M], float32
     GM_ADDR scale_x2,     // per-channel 量化缩放因子: [N], float32
-    GM_ADDR bias,         // 偏置: [N], int32
+    GM_ADDR bias,         // (可选) 偏置: [N], int32
     GM_ADDR output,       // 输出矩阵: [M/rankSize, N], bfloat16
     GM_ADDR symmetricPtr, // 用于Rank间通信的共享内存工作空间 (workspace)
     uint32_t m, 
@@ -31,7 +31,7 @@ void QuantizedMatmulReduceScatter(
 | x2 | [K, N] | int8 | 量化后的输入矩阵B |
 | scale_x1 | [M] | float32 | x1的per-token量化缩放因子 |
 | scale_x2 | [N] | float32 | x2的per-channel量化缩放因子 |
-| bias | [N] | int32 | 偏置项 |
+| bias | [N] | int32 | (可选) 偏置项。如果传入空指针，则跳过此步骤。 |
 | output | [M/rankSize, N] | bfloat16 | 输出矩阵（每个rank保留部分） |
 | symmetricPtr | - | GM_ADDR | 用于Reduce-Scatter通信的共享内存工作区 |
 

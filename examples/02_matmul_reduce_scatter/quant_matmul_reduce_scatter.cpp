@@ -18,6 +18,7 @@
 #include "catlass/epilogue/tile/tile_broadcast_mul.hpp"
 #include "catlass/epilogue/tile/tile_broadcast_one_blk.hpp"
 #include "catlass/epilogue/block/block_epilogue_per_token_dequant.hpp"
+#include "catlass/epilogue/block/block_epilogue_bias.hpp"
 
 // shmem_host
 #include "host/shmem_host_def.h"
@@ -145,12 +146,24 @@ void ShmemQuantMatmulReduceScatter(
         TileBroadcastOneBlk, TileOneBlkColumnBroadcastMul, TileCopy,
         EpilogueTileSwizzle>;
 
+    // Define types for BiasAdd Epilogue
+    using BiasCType = CType;
+    using BiasType = Catlass::Gemm::GemmType<int32_t, Catlass::layout::VectorLayout>;
+    using BiasDType = CType;
+    using BiasDispatchPolicy = EpilogueAtlasA2Bias<2>;
+    using BiasTileShape = Catlass::MatrixShape<64, 128>;
+    using BiasTileAdd = Tile::TileBiasAdd<ArchTag, BiasCType, BiasType, BiasDType, BiasTileShape>;
+    using BlockEpilogueBiasAdd = Block::BlockEpilogueBias<
+        BiasDispatchPolicy, BiasCType, BiasType, BiasDType,
+        BiasTileAdd, EpilogueTileSwizzle
+    >;
 
     constexpr uint32_t workspaceStages = 2;
     constexpr uint32_t commInterval = 10;
     using QuantMatmulReduceScatterKernel = DGemm::Kernel::QuantMatmulReduceScatter<
         BlockMmad,
         BlockEpilogueReduceScatter,
+        BlockEpilogueBiasAdd,
         BlockEpilogueDequant,
         BlockScheduler,
         CommBlockScheduler,
@@ -178,6 +191,10 @@ void ShmemQuantMatmulReduceScatter(
         reinterpret_cast<__gm__ float *>(scale_x1) + scale_x1_offset, Catlass::layout::VectorLayout(m_per_rank),
         reinterpret_cast<__gm__ half *>(d_out), layoutD_out
     };
+    typename BlockEpilogueBiasAdd::Params biasAddParams{
+        reinterpret_cast<__gm__ int32_t *>(c_accum), layoutC_accum,
+        reinterpret_cast<__gm__ int32_t *>(bias), Catlass::layout::VectorLayout(n)
+    };
 
     // Prepare params
     typename QuantMatmulReduceScatterKernel::Params params{
@@ -187,6 +204,7 @@ void ShmemQuantMatmulReduceScatter(
         x2, layoutB,
         symmetricPtr,
         reduceScatterParams,
+        biasAddParams,
         dequantParams,
         c_accum, layoutC_accum,
         d_out, layoutD_out,
