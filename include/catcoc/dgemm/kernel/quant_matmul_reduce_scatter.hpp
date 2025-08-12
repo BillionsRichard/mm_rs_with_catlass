@@ -17,7 +17,7 @@ using Catlass::GemmCoord;
 template <
     class BlockMmad_,
     class BlockEpilogueReduceScatter_,
-    class BlockEpilogueBiasAdd_,
+    class BlockEpilogueBias_,
     class BlockEpilogueDequant_,
     class BlockScheduler_,
     class BlockEpilogueScheduler_,
@@ -37,8 +37,8 @@ public:
 
     using ReduceScatter = BlockEpilogueReduceScatter_;
     using ReduceScatterParams = typename ReduceScatter::Params;
-    using BiasAdd = BlockEpilogueBiasAdd_;
-    using BiasAddParams = typename BiasAdd::Params;
+    using BiasAdd = BlockEpilogueBias_;
+    using BiasParams = typename BiasAdd::Params;
     using Dequant = BlockEpilogueDequant_;
     using DequantParams = typename Dequant::Params;
 
@@ -64,7 +64,7 @@ public:
         LayoutB layoutB;
         GM_ADDR ptrSymmetric;
         ReduceScatterParams reduceScatterParams;
-        BiasAddParams biasAddParams;
+        BiasParams biasParams;
         DequantParams dequantParams;
 
         GM_ADDR ptrC_accum; // int32
@@ -87,7 +87,7 @@ public:
             GM_ADDR ptrB_, LayoutB const &layoutB_,
             GM_ADDR ptrSymmetric_,
             ReduceScatterParams const &reduceScatterParams_,
-            BiasAddParams const &biasAddParams_,
+            BiasParams const &biasParams_,
             DequantParams const &dequantParams_,
             GM_ADDR ptrC_accum_, LayoutC const &layoutC_accum_,
             GM_ADDR ptrD_out_, LayoutD const &layoutD_out_,
@@ -98,7 +98,7 @@ public:
             ptrB(ptrB_), layoutB(layoutB_),
             ptrSymmetric(ptrSymmetric_),
             reduceScatterParams(reduceScatterParams_),
-            biasAddParams(biasAddParams_),
+            biasParams(biasParams_),
             dequantParams(dequantParams_),
             ptrC_accum(ptrC_accum_), layoutC_accum(layoutC_accum_),
             ptrD_out(ptrD_out_), layoutD_out(layoutD_out_),
@@ -319,24 +319,15 @@ public:
         uint32_t coreIdx = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum();
 
         // BiasAdd Step
-        if (params.biasAddParams.ptr_bias != 0) {
-            BiasAdd biasAddEpilogue(resource, params.biasAddParams);
-            auto cord = BiasAdd::TileShape::ToCoord();
-            typename BiasAdd::EpilogueTileSwizzle tileScheduler(problemShapeEpilogue.GetCoordMN(), cord);
-            uint32_t tileLoops = tileScheduler.GetLoops();
-
-            for(uint32_t i = coreIdx; i < tileLoops; i += coreNum) {
-                auto tileCoord = tileScheduler.GetTileCoord(i);
-                auto actualTileShape = tileScheduler.GetActualTileShape(tileCoord);
-                auto acc_offset = tileCoord * cord;
-                biasAddEpilogue(
-                    GemmCoord(cord[0], cord[1], 1),
-                    GemmCoord(tileCoord.row(), tileCoord.column(), 0),
-                    GemmCoord(actualTileShape.row(), actualTileShape.column(), 1),
-                    gmC_accum[params.layoutC_accum.GetOffset(acc_offset)],
-                    params.layoutC_accum.GetTileLayout(actualTileShape)
-                );
-            }
+        if (params.biasParams.ptr_bias != 0) {
+            BiasAdd biasAddEpilogue(resource, params.biasParams);
+            biasAddEpilogue(
+                problemShapeEpilogue,
+                GemmCoord{0, 0, 0},
+                problemShapeEpilogue,
+                gmC_accum,
+                params.layoutC_accum
+            );
             AscendC::PipeBarrier<PIPE_ALL>();
         }
 

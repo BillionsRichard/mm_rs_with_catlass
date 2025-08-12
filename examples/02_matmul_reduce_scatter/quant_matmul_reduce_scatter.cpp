@@ -19,6 +19,7 @@
 #include "catlass/epilogue/tile/tile_broadcast_one_blk.hpp"
 #include "catlass/epilogue/block/block_epilogue_per_token_dequant.hpp"
 #include "catlass/epilogue/block/block_epilogue_bias.hpp"
+#include "catlass/epilogue/tile/tile_elemwise_add.hpp"
 
 // shmem_host
 #include "host/shmem_host_def.h"
@@ -150,12 +151,19 @@ void ShmemQuantMatmulReduceScatter(
     using BiasCType = CType;
     using BiasType = Catlass::Gemm::GemmType<int32_t, Catlass::layout::VectorLayout>;
     using BiasDType = CType;
-    using BiasDispatchPolicy = EpilogueAtlasA2Bias<2>;
     using BiasTileShape = Catlass::MatrixShape<64, 128>;
-    using BiasTileAdd = Tile::TileBiasAdd<ArchTag, BiasCType, BiasType, BiasDType, BiasTileShape>;
+    using BiasDispatchPolicy = EpilogueAtlasA2BiasAdd<BiasTileShape>;
+    using ComputeCType = Catlass::Gemm::GemmType<int32_t, Catlass::layout::RowMajor>;
+    using BiasTileAdd = Tile::TileElemWiseAdd<ArchTag, ComputeCType, BiasTileShape::COUNT>;
+    using BiasTileCopy = Tile::TileCopy<ArchTag, BiasCType, BiasType, BiasDType>;
     using BlockEpilogueBiasAdd = Block::BlockEpilogueBias<
-        BiasDispatchPolicy, BiasCType, BiasType, BiasDType,
-        BiasTileAdd, EpilogueTileSwizzle
+        BiasDispatchPolicy,
+        BiasCType,
+        BiasType,
+        BiasDType,
+        BiasTileAdd,
+        BiasTileCopy,
+        EpilogueTileSwizzle
     >;
 
     constexpr uint32_t workspaceStages = 2;
@@ -183,7 +191,6 @@ void ShmemQuantMatmulReduceScatter(
         matmulBlockScheduler
     };
     
-    // Per-channel dequant does not support bias, so we ignore it here
     uint32_t m_per_rank = m / rankSize;
     uint32_t scale_x1_offset = rank * m_per_rank;
     typename BlockEpilogueDequant::Params dequantParams{
@@ -191,9 +198,9 @@ void ShmemQuantMatmulReduceScatter(
         reinterpret_cast<__gm__ float *>(scale_x1) + scale_x1_offset, Catlass::layout::VectorLayout(m_per_rank),
         reinterpret_cast<__gm__ half *>(d_out), layoutD_out
     };
-    typename BlockEpilogueBiasAdd::Params biasAddParams{
-        reinterpret_cast<__gm__ int32_t *>(c_accum), layoutC_accum,
-        reinterpret_cast<__gm__ int32_t *>(bias), Catlass::layout::VectorLayout(n)
+    typename BlockEpilogueBiasAdd::Params biasParams{
+        c_accum, layoutC_accum,
+        bias, Catlass::layout::VectorLayout(n)
     };
 
     // Prepare params
@@ -204,7 +211,7 @@ void ShmemQuantMatmulReduceScatter(
         x2, layoutB,
         symmetricPtr,
         reduceScatterParams,
-        biasAddParams,
+        biasParams,
         dequantParams,
         c_accum, layoutC_accum,
         d_out, layoutD_out,

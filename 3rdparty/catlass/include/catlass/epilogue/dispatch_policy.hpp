@@ -68,6 +68,13 @@ struct EpilogueAtlasA2PerTokenDequant {
     using ArchTag = Arch::AtlasA2;
     static constexpr uint32_t UB_STAGES = UB_STAGES_;
 };
+
+// For AtlasA2, bias add
+template <typename TileShape_>
+struct EpilogueAtlasA2BiasAdd {
+    using ArchTag = Arch::AtlasA2;
+    using TileShape = TileShape_;
+};
 ////////////////////////////
 /// new add
 // For AtlasA2, GEMM
