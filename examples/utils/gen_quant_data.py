@@ -6,9 +6,9 @@ def gen_random_data(size, dtype):
     if dtype == torch.float16 or dtype == torch.bfloat16 or dtype == torch.float32:
         return torch.randn(size=size, dtype=dtype)
     elif dtype == torch.int8:
-        # return torch.randint(-16, 16, size=size, dtype=dtype)
+        return torch.randint(-16, 16, size=size, dtype=dtype)
         # for debug use all ones.
-        return torch.ones(size=size, dtype=dtype)
+        # return torch.ones(size=size, dtype=dtype)
     else:
         print(f"Invalid dtype: {dtype}.")
         exit(1)
@@ -28,7 +28,7 @@ def gen_golden_data():
     args = parser.parse_args()
     M, N, K = args.m, args.n, args.k
 
-    # Generate quantized inputs
+    # Generate quantized inputsW
     x1_gm = gen_random_data([M, K], dtype=torch.int8)
     x2_gm = gen_random_data([K, N], dtype=torch.int8)
     scale_x1_gm = torch.randn(M, dtype=torch.float32) * 0.01
@@ -36,8 +36,8 @@ def gen_golden_data():
     # for debug
     scale_x1_gm = torch.ones(size=(M,), dtype=torch.float32) * 0.01
     scale_x2_gm = torch.ones(size=(N,), dtype=torch.float32) * 0.01
-    # bias_gm = torch.randint(low=-10, high=10, size=(N,), dtype=torch.int32)
-    bias_gm = torch.zeros(size=(N,), dtype=torch.int32)
+    bias_gm = torch.randint(low=-10, high=10, size=(N,), dtype=torch.int32)
+    # bias_gm = torch.zeros(size=(N,), dtype=torch.int32)
     c_gm = torch.zeros((M // args.rank_size, N), dtype=args.out_dtype.torch_type)
 
     # Calculate golden result
