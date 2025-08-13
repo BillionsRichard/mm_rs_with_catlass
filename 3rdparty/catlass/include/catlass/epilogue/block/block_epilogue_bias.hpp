@@ -97,9 +97,9 @@ public:
         uint32_t subblock_num = AscendC::GetSubBlockNum();
 
         for (uint32_t i = subblock_idx; i < tile_loops; i += subblock_num) {
-            auto tile_coord = tile_swizzle.GetTileCoord(i);
-            auto actual_tile_shape = tile_swizzle.GetActualTileShape(tile_coord);
-            auto tile_offset = tile_coord * TileShape::ToCoord();
+            auto tile_coord = tile_swizzle.GetTileCoord(i);//[0, 0]
+            auto actual_tile_shape = tile_swizzle.GetActualTileShape(tile_coord);//64x128
+            auto tile_offset = tile_coord * TileShape::ToCoord();//[0, 0]
             
             // 1. Copy Accumulator Tile from GMEM to UBUF
             auto g_c_tile = g_c_in[layout_c_in.GetOffset(tile_offset)];
@@ -117,6 +117,9 @@ public:
             LayoutBias layout_ub_bias(bias_tile_shape_n[0]);
             CopyGmToUbBias copy_bias;
             copy_bias(ub_bias_, g_bias_tile, layout_ub_bias, layout_bias_tile);
+
+            // *** FIX: Wait for GMEM->UBUF copies to complete before computation ***
+            AscendC::PipeBarrier<PIPE_ALL>();
 
             // 3. Perform In-place Broadcast Add: ub_c_ = ub_c_ + ub_bias_
             constexpr uint32_t maxRepeatTimes = 255;
@@ -149,6 +152,9 @@ public:
                 }
             }
             
+            // *** FIX: Wait for computation to complete before writing back to GMEM ***
+            AscendC::PipeBarrier<PIPE_ALL>();
+
             // 4. Copy Result Tile from UBUF to GMEM
             auto g_d_tile = g_d_out[params_.layout_c.GetOffset(tile_offset)];
             auto layout_d_tile = params_.layout_c.GetTileLayout(actual_tile_shape);
