@@ -121,11 +121,26 @@ public:
         uint32_t subblock_idx = AscendC::GetSubBlockIdx();         // 获取当前 sub-block 的 ID
         uint32_t subblock_num = AscendC::GetSubBlockNum();         // 获取总的 sub-block 数量
 
+        if (params_.rank == 0 && subblock_idx == 0) {
+            cce::printf("acdebug Enter Epilogue: problem_shape(m,n)=(%d, %d), actual_block_shape(m,n)=(%d, %d), tile_loops=%d\n",
+                (int)problem_shape.m(), (int)problem_shape.n(),
+                (int)actual_block_shape.m(), (int)actual_block_shape.n(),
+                (int)tile_loops);
+        }
+
         // 多 aicore 并行处理，每个 aicore(subblock) 处理一部分 Tile
         for (uint32_t i = subblock_idx; i < tile_loops; i += subblock_num) {
             auto tile_coord = tile_swizzle.GetTileCoord(i);                   // 获取当前 Tile 的坐标 (在 Block 内)
             auto actual_tile_shape = tile_swizzle.GetActualTileShape(tile_coord); // 获取当前 Tile 的实际形状
             auto tile_offset = tile_coord * TileShape::ToCoord();             // 计算当前 Tile 在 Block 内的坐标偏移
+
+            if (params_.rank == 0 && subblock_idx == 0) {
+                cce::printf("acdebug loop i=%d: tile_coord(m,n)=(%d,%d), actual_tile_shape(m,n)=(%d,%d), tile_offset(m,n)=(%d,%d)\n",
+                    (int)i,
+                    (int)tile_coord[0], (int)tile_coord[1],
+                    (int)actual_tile_shape.row(), (int)actual_tile_shape.column(),
+                    (int)tile_offset[0], (int)tile_offset[1]);
+            }
 
             // 1. 将累加器 Tile (C) 从 GMEM 拷贝到 UBUF
             auto g_c_tile = g_c_in[layout_c_in.GetOffset(tile_offset)];       // 获取 GMEM 上 C tile 的指针
@@ -142,6 +157,13 @@ public:
             auto g_bias_tile = g_bias[params_.layout_bias.GetOffset(MakeCoord(bias_tile_offset_n))]; // 获取GMEM上bias tile的指针
             auto layout_bias_tile = params_.layout_bias.GetTileLayout(MakeCoord(bias_tile_shape_n)); // 获取bias tile的布局
             LayoutBias layout_ub_bias(bias_tile_shape_n);                      // 定义UBUF中bias tile的布局
+
+            if (params_.rank == 0 && subblock_idx == 0) {
+                cce::printf("acdebug BiasCopy: bias_tile_offset_n=%d, bias_tile_shape_n=%d, gm_offset=%d\n",
+                    (int)bias_tile_offset_n, (int)bias_tile_shape_n,
+                    (int)params_.layout_bias.GetOffset(MakeCoord(bias_tile_offset_n)));
+            }
+
             CopyGmToUbBias copy_bias;
             copy_bias(ub_bias_, g_bias_tile, layout_ub_bias, layout_bias_tile);
 
@@ -172,6 +194,11 @@ public:
                     // 修正: AscendC::Add 的 mask 参数在连续模式下应为元素数量，而非位掩码
                     uint64_t mask = (residueN >= colNumPerCompute) ? colNumPerCompute : residueN;//64,
                     
+                    if (params_.rank == 0 && subblock_idx == 0) {
+                        cce::printf("acdebug Add loop: rowOff=%d, colOff=%d, residueM=%d, residueN=%d, repeat=%d, mask=%d\n",
+                            (int)rowOffset, (int)colOffset, (int)residueM, (int)residueN, (int)repeatTimes, (int)mask);
+                    }
+
                     // 执行向量加法: ub_c_ + ub_bias_ -> ub_c_
                     AscendC::Add(
                         ub_c_[rowOffset * TileShape::COLUMN + colOffset],
