@@ -6,7 +6,7 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.18)
 project(SHMEM)
 
 # 设置C++标准
@@ -77,7 +77,7 @@ link_directories(
     ${ASCEND_DRIVER_PATH}/lib64/driver
 )
 
-link_libraries(runtime stdc++ ascendcl m tiling_api platform c_sec dl nnopbase ascend_hal)
+link_libraries(runtime stdc++ ascendcl m tiling_api platform c_sec dl nnopbase ascend_hal pthread)
 
 # 添加子目录
 add_subdirectory(src)
