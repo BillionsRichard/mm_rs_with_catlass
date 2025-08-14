@@ -20,14 +20,14 @@
 |特殊场景|无|
 
 说明：
-支持通过环境变量 `SMEM_CONF_STORE_TLS_ENABLE`和`SMEM_CONF_STORE_TLS_INFO` 配置TLS秘钥证书等，进行tls安全连接。系统启动后，建议删除本地秘钥证书等信息敏感文件。
+支持通过环境变量 `SMEM_CONF_STORE_TLS_ENABLE`和`SMEM_CONF_STORE_TLS_INFO` 配置TLS秘钥证书等，进行tls安全连接，建议用户开启TLS加密配置，保证通信安全。系统启动后，建议删除本地秘钥证书等信息敏感文件。
 用户通过json字符串形式从环境变量 SMEM_CONF_STORE_TLS_INFO 传入tlsOption相关参数。
 例如，在终端输入：
 ```
 配置关闭tls:
 export SMEM_CONF_STORE_TLS_ENABLE=0
 配置打开tls:
-export SMEM_CONF_STORE_TLS_ENABLE=1(或者不设置MEMFABRIC_HYBRID_TLS_ENABLE环境变量)
+export SMEM_CONF_STORE_TLS_ENABLE=1(或者不设置SMEM_CONF_STORE_TLS_ENABLE环境变量)
 export SMEM_CONF_STORE_TLS_INFO=$'\
 {
     "tlsCaPath": "/etc/ssl/certs/",

@@ -37,10 +37,12 @@ GEN_DOC=OFF
 cann_default_path="/usr/local/Ascend/ascend-toolkit"
 
 cd ${PROJECT_ROOT}
+git submodule init
+
 function fn_build()
 {
     fn_build_memfabric
-    cd $THIRD_PARTY_DIR; [[ ! -d "catlass" ]] && git clone https://gitee.com/ascend/catlass; cd ..
+    git submodule update --recursive 3rdparty/catlass
 
     rm -rf build
     mkdir -p build
@@ -107,9 +109,8 @@ function fn_build_googletest()
     if [ -d "$THIRD_PARTY_DIR/googletest/lib" ]; then
         return 0
     fi
-    cd $THIRD_PARTY_DIR
-    [[ ! -d "googletest" ]] && git clone --branch v1.14.0 --depth 1 https://github.com/google/googletest.git
-    cd googletest
+    git submodule update --recursive 3rdparty/googletest
+    cd $THIRD_PARTY_DIR/googletest
     rm -rf build && mkdir build && cd build
     cmake .. -DCMAKE_INSTALL_PREFIX=$THIRD_PARTY_DIR/googletest -DCMAKE_SKIP_RPATH=TRUE -DCMAKE_CXX_FLAGS="-fPIC"
     cmake --build . --parallel $(nproc)
@@ -124,20 +125,11 @@ function fn_build_memfabric()
     if [ -d "$THIRD_PARTY_DIR/memfabric_hybrid/output/smem/lib64" ]; then
         return 0
     fi
-    if [ -d "$THIRD_PARTY_DIR/memfabric_hybrid" ]; then
-        rm -rf "$THIRD_PARTY_DIR/memfabric_hybrid"
-    fi
 
-    cd $THIRD_PARTY_DIR
-    git clone -b master https://gitee.com/ascend/memfabric_hybrid.git
-    cd memfabric_hybrid
-    git submodule init
-    git submodule update --recursive
-    mkdir -p build
-    cd build 
-    cmake -DBUILD_PYTHON=$PYEXPAND_TYPE -DBUILD_OPEN_ABI=OFF -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
-    make install -j16
-    ls -l ../output/smem
+    git submodule update 3rdparty/memfabric_hybrid # not with recursive
+    cd $THIRD_PARTY_DIR/memfabric_hybrid
+    bash script/build.sh $BUILD_TYPE OFF OFF $PYEXPAND_TYPE
+    ls -l output/smem
     echo "Memfabric_hybrid is successfully installed to $THIRD_PARTY_DIR/memfabric_hybrid"
     cd ${PROJECT_ROOT}
 }

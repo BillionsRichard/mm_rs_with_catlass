@@ -1,0 +1,11 @@
+[submodule "3rdparty/memfabric_hybrid"]
+	path = 3rdparty/memfabric_hybrid
+	url = https://gitee.com/ascend/memfabric_hybrid.git
+    branch = br_release_shmem_1.0
+[submodule "3rdparty/catlass"]
+	path = 3rdparty/catlass
+	url = https://gitee.com/ascend/catlass.git
+[submodule "3rdparty/googletest"]
+	path = 3rdparty/googletest
+	url = https://github.com/google/googletest.git
+    shallow = true # depth=1
