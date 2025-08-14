@@ -355,7 +355,7 @@ public:
 
             // 通知 AIC 当前 stage 的 AIV 任务已完成
             Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_MTE3>(flagAivFinishCompute[stageId]);
-        }
+        }//通信for循环结束
 
         // --- 后处理阶段 ---
         uint32_t M_per_rank = params.problemShape.m() / params.rankSize; // 每个Rank处理的M维度大小

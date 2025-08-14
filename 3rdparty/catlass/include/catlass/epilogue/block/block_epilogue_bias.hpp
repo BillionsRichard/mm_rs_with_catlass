@@ -55,6 +55,7 @@ public:
         LayoutC layout_c;        // C/D 矩阵的布局
         GM_ADDR ptr_bias;        // 指向 GMEM 中 Bias 向量的指针
         LayoutBias layout_bias;  // Bias 向量的布局
+        uint32_t rank;
 
         CATLASS_DEVICE
         Params() = default;
@@ -64,11 +65,13 @@ public:
             GM_ADDR ptr_c_,
             LayoutC const &layout_c_,
             GM_ADDR ptr_bias_,
-            LayoutBias const &layout_bias_
+            LayoutBias const &layout_bias_,
+            uint32_t rank_
         ) : ptr_c(ptr_c_),
             layout_c(layout_c_),
             ptr_bias(ptr_bias_),
-            layout_bias(layout_bias_) {}
+            layout_bias(layout_bias_),
+            rank(rank_) {}
     };
 
 public:
@@ -80,11 +83,20 @@ public:
     ) :
         params_(params)
     {
-        size_t ub_offset = 0;
+        uint32_t ub_offset = 0;
         // 为 C tile 在 UB 中分配空间
         ub_c_ = resource.ubBuf.template GetBufferByByte<ElementC>(ub_offset);
+        uint32_t aivId = AscendC::GetBlockIdx();
+        if (params.rank == 0)
+        {
+            cce::printf("acdebug BlockEpilogueBias constructor1 at blockIdx: %u, ub_offset: :%u\n", aivId, ub_offset);
+        }
+        // TileShape: [64, 128] -> count= 64*128
         ub_offset += TileShape::COUNT * sizeof(ElementC);
-        // 为 Bias tile 在 UB 中分配空间
+        // 为 Bias tile 在 UB 中分配空间uctor2 at blockIdx: %u, ub_offset: %u\n", reinterpret_cast<int>aivId, reinterpret_cast<int>ub_offset);
+        if (params.rank == 0){
+            cce::printf("acdebug BlockEpilogueBias constructor2 at blockIdx: %u, ub_offset:%u\n", aivId, ub_offset);
+        }
         ub_bias_ = resource.ubBuf.template GetBufferByByte<ElementBias>(ub_offset);
     }
 
@@ -138,7 +150,7 @@ public:
 
             // 3. 执行 C = C + Bias 的操作 (in-place)
             constexpr uint32_t maxRepeatTimes = 255;                           // 向量指令单次执行的最大重复次数
-            constexpr uint32_t eleNumPerBlk = BYTE_PER_BLK / sizeof(ElementC);   // 每个 block 的元素数量
+            constexpr uint32_t eleNumPerBlk = BYTE_PER_BLK / sizeof(ElementC);   // 每个 block 的元素数量， 256/4
             constexpr uint32_t blkNumPerColumn = TileShape::COLUMN / eleNumPerBlk; // 每列的 block 数量
             AscendC::BinaryRepeatParams repeatParams;
             repeatParams.dstBlkStride = 1;                                     // 目标操作数 block 间 stride
@@ -148,17 +160,17 @@ public:
             repeatParams.src0RepStride = blkNumPerColumn;                      // 源操作数0重复间 stride
             repeatParams.src1RepStride = 0;                                    // 源操作数1重复间 stride (0 表示广播)
 
-            constexpr uint32_t rowNumPerCompute = maxRepeatTimes;              // 每次向量计算处理的行数
-            constexpr uint32_t colNumPerCompute = BYTE_PER_VECTOR_FRACTAL / sizeof(ElementC); // 每次向量计算处理的列数
+            constexpr uint32_t rowNumPerCompute = maxRepeatTimes;              // 每次向量计算处理的行数 #255
+            constexpr uint32_t colNumPerCompute = BYTE_PER_VECTOR_FRACTAL / sizeof(ElementC); // 每次向量计算处理的列数 #64
 
             // 遍历 Tile 内的每一行每一列，执行加法
             for (uint32_t rowOffset = 0; rowOffset < actual_tile_shape.row(); rowOffset += rowNumPerCompute) {
-                uint32_t residueM = actual_tile_shape.row() - rowOffset;
+                uint32_t residueM = actual_tile_shape.row() - rowOffset;  //residueM:2
                 uint8_t repeatTimes = static_cast<uint8_t>((residueM >= rowNumPerCompute) ? rowNumPerCompute : residueM);
                 for (uint32_t colOffset = 0; colOffset < actual_tile_shape.column(); colOffset += colNumPerCompute) {
-                    uint32_t residueN = actual_tile_shape.column() - colOffset;
+                    uint32_t residueN = actual_tile_shape.column() - colOffset; //residueN:128
                     // 修正: AscendC::Add 的 mask 参数在连续模式下应为元素数量，而非位掩码
-                    uint64_t mask = (residueN >= colNumPerCompute) ? colNumPerCompute : residueN;
+                    uint64_t mask = (residueN >= colNumPerCompute) ? colNumPerCompute : residueN;//64,
                     
                     // 执行向量加法: ub_c_ + ub_bias_ -> ub_c_
                     AscendC::Add(

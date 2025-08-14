@@ -197,7 +197,8 @@ void ShmemQuantMatmulReduceScatter(
     };
     typename BlockEpilogueBiasAdd::Params biasParams{
         c_accum, layoutC_accum,
-        bias, Catlass::layout::VectorLayout(n)
+        bias, Catlass::layout::VectorLayout(n),
+        rank
     };
 
     // Prepare params

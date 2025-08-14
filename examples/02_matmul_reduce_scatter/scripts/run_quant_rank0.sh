@@ -46,5 +46,5 @@ mkdir -p output
 #     python3 ${UTILS_PATH}/verify_quant_result.py ./output/output.bin ./output/golden.bin 1 ${M} ${N} ${K}
 # done
 IPPORT="tcp://127.0.0.1:4753${test_idx: -1}"
-msdebug ${EXEC_BIN} "$RANK_SIZE" "0" "$IPPORT" "256" "256" "256" 
+msdebug ${EXEC_BIN} "$RANK_SIZE" "0" "$IPPORT" "4" "128" "129" 
 cd ${CURRENT_DIR}
