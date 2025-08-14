@@ -12,9 +12,8 @@ function(shmem_add_fusion_example NAME)
     target_compile_options(${NAME} PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} --cce-aicore-arch=dav-c220)
     target_include_directories(${NAME} PRIVATE
         ${PROJECT_SOURCE_DIR}/include
-        ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include
-        ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include/smem/host/
-        ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include/smem/device/
+        ${PROJECT_SOURCE_DIR}/install/memfabric_hybrid/include/smem/host/
+        ${PROJECT_SOURCE_DIR}/install/memfabric_hybrid/include/smem/device/
         ${PROJECT_SOURCE_DIR}/3rdparty/catlass/include
         ${PROJECT_SOURCE_DIR}/3rdparty/catlass/examples/common
         ${PROJECT_SOURCE_DIR}/examples/${NAME}
@@ -22,7 +21,7 @@ function(shmem_add_fusion_example NAME)
         ${PROJECT_SOURCE_DIR}/examples/utils
     )
     target_link_options(${NAME} PRIVATE --cce-fatobj-link)
-    target_link_libraries(${NAME} PRIVATE shmem)
+    target_link_libraries(${NAME} PRIVATE shmem ${PROJECT_SOURCE_DIR}/install/memfabric_hybrid/lib/libmf_smem.so)
 endfunction()
 
 function(shmem_add_collective_example NAME)
@@ -30,8 +29,7 @@ function(shmem_add_collective_example NAME)
     target_compile_options(${NAME}_kernel PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} --cce-aicore-arch=dav-c220-vec)
     target_include_directories(${NAME}_kernel PRIVATE 
         ${PROJECT_SOURCE_DIR}/include
-        ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include
-        ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include/smem/device/
+        ${PROJECT_SOURCE_DIR}/install/memfabric_hybrid/include/smem/device/
         ${PROJECT_SOURCE_DIR}/3rdparty/catlass/include
         ${PROJECT_SOURCE_DIR}/3rdparty/catlass/examples/common
         ${PROJECT_SOURCE_DIR}/examples/${NAME}
@@ -42,14 +40,13 @@ function(shmem_add_collective_example NAME)
     target_compile_options(${NAME} PRIVATE ${CMAKE_CPP_COMPILE_OPTIONS})
     target_include_directories(${NAME} PRIVATE
         ${PROJECT_SOURCE_DIR}/include
-        ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include
-        ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include/smem/host/
+        ${PROJECT_SOURCE_DIR}/install/memfabric_hybrid/include/smem/host/
         ${PROJECT_SOURCE_DIR}/3rdparty/catlass/examples/common
         ${PROJECT_SOURCE_DIR}/examples/${NAME}
         ${PROJECT_SOURCE_DIR}/examples/templates/include
         ${PROJECT_SOURCE_DIR}/examples/utils
     )
-    target_link_libraries(${NAME} PRIVATE shmem ${NAME}_kernel)
+    target_link_libraries(${NAME} PRIVATE shmem ${NAME}_kernel ${PROJECT_SOURCE_DIR}/install/memfabric_hybrid/lib/libmf_smem.so)
 endfunction()
 
 foreach(EXAMPLE

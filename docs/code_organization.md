@@ -45,7 +45,6 @@ include目录下的头文件是按照如下文件层级进行组织的
 │    │    ├─mem             // host侧内存管理接口实现
 │    │    ├─python_wrapper  // Py接口封装
 │    │    ├─team            // host侧通信域管理接口实现
-│    │    └─under_api       // host侧低阶api引入
 |    └── transport          // 建链相关内容
 ```
 ## examples

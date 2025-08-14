@@ -96,7 +96,7 @@ python3 ./scripts/data_gen.py $RANK_SIZE $TEST_TYPE
 # Kernel test
 rm -rf ./output
 export SMEM_CONF_STORE_TLS_ENABLE=0
-export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${PROJECT_ROOT}/3rdparty/memfabric_hybrid/output/smem/lib64:${PROJECT_ROOT}/3rdparty/memfabric_hybrid/output/hybm/lib:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=${PROJECT_ROOT}/build/lib:${PROJECT_ROOT}/install/memfabric_hybrid/lib/:${ASCEND_HOME_PATH}/lib64:$LD_LIBRARY_PATH
 for (( idx =0; idx < ${GNPU_NUM}; idx = idx + 1 )); do
     msprof --application="${PROJECT_ROOT}/build/bin/allgather $RANK_SIZE $idx $IPPORT $GNPU_NUM $FIRST_RANK $FIRST_NPU $TEST_TYPE" --output=${PROJECT_ROOT}/examples/allgather/output/ &
 done

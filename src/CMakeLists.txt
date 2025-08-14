@@ -16,8 +16,7 @@ target_compile_options(shmem_device PRIVATE ${CMAKE_CCE_COMPILE_OPTIONS} --cce-a
 target_include_directories(shmem_device
     PUBLIC
     ${PROJECT_SOURCE_DIR}/include/
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include/smem/device/
+    ${PROJECT_SOURCE_DIR}/install/memfabric_hybrid/include/smem/device/
 )
 
 file(GLOB_RECURSE SHMEM_HOST_FILES ${CMAKE_CURRENT_SOURCE_DIR}/host/*.cpp)
@@ -27,14 +26,19 @@ target_compile_options(shmem_host PRIVATE ${CMAKE_CPP_COMPILE_OPTIONS})
 target_include_directories(shmem_host
     PUBLIC
     ${PROJECT_SOURCE_DIR}/include/
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include
-    ${PROJECT_SOURCE_DIR}/3rdparty/memfabric_hybrid/output/smem/include/smem/host/
+    ${PROJECT_SOURCE_DIR}/install/memfabric_hybrid/include/smem/host/
     ${PROJECT_SOURCE_DIR}/src/host
     ${PROJECT_SOURCE_DIR}/src/device
 )
 
 add_library(shmem SHARED $<TARGET_OBJECTS:shmem_device> $<TARGET_OBJECTS:shmem_host>)
 target_link_options(shmem PRIVATE --cce-fatobj-link)
+
+target_link_libraries(shmem
+    PUBLIC
+    ${PROJECT_SOURCE_DIR}/install/memfabric_hybrid/lib/libmf_smem.so
+    ${PROJECT_SOURCE_DIR}/install/memfabric_hybrid/lib/libmf_hybm_core.so
+)
 
 # 安装配置
 install(TARGETS shmem

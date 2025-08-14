@@ -22,6 +22,8 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 PROJECT_ROOT=$(dirname "$SCRIPT_DIR")
 VERSION="1.0.0"
 OUTPUT_DIR=$PROJECT_ROOT/install
+rm -rf $OUTPUT_DIR
+mkdir -p $OUTPUT_DIR
 THIRD_PARTY_DIR=$PROJECT_ROOT/3rdparty
 mkdir -p $THIRD_PARTY_DIR
 RELEASE_DIR=$PROJECT_ROOT/ci/release
@@ -46,8 +48,6 @@ function fn_build()
 
     rm -rf build
     mkdir -p build
-    rm -rf install
-
 
     cd build
     cmake -DBUILD_PYTHON=$PYEXPAND_TYPE $COMPILE_OPTIONS -DCMAKE_INSTALL_PREFIX=../install -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
@@ -88,12 +88,6 @@ EOF
     sed -i "s!VERSION_PLACEHOLDER!${VERSION}!" $OUTPUT_DIR/install.sh
     sed -i "s!VERSION_PLACEHOLDER!${VERSION}!" $OUTPUT_DIR/scripts/uninstall.sh
 
-    mkdir -p $OUTPUT_DIR/memfabric_hybrid/lib
-    mkdir -p $OUTPUT_DIR/memfabric_hybrid/include
-    cp -r $THIRD_PARTY_DIR/memfabric_hybrid/output/hybm/lib64/* $OUTPUT_DIR/memfabric_hybrid/lib
-    cp -r $THIRD_PARTY_DIR/memfabric_hybrid/output/smem/lib64/* $OUTPUT_DIR/memfabric_hybrid/lib
-    cp -r $THIRD_PARTY_DIR/memfabric_hybrid/output/smem/include/smem $OUTPUT_DIR/memfabric_hybrid/include
-
     chmod +x $OUTPUT_DIR/*
     makeself_dir=${ASCEND_HOME_PATH}/toolkit/tools/op_project_templates/ascendc/customize/cmake/util/makeself/
     ${makeself_dir}/makeself.sh --header ${makeself_dir}/makeself-header.sh \
@@ -123,15 +117,21 @@ function fn_build_googletest()
 function fn_build_memfabric()
 {
     if [ -d "$THIRD_PARTY_DIR/memfabric_hybrid/output/smem/lib64" ]; then
-        return 0
+        echo "Memfabric_hybrid already build"
+    else
+        git submodule update 3rdparty/memfabric_hybrid # not with recursive
+        cd $THIRD_PARTY_DIR/memfabric_hybrid
+        bash script/build.sh $BUILD_TYPE OFF OFF $PYEXPAND_TYPE
+        ls -l output/smem
+        cd ${PROJECT_ROOT}
     fi
 
-    git submodule update 3rdparty/memfabric_hybrid # not with recursive
-    cd $THIRD_PARTY_DIR/memfabric_hybrid
-    bash script/build.sh $BUILD_TYPE OFF OFF $PYEXPAND_TYPE
-    ls -l output/smem
+    mkdir -p $OUTPUT_DIR/memfabric_hybrid/lib
+    mkdir -p $OUTPUT_DIR/memfabric_hybrid/include
+    cp -r $THIRD_PARTY_DIR/memfabric_hybrid/output/hybm/lib64/* $OUTPUT_DIR/memfabric_hybrid/lib
+    cp -r $THIRD_PARTY_DIR/memfabric_hybrid/output/smem/lib64/* $OUTPUT_DIR/memfabric_hybrid/lib
+    cp -r $THIRD_PARTY_DIR/memfabric_hybrid/output/smem/include/smem $OUTPUT_DIR/memfabric_hybrid/include
     echo "Memfabric_hybrid is successfully installed to $THIRD_PARTY_DIR/memfabric_hybrid"
-    cd ${PROJECT_ROOT}
 }
 
 function fn_build_doxygen()
