@@ -20,7 +20,6 @@
 #include "catlass/epilogue/tile/tile_copy.hpp"
 #include "catlass/epilogue/tile/tile_swizzle.hpp"
 #include "catlass/gemm/block/block_mmad.hpp"
-#include "catlass/gemm/block/block_swizzle.hpp"
 #include "catlass/gemm/dispatch_policy.hpp"
 #include "catlass/gemm/gemm_type.hpp"
 #include "catlass/layout/layout.hpp"
@@ -41,14 +40,16 @@
 #include "catcoc/comm_epilogue/block/comm_block_swizzle.hpp"
 #include "catcoc/comm_epilogue/tile/tile_remote_copy.hpp"
 #include "catcoc/detail/remote_copy_type.hpp"
-#include "catcoc/dgemm/kernel/matmul_allreduce.hpp"
+#include "catcoc/dgemm/block/block_swizzle_allgather.hpp"
+#include "catcoc/dgemm/kernel/allgather_matmul.hpp"
 
-constexpr size_t NPU_MALLOC_SPACE = 1024UL * 1024 * 1024;
-
-constexpr uint32_t BLOCK_NUM = 20;
+static uint32_t gNpuNum = 8;
+static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 1024;
 
 using namespace AscendC;
 using namespace Catcoc;
+
+constexpr uint32_t BLOCK_NUM = 20;
 
 using LayoutA = Catlass::layout::RowMajor;
 using LayoutB = Catlass::layout::RowMajor;
@@ -61,24 +62,27 @@ using ElementC = half;
 using ElementD = half;
 
 CATLASS_GLOBAL
-void ShmemMatmulAllReduce(
+void ShmemAllGatherMatmul(
     uint64_t fftsAddr,
     GM_ADDR gmA, GM_ADDR gmB, GM_ADDR gmD, GM_ADDR gmSymmetric,
-    uint32_t m, uint32_t n, uint32_t k
-)
+    uint32_t m, uint32_t n, uint32_t k)
 {
-    shmemx_set_ffts_config(fftsAddr);
+    // Set FFTS address
+    AscendC::SetSyncBaseAddr(fftsAddr);
 
+    // Define ArchTag
     using ArchTag = Catlass::Arch::AtlasA2;
 
-    uint32_t rankIdx = shmem_my_pe();
+    // Prepare comm address
+    uint32_t rank = shmem_my_pe();
     uint32_t rankSize = shmem_n_pes();
 
     Catlass::GemmCoord problemShape{m, n, k};
     LayoutA layoutA{m, k};
     LayoutB layoutB{k, n};
-    LayoutD layoutD{m, n};
+    LayoutD layoutD{m * rankSize, n};
 
+    // Block level, define BlockMmad
     constexpr bool ENABLE_UNIT_FLAG = true;
     using MmadDispatchPolicy = Catlass::Gemm::MmadAtlasA2Pingpong<ENABLE_UNIT_FLAG>;
     using L1TileShape = Catlass::GemmShape<128, 256, 256>;
@@ -91,33 +95,22 @@ void ShmemMatmulAllReduce(
         MmadDispatchPolicy, L1TileShape, L0TileShape, AType, BType, CType
     >;
 
-    using BlockMmadScheduler = Catlass::Gemm::Block::GemmIdentityBlockSwizzle<7, 1>;
-    using BlockEpilogueScheduler = Catcoc::CommEpilogue::Block::BlockCommSwizzle<0, true>;
+    using BlockMmadScheduler = Catcoc::DGemm::Block::GemmIdentityBlockSwizzleAllGather<7, 1, 2>;
+    using BlockRemapScheduler = Catlass::Gemm::Block::GemmIdentityBlockSwizzle<7, 1>;
+    using BlockEpilogueScheduler = Catcoc::CommEpilogue::Block::BlockCommSwizzle<0>;
 
     using RemoteSrcType = CType;
     using RemoteDstType = DType;
     using CopyDirect = Catcoc::detail::CopyDirect;
-    using TileRemoteCopy = CommEpilogue::Tile::TileRemoteCopy<ArchTag, RemoteSrcType, RemoteDstType, CopyDirect::Get>;
+    using TileRemoteCopy = CommEpilogue::Tile::TileRemoteCopy<ArchTag, RemoteSrcType, RemoteDstType, CopyDirect::Put>;
     using TileScheduler = Catlass::Epilogue::Tile::EpilogueIdentityTileSwizzle;
 
-    using CommBlockShape = Catlass::MatrixShape<64, 256>;
+    using CommBlockShape = Catlass::MatrixShape<64, UINT_MAX>;
     using CommCoreSplit = Catlass::MatrixShape<20, 1>;
 
     constexpr uint32_t UB_STAGES = 2;
-    using EpilogueReduceScatterTileShape = Catlass::MatrixShape<32, 256>;
-    using EpilogueReduceScatterDispatch = CommEpilogue::EpilogueAtlasA2CommToShareMem<UB_STAGES,
-        Catcoc::detail::CopyMode::Scatter>;
-    using BlockEpilogueReduceScatter = CommEpilogue::Block::CommBlockEpilogue<
-        EpilogueReduceScatterDispatch,
-        RemoteSrcType, RemoteDstType,
-        CommCoreSplit,
-        CommBlockShape,
-        EpilogueReduceScatterTileShape, TileRemoteCopy, TileScheduler,
-        BlockMmadScheduler
-    >;
-
     using EpilogueAllGatherTileShape = Catlass::MatrixShape<32, 256>;
-    using EpilogueAllGatherDispatch = CommEpilogue::EpilogueAtlasA2CommToLocalMem<UB_STAGES,
+    using EpilogueAllGatherDispatch = CommEpilogue::EpilogueAtlasA2CommToShareMem<UB_STAGES,
         Catcoc::detail::CopyMode::Gather>;
     using BlockEpilogueAllGather = CommEpilogue::Block::CommBlockEpilogue<
         EpilogueAllGatherDispatch,
@@ -125,29 +118,33 @@ void ShmemMatmulAllReduce(
         CommCoreSplit,
         CommBlockShape,
         EpilogueAllGatherTileShape, TileRemoteCopy, TileScheduler,
-        BlockMmadScheduler
+        BlockRemapScheduler
     >;
 
     constexpr uint32_t WORKSPACE_STAGES = 2;
-    constexpr uint32_t COMM_INTERVAL = 10;
-    using MatmulAllReduceKernel = DGemm::Kernel::MatmulAllReduce<
+    constexpr uint32_t COMM_INTERVAL = 3;
+    using AllGatherMatmulKernel = DGemm::Kernel::AllGatherMatmul<
         BlockMmad,
-        BlockEpilogueReduceScatter,
         BlockEpilogueAllGather,
         BlockMmadScheduler,
         BlockEpilogueScheduler,
         WORKSPACE_STAGES
     >;
 
-    BlockMmadScheduler mmadBlockScheduler(problemShape, L1TileShape::ToCoordMN());
+    Catlass::GemmCoord remapProblemShape{problemShape.m(), problemShape.k(), problemShape.k()};
+    BlockRemapScheduler remapBlockScheduler(remapProblemShape,
+        Catlass::MakeCoord(L1TileShape::M, problemShape.k()));
 
     Catlass::layout::RowMajor layoutSymmetric{
-        L1TileShape::M * COMM_INTERVAL * BLOCK_NUM * WORKSPACE_STAGES, L1TileShape::N,
-        L1TileShape::N
+        L1TileShape::M * COMM_INTERVAL * rankSize * WORKSPACE_STAGES,
+        k,
+        k
     };
 
-    typename MatmulAllReduceKernel::Params params{
-        problemShape, rankIdx, rankSize,
+    // Prepare params
+    typename AllGatherMatmulKernel::Params params{
+        problemShape,
+        rank, rankSize,
         COMM_INTERVAL,
         gmA, layoutA,
         gmB, layoutB,
@@ -156,22 +153,18 @@ void ShmemMatmulAllReduce(
         {
             reinterpret_cast<__gm__ ElementC *>(gmSymmetric),
             layoutSymmetric,
-            mmadBlockScheduler
-        },
-        {
-            reinterpret_cast<__gm__ ElementC *>(gmSymmetric),
-            layoutSymmetric,
-            mmadBlockScheduler
+            remapBlockScheduler
         }
     };
 
-    MatmulAllReduceKernel matmulAllReduceKernel;
-    matmulAllReduceKernel(params);
+    // Call kernel
+    AllGatherMatmulKernel matmulCommKernel;
+    matmulCommKernel(params);
 }
 
 struct Options {
     static constexpr auto HELPER =
-       "Usage: matmul_allreduce rank_size rank_id ip_port m n k [device_id_list]\n";
+       "Usage: allgather_matmul rank_size rank_id ip_port m n k [device_id_list]\n";
 
     int rankSize;
     int rankId;
@@ -243,20 +236,20 @@ int main(int argc, char **argv)
     uint32_t k = options.k;
     int32_t deviceId = options.deviceIdList[rankId];
 
-    std::cout << "[TEST] input rank_size: " << rankSize << " rank_id:" << rankId << " input_ip: " << ipPort << "\n";
+    std::cout << "[TEST] input rank_size: " << rankSize << " rank_id:" << rankId << " input_ip: " << ipPort << std::endl;
 
     aclrtStream stream = nullptr;
     ACL_CHECK(aclInit(nullptr));
     ACL_CHECK(aclrtSetDevice(deviceId));
     ACL_CHECK(aclrtCreateStream(&stream));
     shmem_init_attr_t *attributes;
-    status = shmem_set_attr(rankId, rankSize, NPU_MALLOC_SPACE, ipPort.c_str(), &attributes);
+    status = shmem_set_attr(rankId, rankSize, gNpuMallocSpace, ipPort.c_str(), &attributes);
     status = shmem_init_attr(attributes);
     status = shmem_init_status();
 
     size_t aSize = static_cast<size_t>(m) * k * sizeof(__fp16);
     size_t bSize = static_cast<size_t>(k) * n * sizeof(__fp16);
-    size_t dSize = static_cast<size_t>(m) * n * sizeof(__fp16);
+    size_t dSize = static_cast<size_t>(m) * rankSize * n * sizeof(__fp16);
 
     uint8_t *aDevice;
     ACL_CHECK(aclrtMalloc((void **)(&aDevice), aSize, ACL_MEM_MALLOC_HUGE_FIRST));
@@ -276,27 +269,25 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtMalloc((void **)(&dDevice), dSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *dHost;
     ACL_CHECK(aclrtMallocHost((void **)(&dHost), dSize));
-    memset(dHost, 0, dSize);  // 零初始化 C 矩阵
-    ACL_CHECK(aclrtMemcpy(dDevice, dSize, dHost, dSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     void *symmPtr = shmem_malloc((204 * 1024 * 1024) * sizeof(__fp16));
-    uint8_t *symmetricPtr = reinterpret_cast<uint8_t *>(symmPtr);
+    uint8_t *gmSymmetric = (uint8_t *)symmPtr;
 
     ACL_CHECK(aclrtSynchronizeStream(stream));
-    std::cout << "Before calling MM_AR kernel " << std::endl;
+    std::cout << "Before calling AG_MM kernel " << std::endl;
     for (int i = 0; i < 1; i++) {
-        ShmemMatmulAllReduce<<<BLOCK_NUM, nullptr, stream>>>(
+        ShmemAllGatherMatmul<<<BLOCK_NUM, nullptr, stream>>>(
             shmemx_get_ffts_config(),
-            aDevice, bDevice, dDevice, symmetricPtr,
+            aDevice, bDevice, dDevice, gmSymmetric,
             m, n, k
         );
     }
     ACL_CHECK(aclrtSynchronizeStream(stream));
-    std::cout << "After calling MM_AR kernel " << std::endl;
+    std::cout << "After calling AG_MM kernel " << std::endl;
 
+    ACL_CHECK(aclrtMemcpy(dHost, dSize, dDevice, dSize, ACL_MEMCPY_DEVICE_TO_HOST));
+    WriteFile(options.GetDataPath("shmem_output.bin"), dHost, dSize);
     if (rankId == 0) {
-        ACL_CHECK(aclrtMemcpy(dHost, dSize, dDevice, dSize, ACL_MEMCPY_DEVICE_TO_HOST));
-        WriteFile(options.GetDataPath("shmem_output.bin"), dHost, dSize);
         std::printf("test finished\n");
     }
 

@@ -41,14 +41,14 @@
 #include "catcoc/comm_epilogue/block/comm_block_swizzle.hpp"
 #include "catcoc/comm_epilogue/tile/tile_remote_copy.hpp"
 #include "catcoc/detail/remote_copy_type.hpp"
-#include "catcoc/dgemm/kernel/matmul_allreduce.hpp"
+#include "catcoc/dgemm/kernel/matmul_reduce_scatter.hpp"
+
+using namespace AscendC;
+using namespace Catcoc;
 
 constexpr size_t NPU_MALLOC_SPACE = 1024UL * 1024 * 1024;
 
 constexpr uint32_t BLOCK_NUM = 20;
-
-using namespace AscendC;
-using namespace Catcoc;
 
 using LayoutA = Catlass::layout::RowMajor;
 using LayoutB = Catlass::layout::RowMajor;
@@ -61,7 +61,7 @@ using ElementC = half;
 using ElementD = half;
 
 CATLASS_GLOBAL
-void ShmemMatmulAllReduce(
+void ShmemMatmulReduceScatter(
     uint64_t fftsAddr,
     GM_ADDR gmA, GM_ADDR gmB, GM_ADDR gmD, GM_ADDR gmSymmetric,
     uint32_t m, uint32_t n, uint32_t k
@@ -77,7 +77,7 @@ void ShmemMatmulAllReduce(
     Catlass::GemmCoord problemShape{m, n, k};
     LayoutA layoutA{m, k};
     LayoutB layoutB{k, n};
-    LayoutD layoutD{m, n};
+    LayoutD layoutD{m / rankSize, n};
 
     constexpr bool ENABLE_UNIT_FLAG = true;
     using MmadDispatchPolicy = Catlass::Gemm::MmadAtlasA2Pingpong<ENABLE_UNIT_FLAG>;
@@ -105,7 +105,7 @@ void ShmemMatmulAllReduce(
 
     constexpr uint32_t UB_STAGES = 2;
     using EpilogueReduceScatterTileShape = Catlass::MatrixShape<32, 256>;
-    using EpilogueReduceScatterDispatch = CommEpilogue::EpilogueAtlasA2CommToShareMem<UB_STAGES,
+    using EpilogueReduceScatterDispatch = CommEpilogue::EpilogueAtlasA2CommToLocalMem<UB_STAGES,
         Catcoc::detail::CopyMode::Scatter>;
     using BlockEpilogueReduceScatter = CommEpilogue::Block::CommBlockEpilogue<
         EpilogueReduceScatterDispatch,
@@ -116,37 +116,25 @@ void ShmemMatmulAllReduce(
         BlockMmadScheduler
     >;
 
-    using EpilogueAllGatherTileShape = Catlass::MatrixShape<32, 256>;
-    using EpilogueAllGatherDispatch = CommEpilogue::EpilogueAtlasA2CommToLocalMem<UB_STAGES,
-        Catcoc::detail::CopyMode::Gather>;
-    using BlockEpilogueAllGather = CommEpilogue::Block::CommBlockEpilogue<
-        EpilogueAllGatherDispatch,
-        RemoteSrcType, RemoteDstType,
-        CommCoreSplit,
-        CommBlockShape,
-        EpilogueAllGatherTileShape, TileRemoteCopy, TileScheduler,
-        BlockMmadScheduler
-    >;
-
     constexpr uint32_t WORKSPACE_STAGES = 2;
     constexpr uint32_t COMM_INTERVAL = 10;
-    using MatmulAllReduceKernel = DGemm::Kernel::MatmulAllReduce<
+    using MatmulReduceScatterKernel = DGemm::Kernel::MatmulReduceScatter<
         BlockMmad,
         BlockEpilogueReduceScatter,
-        BlockEpilogueAllGather,
         BlockMmadScheduler,
         BlockEpilogueScheduler,
         WORKSPACE_STAGES
     >;
 
-    BlockMmadScheduler mmadBlockScheduler(problemShape, L1TileShape::ToCoordMN());
+    Catlass::GemmCoord problemShapeInRank = problemShape / Catlass::MakeCoord<uint32_t>(rankSize, 1, 1);
+    BlockMmadScheduler mmadBlockScheduler(problemShapeInRank, L1TileShape::ToCoordMN());
 
     Catlass::layout::RowMajor layoutSymmetric{
         L1TileShape::M * COMM_INTERVAL * BLOCK_NUM * WORKSPACE_STAGES, L1TileShape::N,
         L1TileShape::N
     };
 
-    typename MatmulAllReduceKernel::Params params{
+    typename MatmulReduceScatterKernel::Params params{
         problemShape, rankIdx, rankSize,
         COMM_INTERVAL,
         gmA, layoutA,
@@ -157,21 +145,16 @@ void ShmemMatmulAllReduce(
             reinterpret_cast<__gm__ ElementC *>(gmSymmetric),
             layoutSymmetric,
             mmadBlockScheduler
-        },
-        {
-            reinterpret_cast<__gm__ ElementC *>(gmSymmetric),
-            layoutSymmetric,
-            mmadBlockScheduler
         }
     };
 
-    MatmulAllReduceKernel matmulAllReduceKernel;
-    matmulAllReduceKernel(params);
+    MatmulReduceScatterKernel matmulReduceScatterKernel;
+    matmulReduceScatterKernel(params);
 }
 
 struct Options {
     static constexpr auto HELPER =
-       "Usage: matmul_allreduce rank_size rank_id ip_port m n k [device_id_list]\n";
+       "Usage: matmul_reduce_scatter rank_size rank_id ip_port m n k [device_id_list]\n";
 
     int rankSize;
     int rankId;
@@ -257,6 +240,7 @@ int main(int argc, char **argv)
     size_t aSize = static_cast<size_t>(m) * k * sizeof(__fp16);
     size_t bSize = static_cast<size_t>(k) * n * sizeof(__fp16);
     size_t dSize = static_cast<size_t>(m) * n * sizeof(__fp16);
+    size_t dSizeScatter = dSize / options.rankSize;
 
     uint8_t *aDevice;
     ACL_CHECK(aclrtMalloc((void **)(&aDevice), aSize, ACL_MEM_MALLOC_HUGE_FIRST));
@@ -273,30 +257,28 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtMemcpy(bDevice, bSize, bHost, bSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint8_t *dDevice;
-    ACL_CHECK(aclrtMalloc((void **)(&dDevice), dSize, ACL_MEM_MALLOC_HUGE_FIRST));
+    ACL_CHECK(aclrtMalloc((void **)(&dDevice), dSizeScatter, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *dHost;
     ACL_CHECK(aclrtMallocHost((void **)(&dHost), dSize));
-    memset(dHost, 0, dSize);  // 零初始化 C 矩阵
-    ACL_CHECK(aclrtMemcpy(dDevice, dSize, dHost, dSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     void *symmPtr = shmem_malloc((204 * 1024 * 1024) * sizeof(__fp16));
     uint8_t *symmetricPtr = reinterpret_cast<uint8_t *>(symmPtr);
 
     ACL_CHECK(aclrtSynchronizeStream(stream));
-    std::cout << "Before calling MM_AR kernel " << std::endl;
+    std::cout << "Before calling MM_RS kernel " << std::endl;
     for (int i = 0; i < 1; i++) {
-        ShmemMatmulAllReduce<<<BLOCK_NUM, nullptr, stream>>>(
+        ShmemMatmulReduceScatter<<<BLOCK_NUM, nullptr, stream>>>(
             shmemx_get_ffts_config(),
             aDevice, bDevice, dDevice, symmetricPtr,
             m, n, k
         );
     }
     ACL_CHECK(aclrtSynchronizeStream(stream));
-    std::cout << "After calling MM_AR kernel " << std::endl;
+    std::cout << "After calling MM_RS kernel " << std::endl;
 
+    ACL_CHECK(aclrtMemcpy(dHost, dSizeScatter, dDevice, dSizeScatter, ACL_MEMCPY_DEVICE_TO_HOST));
+    WriteFile(options.GetDataPath("shmem_output.bin"), dHost, dSizeScatter, rankId * dSizeScatter);
     if (rankId == 0) {
-        ACL_CHECK(aclrtMemcpy(dHost, dSize, dDevice, dSize, ACL_MEMCPY_DEVICE_TO_HOST));
-        WriteFile(options.GetDataPath("shmem_output.bin"), dHost, dSize);
         std::printf("test finished\n");
     }
 

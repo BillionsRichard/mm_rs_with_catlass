@@ -21,10 +21,11 @@ if [ $RANK_SIZE -gt 8 ]; then
     exit 1
 fi
 
-cd ${PROJECT_ROOT}/examples/matmul_allreduce/
+cd ${PROJECT_ROOT}/examples/allgather_matmul/
+
 DATA_DIR=`realpath ./out`
 echo "DATA_DIR: $DATA_DIR"
-EXEC_BIN=${PROJECT_ROOT}/build/bin/matmul_allreduce
+EXEC_BIN=${PROJECT_ROOT}/build/bin/allgather_matmul
 
 source ${PROJECT_ROOT}/install/set_env.sh
 
@@ -33,7 +34,7 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r M K N; do
 
     #Generate golden data
     rm -rf ./out/*.bin
-    python3 ${UTILS_PATH}/gen_data.py 0 1 ${RANK_SIZE} ${M} ${N} ${K} 0 0 ${DATA_DIR}
+    python3 ${UTILS_PATH}/gen_data.py 1 1 ${RANK_SIZE} ${M} ${N} ${K} 0 0 ${DATA_DIR}
 
     # Set necessary parameters
     IPPORT="tcp://127.0.0.1:8788"

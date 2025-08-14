@@ -6,16 +6,16 @@
    bash scripts/build.sh
    ```
 
-2. **运行MatMul-AllReduce示例程序**  
+2. **运行MatMul-ReduceScatter示例程序**  
    进入示例目录并执行运行脚本：
    ```bash
-   cd examples/matmul_allreduce
+   cd examples/matmul_reduce_scatter
    bash scripts/run.sh [device_list]
    ```
 
    - **参数说明**：
      - `device_list`：指定用于运行的设备（NPU）编号列表，以逗号分隔。
-     - 示例：使用第6和第7个NPU设备运行2卡MatMul-AllReduce示例：
+     - 示例：使用第6和第7个NPU设备运行2卡MatMul-ReduceScatter示例：
        ```bash
        bash scripts/run.sh 6,7
        ```

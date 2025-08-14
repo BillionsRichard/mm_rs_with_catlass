@@ -7,9 +7,13 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
+
+#ifndef UTILS_H
+#define UTILS_H
+
 #include <climits>
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -110,3 +114,5 @@ inline bool WriteFile(const std::string &filePath, const void *buffer, size_t si
     close(fd);
     return true;
 }
+
+#endif // UTILS_H
