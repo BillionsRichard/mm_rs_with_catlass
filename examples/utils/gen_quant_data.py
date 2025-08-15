@@ -1,3 +1,4 @@
+import os
 import torch
 
 from utils import CommType, DataType, tensor_to_file
@@ -6,9 +7,13 @@ def gen_random_data(size, dtype):
     if dtype == torch.float16 or dtype == torch.bfloat16 or dtype == torch.float32:
         return torch.randn(size=size, dtype=dtype)
     elif dtype == torch.int8:
-        return torch.randint(-16, 16, size=size, dtype=dtype)
-        # for debug use all ones.
-        # return torch.ones(size=size, dtype=dtype)
+        debug = int(os.getenv("debug", 0)) == 1
+        if not debug:
+            return torch.randint(-16, 16, size=size, dtype=dtype)
+        else:
+            # for debug use all ones.
+            print(f'[warning]: in debug mode, use all ones as input.')
+            return torch.ones(size=size, dtype=dtype)
     else:
         print(f"Invalid dtype: {dtype}.")
         exit(1)
@@ -31,13 +36,24 @@ def gen_golden_data():
     # Generate quantized inputsW
     x1_gm = gen_random_data([M, K], dtype=torch.int8)
     x2_gm = gen_random_data([K, N], dtype=torch.int8)
-    scale_x1_gm = torch.randn(M, dtype=torch.float32) * 0.01
-    scale_x2_gm = torch.randn(N, dtype=torch.float32) * 0.01
-    # for debug
-    scale_x1_gm = torch.ones(size=(M,), dtype=torch.float32) * 0.01
-    scale_x2_gm = torch.ones(size=(N,), dtype=torch.float32) * 0.01
-    bias_gm = torch.randint(low=-10, high=10, size=(N,), dtype=torch.int32)
-    # bias_gm = torch.zeros(size=(N,), dtype=torch.int32)
+    debug = int(os.getenv("debug", 0)) == 1
+    if not debug:
+        scale_x1_gm = torch.randn(M, dtype=torch.float32) * 0.01
+        scale_x2_gm = torch.randn(N, dtype=torch.float32) * 0.01
+    else:
+        # for debug
+        print(f'[warning]: in debug mode, use all 0.01 as scale input.')
+        scale_x1_gm = torch.ones(size=(M,), dtype=torch.float32) * 0.01
+        scale_x2_gm = torch.ones(size=(N,), dtype=torch.float32) * 0.01
+
+    if debug:
+        print(f'[warning]: in debug mode, '
+             f'use {torch.arange(1, N+1, dtype=torch.int32)} as bias input.')
+        bias_gm = torch.arange(1, N+1, dtype=torch.int32)
+    else:
+        # bias_gm = torch.randint(low=-10, high=10, size=(N,), dtype=torch.int32)
+        bias_gm = torch.ones(size=(N,), dtype=torch.int32)
+
     c_gm = torch.zeros((M // args.rank_size, N), dtype=args.out_dtype.torch_type)
 
     # Calculate golden result

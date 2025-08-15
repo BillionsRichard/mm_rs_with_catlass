@@ -1,11 +1,11 @@
- # 量化矩阵乘法Reduce-Scatter算子设计文档
+# 量化矩阵乘法Reduce-Scatter算子设计文档
 
 ## 1. 算子概述
 
 ### 1.1 功能描述
 量化矩阵乘法Reduce-Scatter算子（QuantizedMatmulReduceScatter）是一个支持INT8量化的分布式矩阵乘法算子，结合reduce-scatter通信模式，用于高效的大规模分布式深度学习训练。
 
-它首先在每个计算单元（Rank）上独立执行INT8矩阵乘法，得到INT32累加结果。随后，通过Reduce-Scatter操作对所有Rank的INT32累加结果进行求和，并将结果分片回传给各个Rank。最后，每个Rank对接收到的INT32分片执行反量化，得到最终的BFLOAT16输出。
+它首先在每个计算单元（Rank）上独立执行INT8矩阵乘法并加上偏置，得到INT32累加结果。随后，通过Reduce-Scatter操作对所有Rank的INT32结果进行求和，并将结果分片回传给各个Rank。最后，每个Rank对接收到的INT32分片执行反量化，得到最终的BFLOAT16输出。
 
 ### 1.2 算子签名
 ```cpp
@@ -15,7 +15,7 @@ void QuantizedMatmulReduceScatter(
     GM_ADDR x2,           // 输入矩阵B: [K, N], int8  
     GM_ADDR scale_x1,     // per-token 量化缩放因子: [M], float32
     GM_ADDR scale_x2,     // per-channel 量化缩放因子: [N], float32
-    GM_ADDR bias,         // (可选) 偏置: [N], int32
+    GM_ADDR bias,         // 偏置: [N], int32
     GM_ADDR output,       // 输出矩阵: [M/rankSize, N], bfloat16
     GM_ADDR symmetricPtr, // 用于Rank间通信的共享内存工作空间 (workspace)
     uint32_t m, 
@@ -44,43 +44,42 @@ graph TD
         A[int8 A] --> C{INT8 Matmul}
         B[int8 B] --> C
         C --> D[INT32 Accumulator]
+        D --> H[Add Bias]
     end
 
     subgraph "Rank间通信"
-        D --> E{Reduce-Scatter on INT32}
-        F[Other Ranks' INT32 Accumulators] --> E
+        H --> E{Reduce-Scatter on INT32}
+        F[Other Ranks Matmul+Bias Results] --> E
     end
 
     subgraph "各Rank独立后处理"
         E --> G[INT32 Sliced Accumulator]
-        L[int32 bias] --> H{Add Bias}
-        G --> H
-        H --> I[INT32 Accumulator with Bias]
-        J[float32 scale_x1] --> K{Dequantize}
-        M[float32 scale_x2] --> K
-        I --> K
-        K --> N[bfloat16 Output]
+        I[float32 scale_x1] --> J{Dequantize}
+        K[float32 scale_x2] --> J
+        G --> J
+        J --> L[bfloat16 Output]
     end
 ```
 
 ### 2.2 量化与反量化公式
-```
-// 伪代码: 量化
-x1_int8 = round(x1_fp32 / scale_x1)
-x2_int8 = round(x2_fp32 / scale_x2)
+```c++
+    // 伪代码: 量化
+    x1_int8 = round(x1_fp32 / scale_x1)
+    x2_int8 = round(x2_fp32 / scale_x2)
 
-// 伪代码: INT8矩阵乘法
-accumulator_int32 = x1_int8 × x2_int8
+    // 伪代码: INT8矩阵乘法 + 加偏置 (Per-Rank)
+    accumulator_int32_per_rank = (x1_int8 × x2_int8) + bias
 
-// 伪代码: 反量化和偏置加法
-// 注意：在分布式计算中，每个rank只处理A矩阵的一部分，
-// 因此需要根据rankId正确偏移scale_x1指针。
-// rank_offset = rankId * (M / rankSize)
-// i_local = i_global - rank_offset
-// if bias is nullptr, bias_val = 0
-accumulator_with_bias_int32 = accumulator_int32[i_local][j] + bias_val[j]
-result_fp32 = accumulator_with_bias_int32 * scale_x1[i_global] * scale_x2[j]
-output_bfloat16 = cast_to_bfloat16(result_fp32)
+    // 伪代码: Reduce-Scatter
+    reduced_accumulator_int32 = reduce_sum(accumulator_int32_per_rank) across all ranks
+
+    // 伪代码: 反量化
+    // 注意：在分布式计算中，每个rank只处理A矩阵的一部分，
+    // 因此需要根据rankId正确偏移scale_x1指针。
+    // rank_offset = rankId * (M / rankSize)
+    // i_local = i_global - rank_offset
+    result_fp32 = reduced_accumulator_int32[i_local][j] * scale_x1[i_global] * scale_x2[j]
+    output_bfloat16 = cast_to_bfloat16(result_fp32)
 ```
 
 ## 3. 核心实现架构

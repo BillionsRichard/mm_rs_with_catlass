@@ -1,6 +1,8 @@
 #!/bin/bash
 # eg. bash run_quant.sh 0,1      # 在 0/1 卡上运行，rank size = 2
 # eg. bash run_quant.sh 1,3,5,7  # 在 1/3/5/6 卡上运行，rank size = 4
+export ASCEND_PROCESS_LOG_PATH='./log'
+export debug=1
 
 CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
