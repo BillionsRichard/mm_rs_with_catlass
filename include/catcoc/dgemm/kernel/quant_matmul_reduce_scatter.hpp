@@ -222,7 +222,7 @@ public:
                     }
 
                     if (targetRankIdx == params.rankIdx) {
-                        //blockCoord 参数未用到
+                        //blockCoord 参数未用到（先不用管）
                         cce::printf("RANKx-DEBUG: targetRankIdx=%d\n", (uint32_t)targetRankIdx);
                         //TODO: gmC_accum 偏移到指定block
                         biasAddEpilogue(problemShapeInRank, blockCoord, actualBlockShape, gmC_accum, params.layoutC_accum);
