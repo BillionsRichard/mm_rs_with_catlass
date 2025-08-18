@@ -14,7 +14,7 @@ bash scripts/build.sh
 
 ```bash
 cd examples/dynamic_tiling
-bash run.sh [comm_type] [data_type] [test_start_line] [test_collect_rows] [device_list]
+bash scripts/run.sh [comm_type] [data_type] [test_start_line] [test_collect_rows] [device_list]
 ```
 
 ##### 参数说明
@@ -37,13 +37,13 @@ bash run.sh [comm_type] [data_type] [test_start_line] [test_collect_rows] [devic
 - **精度测试示例**：  
   使用 NPU 0 和 1，运行 **MatMul-AllReduce** 精度测试，数据类型为FP16，`rankSize = 2`：
   ```bash
-  bash run.sh 0 1 0,1
+  bash scripts/run.sh 0 1 0,1
   ```
 
 - **性能测试示例**：  
   使用 NPU 4、5、6、7，运行 **AllGather-MatMul** 性能测试，数据类型为 BF16，从 `test_shapes.csv` 第0行开始，每 10 个 shape 采集一次 `msprof` 性能数据，`rankSize = 4`：
   ```bash
-  bash run.sh 1 27 0 10 4,5,6,7
+  bash scripts/run.sh 1 27 0 10 4,5,6,7
   ```
 
 #### 3. 配置计算规模

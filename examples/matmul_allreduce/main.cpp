@@ -12,7 +12,6 @@
 #include <iostream>
 #include <vector>
 #include <cstring>
-#include <filesystem>
 
 // from catlass
 #include "catlass/catlass.hpp"
@@ -179,7 +178,7 @@ struct Options {
     uint32_t m{0};
     uint32_t n{0};
     uint32_t k{0};
-    std::filesystem::path dataPath{};
+    std::string dataPath;
     std::vector<int> deviceIdList{};
 
     int Parse(int argc, char **argv)
@@ -207,7 +206,7 @@ struct Options {
         m = std::atoi(argv[M_INDEX]);
         n = std::atoi(argv[N_INDEX]);
         k = std::atoi(argv[K_INDEX]);
-        dataPath = std::filesystem::path(argv[DATA_PATH_INDEX]);
+        dataPath = argv[DATA_PATH_INDEX];
         if (argc > DEVICE_LIST_INDEX) {
             char *idListStr = argv[DEVICE_LIST_INDEX];
             for (char *idToken = std::strtok(idListStr, ","); idToken; idToken = std::strtok(nullptr, ",")) {
@@ -223,7 +222,7 @@ struct Options {
 
     std::string GetDataPath(std::string const &fileName = "") const
     {
-        return (dataPath / fileName).string();
+        return dataPath + "/" + fileName;
     }
 };
 

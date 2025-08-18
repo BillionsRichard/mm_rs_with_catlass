@@ -10,6 +10,7 @@ PROJECT_ROOT=$( dirname $( dirname $(dirname "$SCRIPT_DIR")))
 DATA_PATH=${PROJECT_ROOT}/examples/dynamic_tiling/output
 TILING_UTILS_PATH=${PROJECT_ROOT}/examples/dynamic_tiling/utils
 UTILS_PATH=${PROJECT_ROOT}/examples/utils
+PARENT_PATH=${PROJECT_ROOT}/examples/dynamic_tiling/
 
 # eg. 精度测试WARM_UP_TIMES设置成0, PERF_TEST_CYCLE_TIMES成1
 # eg. 性能测试WARM_UP_TIMES设置成10, PERF_TEST_CYCLE_TIMES成3
@@ -59,6 +60,7 @@ EXEC_BIN=${PROJECT_ROOT}/build/bin/dynamic_tiling
 if [ "$TEST_START_LINE" = "0" ]; then
     rm -rf output
     mkdir -p output
+    mkdir -p output/tiling
 fi
 
 IDX=0
@@ -80,7 +82,7 @@ if [ "$TEST_TYPE" = "0" ]; then
 
         # Start Process
         for (( idx =0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
-            APP="$EXEC_BIN $COMM_TYPE $DATA_TYPE $RANK_SIZE $idx $IPPORT $M $N $K $TEST_START_LINE $TEST_COLLECT_ROWS $CSV_FILE $DEVICE_ID_STR $DATA_PATH"
+            APP="$EXEC_BIN $COMM_TYPE $DATA_TYPE $RANK_SIZE $idx $IPPORT $M $N $K $TEST_START_LINE $TEST_COLLECT_ROWS $PARENT_PATH $CSV_FILE $DEVICE_ID_STR $DATA_PATH"
             ${APP}&
         done
 
@@ -112,7 +114,7 @@ else
 
         # Start Process
         for (( idx =0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
-            APP="$EXEC_BIN $COMM_TYPE $DATA_TYPE $RANK_SIZE $idx $IPPORT $M $N $K $TEST_START_LINE $TEST_COLLECT_ROWS $CSV_FILE $DEVICE_ID_STR"
+            APP="$EXEC_BIN $COMM_TYPE $DATA_TYPE $RANK_SIZE $idx $IPPORT $M $N $K $TEST_START_LINE $TEST_COLLECT_ROWS $PARENT_PATH $CSV_FILE $DEVICE_ID_STR"
             msprof --application="${APP}" --output="${OUTPUT_PATH}"&
         done
 

@@ -17,7 +17,6 @@
 #include <map>
 #include <ctime>
 #include <iomanip>
-#include <filesystem>
 
 #include "host/shmem_host_def.h"
 #include "host/shmem_host_heap.h"
@@ -50,6 +49,7 @@ struct Options {
     std::vector<int> deviceIdList{};
     uint32_t test_start_line{0};
     uint32_t test_collect_rows{0};
+    std::string parentPath{};
     std::string csv_file{};
     std::string data_file{};
 
@@ -66,6 +66,7 @@ struct Options {
             K_INDEX,
             START_LINE_INDEX,
             COLLECT_ROWS_INDEX,
+            PARENT_PATH_INDEX,
             CSV_FILE_INDEX,
             DEVICE_LIST_INDEX,
             DATA_FILE_INDEX,
@@ -86,6 +87,7 @@ struct Options {
         k = std::atoi(argv[K_INDEX]);
         test_start_line = std::atoi(argv[START_LINE_INDEX]);
         test_collect_rows = std::atoi(argv[COLLECT_ROWS_INDEX]);
+        parentPath = argv[PARENT_PATH_INDEX];
         csv_file = argv[CSV_FILE_INDEX];
         if (argc > DEVICE_LIST_INDEX) {
             char *idListStr = argv[DEVICE_LIST_INDEX];
@@ -204,10 +206,8 @@ int main(int argc, char **argv)
 
     std::string currentTime = GetCurrentTime();
     std::string opName = commTypeMap.at(commType);
-    std::filesystem::path currentPath = __FILE__;
-    std::string currentDir = currentPath.parent_path();
+    std::string currentDir = options.parentPath;
     std::string tilingFileName = currentDir + "/output/tiling/tilingData_" + currentTime + ".csv";
-    std::filesystem::create_directories(currentDir + "/output/tiling");
     if (rankId == 0) {
         CreateTilingFile(tilingFileName);
     }
