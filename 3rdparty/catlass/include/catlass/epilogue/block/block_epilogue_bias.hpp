@@ -35,16 +35,17 @@ public:
     using CopyGmToUbC = typename TileCopy::CopyGmToUbC;
     using CopyGmToUbBias = typename TileCopy::CopyGmToUbX;
     using CopyUbToGmD = typename TileCopy::CopyUbToGmD;
-
+    
     struct Params {
         GM_ADDR ptr_bias;
         LayoutBias layout_bias;
+        uint32_t rank;
         CATLASS_DEVICE Params() = default;
         CATLASS_DEVICE Params(
-            GM_ADDR, LayoutC const &,
+            GM_ADDR ptr_c_, LayoutC const &layout_c_,
             GM_ADDR ptr_bias_, LayoutBias const &layout_bias_,
-            uint32_t
-        ) : ptr_bias(ptr_bias_), layout_bias(layout_bias_) {}
+            uint32_t rank_
+        ) : ptr_bias(ptr_bias_), layout_bias(layout_bias_), rank(rank_){}
     };
 
 public:
@@ -99,6 +100,10 @@ public:
 
             AscendC::PipeBarrier<PIPE_ALL>();
 
+            if (subblock_idx == 0 && i == 0) {
+                cce::printf("BIAS-DEBUG at rank: %d, Before Add: C[0]=%d, Bias[0]=%d\n", params_.rank, ub_c_.GetValue(0), ub_bias_.GetValue(0));
+            }
+
             constexpr uint32_t maxRepeatTimes = 255;
             constexpr uint32_t eleNumPerBlk = BYTE_PER_BLK / sizeof(ElementC);
             constexpr uint32_t blkNumPerColumn = TileShape::COLUMN / eleNumPerBlk;
@@ -127,6 +132,10 @@ public:
                         mask, repeatTimes, repeatParams
                     );
                 }
+            }
+
+            if (subblock_idx == 0 && i == 0) {
+                cce::printf("BIAS-DEBUG at rank: %d,  After Add: C[0]=%d\n", params_.rank, ub_c_.GetValue(0));
             }
             
             AscendC::PipeBarrier<PIPE_ALL>();

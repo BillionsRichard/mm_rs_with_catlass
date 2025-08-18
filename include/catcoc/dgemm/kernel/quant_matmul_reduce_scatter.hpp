@@ -84,7 +84,6 @@ public:
         uint32_t commLoops = CeilDiv(coreLoops, blockPerComm);
 
         BlockMmad blockMmad(resource);
-        BiasAdd biasAddEpilogue(resource, params.biasParams);
 
         AscendC::GlobalTensor<ElementA> gmA; gmA.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(params.ptrA));
         AscendC::GlobalTensor<ElementB> gmB; gmB.SetGlobalBuffer(reinterpret_cast<__gm__ ElementB *>(params.ptrB));
@@ -134,10 +133,6 @@ public:
                 
                 blockMmad( gmA[offsetA], params.layoutA, gmB[offsetB], params.layoutB, gmStore[offsetStore], layoutStore, actualBlockShape );
 
-                if (params.biasParams.ptr_bias != 0) {
-                    // cce::printf("add bias");
-                    biasAddEpilogue( problemShapeInRank, blockCoord, actualBlockShape, gmStore, layoutStore );
-                }
             }
             Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_FIX>(flagAicFinishStore[stageId]);
         }
@@ -159,8 +154,10 @@ public:
 
         ReduceScatter reduceScatter(resource, params.reduceScatterParams);
 
-        AscendC::GlobalTensor<ElementC> gmC_workspace; gmC_workspace.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrSymmetric));
-        AscendC::GlobalTensor<ElementC> gmC_accum; gmC_accum.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrC_accum));
+        AscendC::GlobalTensor<ElementC> gmC_workspace; 
+        gmC_workspace.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrSymmetric));
+        AscendC::GlobalTensor<ElementC> gmC_accum; 
+        gmC_accum.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrC_accum));
 
         MatrixCoord commBlockShape = params.reduceScatterParams.BlockShape();
         MatrixCoord commCoreSplit = params.reduceScatterParams.CoreSplit();
@@ -172,6 +169,8 @@ public:
 
         auto layoutCommLogicShape = Catlass::MakeCoord<int>(1, dLoopsInRank, commBlockShape.row());
         auto layoutComm = layout::AffineRankN<3>::Packed(layoutCommLogicShape);
+
+        BiasAdd biasAddEpilogue(resource, params.biasParams);
 
         for (uint32_t commIdx = 0; commIdx < commLoops; ++commIdx) {
             uint32_t stageId = commIdx % WORKSPACE_STAGES;
@@ -192,6 +191,52 @@ public:
             MatrixCoord commOffsetInRank = MatrixCoord{commIdx * blockPerCommInRank, 0} * blockShapeMN;
 
             Catlass::Arch::CrossCoreWaitFlag(flagAicFinishStore[stageId]);
+            // Add Bias before Reduce-Scatter
+            if (params.biasParams.ptr_bias != 0) {
+                AscendC::PipeBarrier<PIPE_ALL>();
+
+                uint32_t actualBlockPerComm = (commIdx == commLoops - 1) ? (coreLoops - blockPerComm * commIdx) : blockPerComm;
+                uint32_t totalAivCores = AscendC::GetBlockNum();
+                uint32_t currentAivId = AscendC::GetBlockIdx()/AscendC::GetSubBlockNum();
+
+                auto layoutC_workspace = Catlass::layout::RowMajor{ WORKSPACE_STAGES * blockPerComm * L1TileShape::M, L1TileShape::N, L1TileShape::N };
+                auto layoutCRowLogicShape = Catlass::MakeCoord<int>(WORKSPACE_STAGES, blockPerComm, L1TileShape::M);
+                auto layoutCRow = layout::AffineRankN<3>::Packed(layoutCRowLogicShape);
+
+                for (uint32_t blockIdxInComm = currentAivId; blockIdxInComm < actualBlockPerComm; blockIdxInComm += totalAivCores) {
+                    uint32_t block_per_rank_in_comm = actualBlockPerComm / params.rankSize;
+                    uint32_t commBlockOffsetInRank_ = (commIdx * blockPerComm) / params.rankSize;
+
+                    uint32_t loopIdxInRank = commBlockOffsetInRank_ + (blockIdxInComm % block_per_rank_in_comm);
+                    uint32_t targetRankIdx = blockIdxInComm / block_per_rank_in_comm;
+
+                    GemmCoord blockCoord = matmulBlockScheduler.GetBlockCoord(loopIdxInRank);
+                    GemmCoord actualBlockShape = matmulBlockScheduler.GetActualBlockShape(blockCoord);
+
+                    if (params.rankIdx == 1 && currentAivId == 0) {
+                        // uint64_t ptr_val = reinterpret_cast<uint64_t>(gmC_workspace.GetGmAddr());
+                        // uint32_t ptr_high = static_cast<uint32_t>(ptr_val >> 32);
+                        // uint32_t ptr_low = static_cast<uint32_t>(ptr_val & 0xFFFFFFFF);
+                        cce::printf("RANK1-DEBUG: stage=%d, blkInComm=%d, targetRank=%d, loopIdx=%d\n",
+                            stageId, blockIdxInComm, targetRankIdx, loopIdxInRank);
+                    }
+
+                    if (targetRankIdx == params.rankIdx) {
+                        //blockCoord 参数未用到
+                        cce::printf("RANKx-DEBUG: targetRankIdx=%d\n", (uint32_t)targetRankIdx);
+                        //TODO: gmC_accum 偏移到指定block
+                        biasAddEpilogue(problemShapeInRank, blockCoord, actualBlockShape, gmC_accum, params.layoutC_accum);
+                    } else {
+                        auto blockOffsetStore = MatrixCoord{layoutCRow(Catlass::MakeCoord<int>(stageId, blockIdxInComm, 0)), 0};
+                        int64_t offsetStore = layoutC_workspace.GetOffset(blockOffsetStore);
+                        if (params.rankIdx == 1 && currentAivId == 0) {
+                            cce::printf("RANK1-DEBUG: offsetStore=%d\n", (uint32_t)offsetStore);
+                       }
+                        biasAddEpilogue(problemShapeInRank, blockCoord, actualBlockShape, gmC_workspace[offsetStore], layoutC_workspace);
+                    }
+                }
+            }
+
             shmemx_barrier_all_vec();
 
             AscendC::SetAtomicAdd<ElementC>();
@@ -229,6 +274,26 @@ public:
         GemmCoord problemShapeEpilogue{M_per_rank, N, 1};
         uint32_t coreNum = AscendC::GetBlockNum();
         uint32_t coreIdx = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum();
+
+        // if (params.biasParams.ptr_bias != 0) {
+        //     BiasAdd biasAddEpilogue(resource, params.biasParams);
+        //     auto bias_cord = BiasAdd::TileShape::ToCoord();
+        //     typename BiasAdd::EpilogueTileSwizzle bias_tile_scheduler(problemShapeEpilogue.GetCoordMN(), bias_cord);
+        //     uint32_t bias_tile_loops = bias_tile_scheduler.GetLoops();
+
+        //     for(uint32_t i = coreIdx; i < bias_tile_loops; i += coreNum) {
+        //         auto tileCoord = bias_tile_scheduler.GetTileCoord(i);
+        //         auto actualTileShape = bias_tile_scheduler.GetActualTileShape(tileCoord);
+        //         biasAddEpilogue(
+        //             problemShapeEpilogue,
+        //             GemmCoord(tileCoord.row(), tileCoord.column(), 0),
+        //             GemmCoord(actualTileShape.row(), actualTileShape.column(), 1),
+        //             gmC_accum,
+        //             params.layoutC_accum
+        //         );
+        //     }
+        //     AscendC::PipeBarrier<PIPE_ALL>();
+        // }
 
         Dequant dequantEpilogue(resource, params.dequantParams);
 
