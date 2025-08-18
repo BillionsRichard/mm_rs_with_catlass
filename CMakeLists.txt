@@ -31,7 +31,9 @@ else()
 endif()
 
 option(USE_UNIT_TEST "USE_UNIT_TEST" OFF)
+option(USE_EXAMPLES "USE_EXAMPLES" OFF)
 message(STATUS "USE_UNIT_TEST:${USE_UNIT_TEST}")
+message(STATUS "USE_EXAMPLES:${USE_EXAMPLES}")
 set(ASCEND_DRIVER_PATH /usr/local/Ascend/driver)
 
 set(CMAKE_COMPILER bisheng)
@@ -85,5 +87,6 @@ add_subdirectory(src)
 if(USE_UNIT_TEST)
     add_subdirectory(tests/unittest)
 endif()
-
-add_subdirectory(examples)
+if(USE_EXAMPLES)
+    add_subdirectory(examples)
+endif()

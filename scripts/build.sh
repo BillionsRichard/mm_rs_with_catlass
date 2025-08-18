@@ -214,6 +214,10 @@ while [[ $# -gt 0 ]]; do
             COMPILE_OPTIONS="${COMPILE_OPTIONS} -DUSE_UNIT_TEST=ON"
             shift
             ;;
+        -examples)
+            COMPILE_OPTIONS="${COMPILE_OPTIONS} -DUSE_EXAMPLES=ON"
+            shift
+            ;;
         -python_extension)
             PYEXPAND_TYPE=ON
             shift
