@@ -23,7 +23,6 @@ using Catlass::GemmCoord;
 template <
     class BlockMmad_,                // 矩阵乘法（MMAD）的基本计算单元
     class BlockEpilogueReduceScatter_, // Reduce-Scatter操作的Epilogue实现
-    class BlockEpilogueBias_,          // 加偏置的Epilogue实现
     class BlockEpilogueDequant_,       // 反量化的Epilogue实现
     class BlockScheduler_,           // 计算任务（Block）的调度器
     class BlockEpilogueScheduler_,     // 通信任务的调度器
@@ -42,10 +41,10 @@ public:
     using LayoutB = typename BlockMmad::LayoutB;
     using ElementC = typename BlockMmad::ElementC;       // 累加器C的元素类型，通常是int32
     using LayoutC = typename BlockMmad::LayoutC;
+    using ElementBias = typename BlockMmad::ElementBias; // 从BlockMmad获取Bias类型
+    using LayoutBias = typename BlockMmad::LayoutBias;
     using ReduceScatter = BlockEpilogueReduceScatter_;
     using ReduceScatterParams = typename ReduceScatter::Params;
-    using BiasAdd = BlockEpilogueBias_;
-    using BiasParams = typename BiasAdd::Params;
     using Dequant = BlockEpilogueDequant_;
     using DequantParams = typename Dequant::Params;
     using ElementD = bfloat16_t;                          // 最终输出D的元素类型
@@ -57,29 +56,29 @@ public:
     //
     // Params 结构体：用于从主机侧传递算子所需的所有参数
     //
-    struct Params { 
+    struct Params {
         GemmCoord problemShape; // 整个问题的形状 (M, N, K)
         uint32_t rankIdx;       // 当前计算卡（Rank）的ID
         uint32_t rankSize;      // 总共的计算卡数量
         GM_ADDR ptrA; LayoutA layoutA; // A矩阵的全局内存地址和布局
         GM_ADDR ptrB; LayoutB layoutB; // B矩阵的全局内存地址和布局
+        GM_ADDR ptrBias; LayoutBias layoutBias; // Bias的全局内存地址和布局
         GM_ADDR ptrSymmetric;          // 用于卡间通信的对称内存（Symmetric Memory）工作空间地址
         ReduceScatterParams reduceScatterParams; // Reduce-Scatter Epilogue的参数
-        BiasParams biasParams;                   // 加偏置 Epilogue的参数
         DequantParams dequantParams;             // 反量化 Epilogue的参数
         GM_ADDR ptrC_accum; LayoutC layoutC_accum; // C累加器结果的地址和布局
         GM_ADDR ptrD_out; LayoutD layoutD_out;     // 最终输出D的地址和布局
         uint32_t commInterval;                     // 通信间隔，控制计算和通信的比例
-        
+
         CATLASS_DEVICE Params() {} // 默认构造
         CATLASS_DEVICE Params(    // 带参构造，用于主机侧初始化
             GemmCoord const &problemShape_, uint32_t rank_, uint32_t rankSize_,
-            GM_ADDR ptrA_, LayoutA const &layoutA_, GM_ADDR ptrB_, LayoutB const &layoutB_, GM_ADDR ptrSymmetric_,
-            ReduceScatterParams const &reduceScatterParams_, BiasParams const &biasParams_, DequantParams const &dequantParams_,
+            GM_ADDR ptrA_, LayoutA const &layoutA_, GM_ADDR ptrB_, LayoutB const &layoutB_, GM_ADDR ptrBias_, LayoutBias const &layoutBias_, GM_ADDR ptrSymmetric_,
+            ReduceScatterParams const &reduceScatterParams_, DequantParams const &dequantParams_,
             GM_ADDR ptrC_accum_, LayoutC const &layoutC_accum_, GM_ADDR ptrD_out_, LayoutD const &layoutD_out_, uint32_t commInterval_
         ) : problemShape(problemShape_), rankIdx(rank_), rankSize(rankSize_),
-            ptrA(ptrA_), layoutA(layoutA_), ptrB(ptrB_), layoutB(layoutB_), ptrSymmetric(ptrSymmetric_),
-            reduceScatterParams(reduceScatterParams_), biasParams(biasParams_), dequantParams(dequantParams_),
+            ptrA(ptrA_), layoutA(layoutA_), ptrB(ptrB_), layoutB(layoutB_), ptrBias(ptrBias_), layoutBias(layoutBias_), ptrSymmetric(ptrSymmetric_),
+            reduceScatterParams(reduceScatterParams_), dequantParams(dequantParams_),
             ptrC_accum(ptrC_accum_), layoutC_accum(layoutC_accum_), ptrD_out(ptrD_out_), layoutD_out(layoutD_out_),
             commInterval(commInterval_) {}
     };
@@ -128,6 +127,7 @@ public:
         // 创建指向全局内存的张量对象
         AscendC::GlobalTensor<ElementA> gmA; gmA.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(params.ptrA));
         AscendC::GlobalTensor<ElementB> gmB; gmB.SetGlobalBuffer(reinterpret_cast<__gm__ ElementB *>(params.ptrB));
+        AscendC::GlobalTensor<ElementBias> gmBias; gmBias.SetGlobalBuffer(reinterpret_cast<__gm__ ElementBias *>(params.ptrBias));
         AscendC::GlobalTensor<ElementC> gmC_workspace; gmC_workspace.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrSymmetric));
         AscendC::GlobalTensor<ElementC> gmC_accum; gmC_accum.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrC_accum));
 
@@ -180,12 +180,16 @@ public:
                 }
                 
                 // 获取最终的线性地址偏移
-                int64_t offsetA = params.layoutA.GetOffset(blockOffsetA);
-                int64_t offsetB = params.layoutB.GetOffset(blockOffsetB);
+                int64_t offsetA = params.layoutA.GetOffset(blockOffsetA);// m*k
+                int64_t offsetB = params.layoutB.GetOffset(blockOffsetB);//k*n
+                int64_t offsetBias = params.layoutBias.GetOffset(Catlass::MakeCoord(blockOffsetB[1]));
                 int64_t offsetStore = layoutStore.GetOffset(blockOffsetStore);
                 
-                // 执行矩阵乘法计算
-                blockMmad( gmA[offsetA], params.layoutA, gmB[offsetB], params.layoutB, gmStore[offsetStore], layoutStore, actualBlockShape );
+                
+                // 执行矩阵乘法计算 (融合偏置加法)
+                // 注意: 此处假定使用的BlockMmad总是支持偏置加法接口。
+                // 主机端代码负责实例化正确的BlockMmad版本。
+                blockMmad( gmA[offsetA], params.layoutA, gmB[offsetB], params.layoutB, gmStore[offsetStore], layoutStore, gmBias[offsetBias], actualBlockShape );
             }
             // 计算完成，设置标志通知AIV可以开始处理
             Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_FIX>(flagAicFinishStore[stageId]);
@@ -230,9 +234,6 @@ public:
         auto layoutCommLogicShape = Catlass::MakeCoord<int>(1, dLoopsInRank, commBlockShape.row());
         auto layoutComm = layout::AffineRankN<3>::Packed(layoutCommLogicShape);
 
-        // 初始化加偏置Epilogue对象
-        BiasAdd biasAddEpilogue(resource, params.biasParams);
-
         // --- 主循环：与AIC流水线对应 ---
         for (uint32_t commIdx = 0; commIdx < commLoops; ++commIdx) {
             uint32_t stageId = commIdx % WORKSPACE_STAGES;
@@ -255,70 +256,8 @@ public:
 
             // 等待AIC完成计算
             Catlass::Arch::CrossCoreWaitFlag(flagAicFinishStore[stageId]);
-            
-            // --- 加偏置操作 ---
-            if (params.biasParams.ptr_bias != 0) {
-                AscendC::PipeBarrier<PIPE_ALL>(); // 同步，确保后续操作安全
 
-                uint32_t actualBlockPerComm = (commIdx == commLoops - 1) ? (coreLoops - blockPerComm * commIdx) : blockPerComm;
-                uint32_t totalAivCores = AscendC::GetBlockNum();
-                uint32_t currentAivId = AscendC::GetBlockIdx()/AscendC::GetSubBlockNum();
-
-                auto layoutC_workspace = Catlass::layout::RowMajor{ WORKSPACE_STAGES * blockPerComm * L1TileShape::M, L1TileShape::N, L1TileShape::N };
-                auto layoutCRowLogicShape = Catlass::MakeCoord<int>(WORKSPACE_STAGES, blockPerComm, L1TileShape::M);
-                auto layoutCRow = layout::AffineRankN<3>::Packed(layoutCRowLogicShape);
-
-                // AIV分工处理不同的块
-                for (uint32_t blockIdxInComm = currentAivId; blockIdxInComm < actualBlockPerComm; blockIdxInComm += totalAivCores) {
-                    // ... 省略块ID和目标Rank的计算 ...
-                    uint32_t block_per_rank_in_comm = actualBlockPerComm / params.rankSize;
-                    uint32_t commBlockOffsetInRank_ = (commIdx * blockPerComm) / params.rankSize;
-                    uint32_t loopIdxInRank = commBlockOffsetInRank_ + (blockIdxInComm % block_per_rank_in_comm);
-                    uint32_t targetRankIdx = blockIdxInComm / block_per_rank_in_comm;
-                    GemmCoord blockCoord = matmulBlockScheduler.GetBlockCoord(loopIdxInRank);
-                    GemmCoord actualBlockShape = matmulBlockScheduler.GetActualBlockShape(blockCoord);
-
-                    if (params.rankIdx == 1 && currentAivId == 0) {
-                        // uint64_t ptr_val = reinterpret_cast<uint64_t>(gmC_workspace.GetGmAddr());
-                        // uint32_t ptr_high = static_cast<uint32_t>(ptr_val >> 32);
-                        // uint32_t ptr_low = static_cast<uint32_t>(ptr_val & 0xFFFFFFFF);
-                        cce::printf("RANK1-DEBUG: stage=%d, blkInComm=%d, targetRank=%d, loopIdx=%d\n",
-                            stageId, blockIdxInComm, targetRankIdx, loopIdxInRank);
-                    }
-
-                    // **关键修复所在**
-                    if (targetRankIdx == params.rankIdx) {
-                        // 如果是处理本Rank的数据（已存在于gmC_accum中）
-                        
-                        // 1. 获取当前块的形状
-                        GemmCoord blockShape = L1TileShape::ToCoord();
-                        // 2. 计算当前块的元素偏移坐标
-                        GemmCoord offsetCoord = blockCoord * blockShape;
-                        
-                        // 3. 调用加偏置Epilogue
-                        biasAddEpilogue(
-                            problemShapeInRank, // 整个Rank的问题形状
-                            blockCoord,         // 当前块的坐标，Epilogue内部需要用它来计算Bias的偏移
-                            actualBlockShape,   // 当前块的实际形状
-                            // **关键点1**: 传入指向当前块起始地址的指针。
-                            // `params.layoutC_accum.GetOffset`根据块的二维坐标计算出一维的线性地址偏移。
-                            gmC_accum[params.layoutC_accum.GetOffset(offsetCoord.GetCoordMN())],
-                            // **关键点2**: 传入描述这个块的布局（TileLayout）。
-                            // 这告诉Epilogue，它接收到的指针指向的是一个`actualBlockShape`大小的、
-                            // 具有特定内存布局（通常是父矩阵的子集）的数据。
-                            // 这是`catlass`库的标准用法，确保Epilogue能正确地在块内部寻址。
-                            params.layoutC_accum.GetTileLayout(actualBlockShape.GetCoordMN())
-                        );
-                    } else {
-                        // 如果是处理其他Rank的数据（存在于工作空间中）
-                        // 逻辑类似，但使用的是工作空间的地址和布局
-                        auto blockOffsetStore = MatrixCoord{layoutCRow(Catlass::MakeCoord<int>(stageId, blockIdxInComm, 0)), 0};
-                        int64_t offsetStore = layoutC_workspace.GetOffset(blockOffsetStore);
-                        // ... 省略调试打印 ...
-                        biasAddEpilogue(problemShapeInRank, blockCoord, actualBlockShape, gmC_workspace[offsetStore], layoutC_workspace);
-                    }
-                }
-            }
+            // --- 加偏置操作 (已在AIC中完成) ---
 
             // --- Reduce-Scatter 通信操作 ---
             shmemx_barrier_all_vec(); // 所有Rank在此同步
