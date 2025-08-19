@@ -137,7 +137,7 @@ void ShmemQuantMatmulReduceScatter(
     using TileOneBlkColumnBroadcastMul = Tile::TileOneBlkColumnBroadcastMul<ArchTag, ComputeType, EpilogueTileShape>;
 
     using TileCopy = Tile::TileCopy<Catlass::Arch::AtlasA2, DequantCType, DequantScaleType,
-                                                     DequantPerTokenScaleType, DequantDType>;
+                                    DequantPerTokenScaleType, DequantDType>;
 
     using EpilogueTileSwizzle = Tile::EpilogueIdentityTileSwizzle;
 
@@ -180,7 +180,6 @@ void ShmemQuantMatmulReduceScatter(
         reinterpret_cast<__gm__ float *>(scale_x1) + scale_x1_offset, Catlass::layout::VectorLayout(m_per_rank),
         reinterpret_cast<__gm__ half *>(d_out), layoutD_out
     };
-    // biasParams is no longer needed.
 
     // Prepare params
     typename QuantMatmulReduceScatterKernel::Params params{
