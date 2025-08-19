@@ -35,7 +35,7 @@
 
 static uint32_t gNpuNum = 8;
 static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 1024;
-
+block_swizzle.hpp
 using namespace AscendC;
 using namespace Catcoc;
 
