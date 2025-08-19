@@ -1,375 +1,362 @@
-#include <acl/acl.h>
+// 防止头文件被重复包含
+#ifndef CATCOC_DGEMM_KERNEL_QUANT_MATMUL_REDUCE_SCATTER_HPP
+#define CATCOC_DGEMM_KERNEL_QUANT_MATMUL_REDUCE_SCATTER_HPP
 
-#include <iostream>
-#include <vector>
-#include <cstring>
+// 包含依赖的头文件
+#include "catcoc/catcoc.hpp"                     // catcoc库的核心头文件，可能包含通信原语等
+#include "catlass/arch/resource.hpp"             // catlass库中关于硬件资源管理的定义
+#include "catlass/arch/cross_core_sync.hpp"      // catlass库中用于核间同步的工具，如Flag
+#include "catlass/gemm_coord.hpp"                // catlass库中用于表示GEMM（通用矩阵乘法）相关坐标的结构
+#include "catlass/matrix_coord.hpp"              // catlass库中用于表示矩阵坐标的结构
 
-// from catlass
-#include "catlass/catlass.hpp"
-#include "catlass/arch/arch.hpp"
-#include "catlass/epilogue/tile/tile_copy.hpp"
-#include "catlass/epilogue/tile/tile_swizzle.hpp"
-#include "catlass/gemm/block/block_mmad.hpp"
-#include "catlass/gemm/block/block_swizzle.hpp"
-#include "catlass/gemm/dispatch_policy.hpp"
-#include "catlass/gemm/gemm_type.hpp"
-#include "catlass/layout/layout.hpp"
-#include "catlass/epilogue/block/block_epilogue.hpp"
-#include "catlass/epilogue/tile/tile_broadcast_mul.hpp"
-#include "catlass/epilogue/tile/tile_broadcast_one_blk.hpp"
-#include "catlass/epilogue/block/block_epilogue_per_token_dequant.hpp"
+namespace Catcoc::DGemm::Kernel {
 
-// shmem_host
-#include "host/shmem_host_def.h"
-#include "host/shmem_host_heap.h"
-#include "host/shmem_host_init.h"
-#include "host/shmem_host_rma.h"
-#include "host/shmem_host_team.h"
+// 使用类型别名简化代码
+using Catlass::MatrixCoord;
+using Catlass::GemmCoord;
 
-// utils
-#include "utils/utils.h"
+//
+// QuantMatmulReduceScatter 是一个融合算子的内核实现。它将量化矩阵乘法（QuantMatmul）与一个通信操作（Reduce-Scatter）融合在一起。
+template <
+    class BlockMmad_,                // 矩阵乘法（MMAD）的基本计算单元
+    class BlockEpilogueReduceScatter_, // Reduce-Scatter操作的Epilogue实现
+    class BlockEpilogueDequant_,       // 反量化的Epilogue实现
+    class BlockScheduler_,           // 计算任务（Block）的调度器
+    class BlockEpilogueScheduler_,     // 通信任务的调度器
+    uint32_t WORKSPACE_STAGES_      // 流水线（Pipeline）的级数，用于隐藏数据传输延迟
+>
+class QuantMatmulReduceScatter {
+public:
+    // --- 类型别名定义 ---
+    // 将模板参数和其内部类型定义为更易读的别名
+    using BlockMmad = BlockMmad_;
+    using ArchTag = typename BlockMmad::ArchTag;
+    using L1TileShape = typename BlockMmad::L1TileShape; // L1 Tile的形状，这是硬件执行计算的基本单元大小
+    using ElementA = typename BlockMmad::ElementA;
+    using LayoutA = typename BlockMmad::LayoutA;
+    using ElementB = typename BlockMmad::ElementB;
+    using LayoutB = typename BlockMmad::LayoutB;
+    using ElementC = typename BlockMmad::ElementC;       // 累加器C的元素类型，通常是int32
+    using LayoutC = typename BlockMmad::LayoutC;
+    using ElementBias = typename BlockMmad::ElementBias; // 从BlockMmad获取Bias类型
+    using LayoutBias = typename BlockMmad::LayoutBias;
+    using ReduceScatter = BlockEpilogueReduceScatter_;
+    using ReduceScatterParams = typename ReduceScatter::Params;
+    using Dequant = BlockEpilogueDequant_;
+    using DequantParams = typename Dequant::Params;
+    using ElementD = bfloat16_t;                          // 最终输出D的元素类型
+    using LayoutD = Catlass::layout::RowMajor;
+    using BlockScheduler = BlockScheduler_;
+    using CommScheduler = BlockEpilogueScheduler_;
+    static constexpr uint32_t WORKSPACE_STAGES = WORKSPACE_STAGES_; // 流水线级数
 
-#include "catcoc/catcoc.hpp"
-#include "catcoc/comm_epilogue/comm_dispatch_policy.hpp"
-#include "catcoc/comm_epilogue/block/comm_block_epilogue.hpp"
-#include "catcoc/comm_epilogue/block/comm_block_swizzle.hpp"
-#include "catcoc/comm_epilogue/tile/tile_remote_copy.hpp"
-#include "catcoc/detail/remote_copy_type.hpp"
-#include "catcoc/dgemm/kernel/quant_matmul_reduce_scatter.hpp"
+    //
+    // Params 结构体：用于从主机侧传递算子所需的所有参数
+    //
+    struct Params {
+        GemmCoord problemShape; // 整个问题的形状 (M, N, K)
+        uint32_t rankIdx;       // 当前计算卡（Rank）的ID
+        uint32_t rankSize;      // 总共的计算卡数量
+        GM_ADDR ptrA; LayoutA layoutA; // A矩阵的全局内存地址和布局
+        GM_ADDR ptrB; LayoutB layoutB; // B矩阵的全局内存地址和布局
+        GM_ADDR ptrBias; LayoutBias layoutBias; // Bias的全局内存地址和布局
+        GM_ADDR ptrSymmetric;          // 用于卡间通信的对称内存（Symmetric Memory）工作空间地址
+        ReduceScatterParams reduceScatterParams; // Reduce-Scatter Epilogue的参数
+        DequantParams dequantParams;             // 反量化 Epilogue的参数
+        GM_ADDR ptrC_accum; LayoutC layoutC_accum; // C累加器结果的地址和布局
+        GM_ADDR ptrD_out; LayoutD layoutD_out;     // 最终输出D的地址和布局
+        uint32_t commInterval;                     // 通信间隔，控制计算和通信的比例
 
-static uint32_t gNpuNum = 8;
-static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 1024;
-
-using namespace AscendC;
-using namespace Catcoc;
-
-constexpr uint32_t BLOCK_NUM = 20;
-constexpr int32_t BLOCK_SIZE_16 = 16;
-
-using LayoutA = Catlass::layout::RowMajor;
-using LayoutB = Catlass::layout::RowMajor;
-using LayoutC = Catlass::layout::RowMajor;
-using LayoutD = Catlass::layout::RowMajor;
-
-CATLASS_GLOBAL
-void ShmemQuantMatmulReduceScatter(
-    uint64_t fftsAddr,
-    GM_ADDR x1, GM_ADDR x2, GM_ADDR scale_x1, GM_ADDR scale_x2, GM_ADDR bias,
-    GM_ADDR c_accum, GM_ADDR d_out, GM_ADDR symmetricPtr,
-    uint32_t m, uint32_t n, uint32_t k
-)
-{
-    // Set FFTS address
-    AscendC::SetSyncBaseAddr(fftsAddr);
-
-    // Define ArchTag
-    using ArchTag = Catlass::Arch::AtlasA2;
-
-    Catlass::GemmCoord problemShape{m, n, k};
-
-    // Prepare comm address
-    uint32_t rank = shmem_my_pe();
-    uint32_t rankSize = shmem_n_pes();
-
-    // Define layouts
-    Catlass::layout::RowMajor layoutA{m, k, k};
-    Catlass::layout::RowMajor layoutB{k, n, n};
-    Catlass::layout::RowMajor layoutC_accum{m / rankSize, n, n};
-    Catlass::layout::RowMajor layoutD_out{m / rankSize, n, n};
-    Catlass::layout::RowMajor layout_scale_x1{m, 1, 1};
-    Catlass::layout::RowMajor layout_scale_x2{n, 1, 1};
-    Catlass::layout::VectorLayout layout_bias(n);
-
-    // Define types for BlockMmad
-    using AType = Catlass::Gemm::GemmType<int8_t, LayoutA>;
-    using BType = Catlass::Gemm::GemmType<int8_t, LayoutB>;
-    using CType = Catlass::Gemm::GemmType<int32_t, LayoutC>; // Accumulator is int32
-    using BiasType = Catlass::Gemm::GemmType<int32_t, Catlass::layout::VectorLayout>;
-
-    constexpr bool enableUnitFlag = true;
-    // Use the dispatch policy that supports fused bias
-    using MmadDispatchPolicy = Catlass::Gemm::MmadAtlasA2PingpongBias<enableUnitFlag>;
-    using L1TileShape = Catlass::GemmShape<128, 256, 256>;
-    using L0TileShape = Catlass::GemmShape<128, 256, 64>;
-    using BlockMmad = Catlass::Gemm::Block::BlockMmad<MmadDispatchPolicy,
-        L1TileShape, L0TileShape, AType, BType, CType, BiasType>;
-
-    // Define types for ReduceScatter Epilogue (int32 -> int32)
-    using ReduceScatterCType = CType;
-    using ReduceScatterDType = CType;
-
-    using BlockScheduler = typename Catlass::Gemm::Block::GemmIdentityBlockSwizzle<7, 1>;
-    using CommBlockScheduler = CommEpilogue::Block::BlockCommSwizzle<0>;
-
-    using CopyDirect = Catcoc::detail::CopyDirect;
-    using TileRemoteCopy = CommEpilogue::Tile::TileRemoteCopy<ArchTag, ReduceScatterCType, ReduceScatterDType, CopyDirect::Get>;
-    using TileScheduler = Catlass::Epilogue::Tile::EpilogueIdentityTileSwizzle;
-
-    using CommBlockShape = Catlass::MatrixShape<64, 256>;
-    using CommCoreSplit = Catlass::MatrixShape<20, 1>;
-
-    constexpr uint32_t ubStages = 2;
-    using ReduceScatterTileShape = Catlass::MatrixShape<32, 256>;
-    using ReduceScatterDispatch = CommEpilogue::EpilogueAtlasA2CommToLocalMem<ubStages,
-        Catcoc::detail::CopyMode::Scatter>;
-    using BlockEpilogueReduceScatter = CommEpilogue::Block::CommBlockEpilogue<
-        ReduceScatterDispatch,
-        ReduceScatterCType, ReduceScatterDType,
-        CommCoreSplit,
-        CommBlockShape,
-        ReduceScatterTileShape, TileRemoteCopy, TileScheduler,
-        BlockScheduler
-    >;
-
-    // Define types for PerTokenDequant Epilogue
-    using namespace Catlass::Epilogue;
-    using DequantCType = CType; // int32 accumulator
-    using DequantScaleType = Catlass::Gemm::GemmType<float, Catlass::layout::VectorLayout>;
-    using DequantPerTokenScaleType = Catlass::Gemm::GemmType<float, Catlass::layout::VectorLayout>;
-    using DequantDType = Catlass::Gemm::GemmType<half, LayoutD>;
-    using DequantDispatchPolicy = EpilogueAtlasA2PerTokenDequant<2>;
-
-    using EpilogueTileShape = Catlass::MatrixShape<64, 128>;
-    using ComputeType = Catlass::Gemm::GemmType<float, Catlass::layout::RowMajor>;
-
-    using TileRowBroadcastMul = Tile::TileRowBroadcastMul<ArchTag, ComputeType, EpilogueTileShape>;
-    using TileBroadcastOneBlk = Tile::TileBroadcastOneBlk<ArchTag, ComputeType, 64>;
-    using TileOneBlkColumnBroadcastMul = Tile::TileOneBlkColumnBroadcastMul<ArchTag, ComputeType, EpilogueTileShape>;
-
-    using TileCopy = Tile::TileCopy<Catlass::Arch::AtlasA2, DequantCType, DequantScaleType,
-                                    DequantPerTokenScaleType, DequantDType>;
-
-    using EpilogueTileSwizzle = Tile::EpilogueIdentityTileSwizzle;
-
-    using BlockEpilogueDequant = Block::BlockEpilogue<
-        DequantDispatchPolicy, DequantCType, DequantScaleType,
-        DequantPerTokenScaleType, DequantDType, TileRowBroadcastMul,
-        TileBroadcastOneBlk, TileOneBlkColumnBroadcastMul, TileCopy,
-        EpilogueTileSwizzle>;
-
-    // BiasAdd Epilogue is no longer needed, as it's fused into BlockMmad.
-
-    constexpr uint32_t workspaceStages = 2;
-    constexpr uint32_t commInterval = 10;
-    using QuantMatmulReduceScatterKernel = DGemm::Kernel::QuantMatmulReduceScatter<
-        BlockMmad,
-        BlockEpilogueReduceScatter,
-        BlockEpilogueDequant,
-        BlockScheduler,
-        CommBlockScheduler,
-        workspaceStages
-    >;
-    Catlass::GemmCoord problemShapeInRank = problemShape / Catlass::MakeCoord<uint32_t>(rankSize, 1, 1);
-    BlockScheduler matmulBlockScheduler(problemShapeInRank, Catlass::MakeCoord(L1TileShape::M, L1TileShape::N));
-
-    Catlass::layout::RowMajor layoutPeerMemStore{
-        L1TileShape::M * commInterval * BLOCK_NUM * workspaceStages, L1TileShape::N,
-        L1TileShape::N
+        CATLASS_DEVICE Params() {} // 默认构造
+        CATLASS_DEVICE Params(     // 带参构造，用于主机侧初始化
+            GemmCoord const &problemShape_, 
+            uint32_t rank_, uint32_t rankSize_,
+            GM_ADDR ptrA_, LayoutA const &layoutA_, 
+            GM_ADDR ptrB_, LayoutB const &layoutB_, 
+            GM_ADDR ptrBias_, LayoutBias const &layoutBias_, 
+            GM_ADDR ptrSymmetric_,
+            ReduceScatterParams const &reduceScatterParams_, DequantParams const &dequantParams_,
+            GM_ADDR ptrC_accum_, LayoutC const &layoutC_accum_, 
+            GM_ADDR ptrD_out_, LayoutD const &layoutD_out_, 
+            uint32_t commInterval_
+        ) : problemShape(problemShape_), 
+            rankIdx(rank_), rankSize(rankSize_),
+            ptrA(ptrA_), layoutA(layoutA_), 
+            ptrB(ptrB_), layoutB(layoutB_), 
+            ptrBias(ptrBias_), layoutBias(layoutBias_), 
+            ptrSymmetric(ptrSymmetric_),
+            reduceScatterParams(reduceScatterParams_), 
+            dequantParams(dequantParams_),
+            ptrC_accum(ptrC_accum_), layoutC_accum(layoutC_accum_), 
+            ptrD_out(ptrD_out_), layoutD_out(layoutD_out_),
+            commInterval(commInterval_) {}
     };
 
-    typename BlockEpilogueReduceScatter::Params reduceScatterParams{
-        reinterpret_cast<__gm__ int32_t *>(symmetricPtr),
-        layoutPeerMemStore,
-        matmulBlockScheduler
-    };
-    
-    uint32_t m_per_rank = m / rankSize;
-    uint32_t scale_x1_offset = rank * m_per_rank;
-    typename BlockEpilogueDequant::Params dequantParams{
-        reinterpret_cast<__gm__ float *>(scale_x2), Catlass::layout::VectorLayout(n),
-        reinterpret_cast<__gm__ float *>(scale_x1) + scale_x1_offset, Catlass::layout::VectorLayout(m_per_rank),
-        reinterpret_cast<__gm__ half *>(d_out), layoutD_out
-    };
-
-    // Prepare params
-    typename QuantMatmulReduceScatterKernel::Params params{
-        problemShape,
-        rank, rankSize,
-        x1, layoutA,
-        x2, layoutB,
-        bias, layout_bias, // Pass bias pointer directly
-        symmetricPtr,
-        reduceScatterParams,
-        dequantParams,
-        c_accum, layoutC_accum,
-        d_out, layoutD_out,
-        commInterval
-    };
-
-    // Call kernel
-    QuantMatmulReduceScatterKernel matmulCommKernel;
-    matmulCommKernel(params);
-}
-
-struct Options {
-    static constexpr auto helper = "Usage: matmul_allreduce m n k transA transB\n";
-
-    int rankSize;
-    int rankId;
-    std::string ipPort{};
-    uint32_t m{0};
-    uint32_t n{0};
-    uint32_t k{0};
-    std::vector<int> deviceIdList{};
-
-    int Parse(int argc, char **argv)
-    {
-        enum ArgsIndex {
-            RANK_SIZE_INDEX = 1,
-            RANK_ID_INDEX,
-            IP_PORT_INDEX,
-            M_INDEX,
-            N_INDEX,
-            K_INDEX,
-            DEVICE_LIST_INDEX,
-            INDEX_MAX
-        };
-
-        if (argc > INDEX_MAX) {
-            printf(helper);
-            return -1;
+    //
+    // 内核构造函数：初始化核间同步用的Flag
+    //
+    CATLASS_DEVICE QuantMatmulReduceScatter() {
+        // 通过流水线级数，创建多组Flag，用于AIC（AI Core）和AIV（AI Vector）之间的同步
+        // AIC负责计算，AIV负责通信和后处理，它们之间通过乒乓操作（Pipelining）来隐藏延迟
+        for (uint32_t i = 0; i < WORKSPACE_STAGES; ++i) {
+            flagAicFinishStore[i] = Catlass::Arch::CrossCoreFlag(i);   // AIC完成计算并存储结果的标志
+            flagAivFinishCompute[i] = Catlass::Arch::CrossCoreFlag(i); // AIV完成通信和后处理的标志
         }
-
-        rankSize = std::atoi(argv[RANK_SIZE_INDEX]);
-        rankId = std::atoi(argv[RANK_ID_INDEX]);
-        ipPort = argv[IP_PORT_INDEX];
-        m = std::atoi(argv[M_INDEX]);
-        n = std::atoi(argv[N_INDEX]);
-        k = std::atoi(argv[K_INDEX]);
-        if (argc > DEVICE_LIST_INDEX) {
-            char *idListStr = argv[DEVICE_LIST_INDEX];
-            for (char *idToken = std::strtok(idListStr, ","); idToken; idToken = std::strtok(nullptr, ",")) {
-                deviceIdList.push_back(std::atoi(idToken));
-            }
-        } else {
-            for (int i = 0; i < rankSize; ++i) {
-                deviceIdList.push_back(i);
-            }
-        }
-        return 0;
     }
+
+    //
+    // 内核执行入口：通过模板特化，为不同类型的硬件核心（AIC/AIV）提供不同的实现
+    //
+    template <int32_t CORE_TYPE = g_coreType> CATLASS_DEVICE void operator()(Params &params);
+
+    //
+    // AIC (AI Core) 的内核实现：主要负责高密度的矩阵乘法计算
+    //
+    template <> CATLASS_DEVICE void operator()<AscendC::AIC>(Params &params) {
+        // 获取当前AICore的ID和总AICore数量
+        uint32_t aicoreIndex = AscendC::GetBlockIdx();
+        uint32_t aicoreNum = AscendC::GetBlockNum();
+        // 计算和通信相关的尺寸参数
+        uint32_t blockPerComm = aicoreNum * params.commInterval;
+        uint32_t blockPerCommInRank = blockPerComm / params.rankSize;
+
+        // 获取计算的基本单元（Block）的形状
+        GemmCoord blockShape = L1TileShape::ToCoord();
+        // 计算当前Rank负责处理的问题形状（M维度被切分）
+        GemmCoord problemShapeInRank = params.problemShape / Catlass::MakeCoord<uint32_t>(params.rankSize, 1, 1);
+        // 初始化计算任务调度器
+        BlockScheduler matmulBlockScheduler(problemShapeInRank, blockShape.GetCoordMN());
+        // 计算总的循环次数
+        uint32_t coreLoops = matmulBlockScheduler.GetCoreLoops() * params.rankSize;
+        uint32_t commLoops = CeilDiv(coreLoops, blockPerComm);
+
+        // 创建矩阵乘法计算对象
+        BlockMmad blockMmad(resource);
+
+        // 创建指向全局内存的张量对象
+        AscendC::GlobalTensor<ElementA> gmA; 
+        gmA.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(params.ptrA));
+
+        AscendC::GlobalTensor<ElementB> gmB; 
+        gmB.SetGlobalBuffer(reinterpret_cast<__gm__ ElementB *>(params.ptrB));
+
+        AscendC::GlobalTensor<ElementBias> gmBias; 
+        gmBias.SetGlobalBuffer(reinterpret_cast<__gm__ ElementBias *>(params.ptrBias));
+
+        AscendC::GlobalTensor<ElementC> gmC_workspace; 
+        gmC_workspace.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrSymmetric));
+
+        AscendC::GlobalTensor<ElementC> gmC_accum; 
+        gmC_accum.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrC_accum));
+
+        // 定义用于存储跨卡计算结果的工作空间（Workspace）的布局
+        auto layoutC = Catlass::layout::RowMajor{ WORKSPACE_STAGES * blockPerComm * L1TileShape::M, L1TileShape::N, L1TileShape::N };
+        auto layoutCRowLogicShape = Catlass::MakeCoord<int>(WORKSPACE_STAGES, blockPerComm, L1TileShape::M);
+        auto layoutCRow = layout::AffineRankN<3>::Packed(layoutCRowLogicShape);
+
+        // --- 主循环：流水线式地执行计算 ---
+        for (uint32_t commIdx = 0; commIdx < commLoops; ++commIdx) {
+            uint32_t stageId = commIdx % WORKSPACE_STAGES; // 计算当前使用的流水线阶段
+            // 如果不是初始阶段，需要等待AIV完成对上一个同阶段缓冲区数据的处理
+            if (commIdx >= WORKSPACE_STAGES) { 
+                Catlass::Arch::CrossCoreWaitFlag(flagAivFinishCompute[stageId]); 
+            }
+
+            // 计算当前通信周期内实际要处理的块数
+            uint32_t actualBlockPerComm = (commIdx == commLoops - 1) ? (coreLoops - blockPerComm * commIdx) : blockPerComm;
+            uint32_t actualBlockPerCommInRank = actualBlockPerComm / params.rankSize;
+            uint32_t commBlockOffsetInRank = commIdx * blockPerCommInRank;
+
+            // 每个AICore通过步进方式，分工处理不同的计算块
+            for (uint32_t blockIdxInComm = aicoreIndex; blockIdxInComm < actualBlockPerComm; blockIdxInComm += aicoreNum) {
+                // 计算当前块在整个问题中的逻辑ID和目标Rank
+                uint32_t loopIdxInRank = commBlockOffsetInRank + blockIdxInComm % actualBlockPerCommInRank;
+                uint32_t targetRankIdx = blockIdxInComm / actualBlockPerCommInRank;
+                
+                // 从调度器获取当前块的坐标和实际形状
+                GemmCoord blockCoord = matmulBlockScheduler.GetBlockCoord(loopIdxInRank);
+                GemmCoord actualBlockShape = matmulBlockScheduler.GetActualBlockShape(blockCoord);
+                GemmCoord offsetCoord = blockCoord * blockShape;
+                
+                // 计算A、B矩阵的偏移地址
+                auto rankOffsetA = problemShapeInRank.GetCoordMK() * Catlass::MakeCoord<uint32_t>(targetRankIdx, 0);
+                auto blockOffsetA = offsetCoord.GetCoordMK() + rankOffsetA;
+                auto blockOffsetB = offsetCoord.GetCoordKN();
+                
+                // 决定计算结果的存储位置
+                MatrixCoord blockOffsetStore;
+                AscendC::GlobalTensor<ElementC> gmStore;
+                Catlass::layout::RowMajor layoutStore;
+                if (targetRankIdx == params.rankIdx) {
+                    // 如果是为本Rank计算，结果直接存入最终的累加器gmC_accum
+                    blockOffsetStore = offsetCoord.GetCoordMN();
+                    gmStore = gmC_accum;
+                    layoutStore = params.layoutC_accum;
+                } else {
+                    // 如果是为其他Rank计算，结果存入对称内存的工作空间gmC_workspace
+                    blockOffsetStore = MatrixCoord{layoutCRow(Catlass::MakeCoord<int>(stageId, blockIdxInComm, 0)), 0};
+                    gmStore = gmC_workspace;
+                    layoutStore = layoutC;
+                }
+                
+                // 获取最终的线性地址偏移
+                int64_t offsetA = params.layoutA.GetOffset(blockOffsetA);// m*k
+                int64_t offsetB = params.layoutB.GetOffset(blockOffsetB);//k*n
+                int64_t offsetBias = params.layoutBias.GetOffset(Catlass::MakeCoord(blockOffsetB[1]));
+                int64_t offsetStore = layoutStore.GetOffset(blockOffsetStore);
+                
+                
+                // 执行矩阵乘法计算 (融合偏置加法)
+                // 注意: 此处假定使用的BlockMmad总是支持偏置加法接口。
+                // 主机端代码负责实例化正确的BlockMmad版本。
+                blockMmad( gmA[offsetA], params.layoutA, 
+                           gmB[offsetB], params.layoutB, 
+                           gmStore[offsetStore], layoutStore, 
+                           gmBias[offsetBias], actualBlockShape );
+            }
+            // 计算完成，设置标志通知AIV可以开始处理
+            Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_FIX>(flagAicFinishStore[stageId]);
+        }
+        // 最终同步，确保所有计算都已完成
+        AscendC::PipeBarrier<PIPE_ALL>();
+    }
+
+    //
+    // AIV (AI Vector) 的内核实现：主要负责通信、加偏置、反量化等后处理操作
+    //
+    template <> CATLASS_DEVICE void operator()<AscendC::AIV>(Params &params) {
+        // ... 省略与AIC中类似的初始化代码 ...
+        uint32_t aicoreIndex = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum();
+        uint32_t aicoreNum = AscendC::GetBlockNum();
+        uint32_t aivIndex = AscendC::GetSubBlockIdx();
+        uint32_t blockPerComm = aicoreNum * params.commInterval;
+        uint32_t blockPerCommInRank = blockPerComm / params.rankSize;
+
+        MatrixCoord blockShapeMN = L1TileShape::ToCoordMN();
+        GemmCoord problemShapeInRank = params.problemShape / Catlass::MakeCoord<uint32_t>(params.rankSize, 1, 1);
+        BlockScheduler matmulBlockScheduler(problemShapeInRank, blockShapeMN);
+        uint32_t coreLoops = matmulBlockScheduler.GetCoreLoops() * params.rankSize;
+        auto commLoops = CeilDiv(coreLoops, blockPerComm);
+
+        // 初始化Reduce-Scatter通信对象
+        ReduceScatter reduceScatter(resource, params.reduceScatterParams);
+
+        AscendC::GlobalTensor<ElementC> gmC_workspace; 
+        gmC_workspace.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrSymmetric));
+        AscendC::GlobalTensor<ElementC> gmC_accum; 
+        gmC_accum.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrC_accum));
+
+        MatrixCoord commBlockShape = params.reduceScatterParams.BlockShape();
+        MatrixCoord commCoreSplit = params.reduceScatterParams.CoreSplit();
+        MatrixCoord commShape = MatrixCoord{blockPerComm, 1} * blockShapeMN;
+        MatrixCoord dataLoopsMx = CeilDiv(commShape, commBlockShape);
+        uint32_t dLoopsInRank = CeilDiv(dataLoopsMx.row() * dataLoopsMx.column(), params.rankSize);
+        CommScheduler commScheduler(params.rankIdx, params.rankSize, commCoreSplit, commShape, commBlockShape, dLoopsInRank);
+        MatrixCoord actualCommShapeInRank = commShape / Catlass::MakeCoord<uint32_t>(params.rankSize, 1);
+
+        auto layoutCommLogicShape = Catlass::MakeCoord<int>(1, dLoopsInRank, commBlockShape.row());
+        auto layoutComm = layout::AffineRankN<3>::Packed(layoutCommLogicShape);
+
+        // --- 主循环：与AIC流水线对应 ---
+        for (uint32_t commIdx = 0; commIdx < commLoops; ++commIdx) {
+            uint32_t stageId = commIdx % WORKSPACE_STAGES;
+            // ... 省略处理最后一个循环的边界情况代码 ...
+            if (commIdx == commLoops - 1) {
+                uint32_t actualBlockInComm = coreLoops - commIdx * blockPerComm;
+                commShape = MatrixCoord{actualBlockInComm, 1} * blockShapeMN;
+                dataLoopsMx = CeilDiv(commShape, commBlockShape);
+                dLoopsInRank = CeilDiv(dataLoopsMx.row() * dataLoopsMx.column(), params.rankSize);
+                commScheduler.Update(commShape, commBlockShape, dLoopsInRank);
+                layoutCommLogicShape = Catlass::MakeCoord<int>(1, dLoopsInRank, commBlockShape.row());
+                layoutComm = layout::AffineRankN<3>::Packed(layoutCommLogicShape);
+                actualCommShapeInRank = commShape / Catlass::MakeCoord<uint32_t>(params.rankSize, 1);
+            }
+            auto commAicoreNum = commScheduler.GetRealCore();
+            auto commCoreLoops = commScheduler.GetCoreLoop();
+
+            MatrixCoord stageOffset = MatrixCoord{stageId * blockPerComm, 0} * blockShapeMN;
+            MatrixCoord commOffsetInRank = MatrixCoord{commIdx * blockPerCommInRank, 0} * blockShapeMN;
+
+            // 等待AIC完成计算
+            Catlass::Arch::CrossCoreWaitFlag(flagAicFinishStore[stageId]);
+            // --- Reduce-Scatter 通信操作 ---
+            shmemx_barrier_all_vec(); // 所有Rank在此同步
+            AscendC::SetAtomicAdd<ElementC>(); // 设置硬件原子加功能
+            AscendC::PipeBarrier<PIPE_ALL>();
+
+            // ... 它会把所有Rank的gmC_accum中的结果进行求和，并将结果分片写回每个Rank各自的gmC_accum中 ...
+            reduceScatter.AllocEventID();
+            if (aivIndex == 0 && aicoreIndex < commAicoreNum) {
+                for (uint32_t commLoopIdx = aicoreIndex; commLoopIdx < commCoreLoops; commLoopIdx += commAicoreNum) {
+                    MatrixCoord commBlockCoord = commScheduler.GetBlockIdx(commLoopIdx);
+                    MatrixCoord blockOffset = commScheduler.template GetBlockOffset<ReduceScatter::RemoteCopyMode, 
+                                                ReduceScatter::RemoteCopyDirect>(commBlockCoord, layoutComm);
+                    MatrixCoord actualCommBlockShape = commScheduler.template GetActualBlockShape<ReduceScatter::RemoteCopyMode, 
+                                                ReduceScatter::RemoteCopyDirect>(commBlockCoord, layoutComm);
+                    MatrixCoord blockOffsetInRank = blockOffset % actualCommShapeInRank;
+
+                    uint32_t remoteRankIdx = commBlockCoord.column();
+                    if (remoteRankIdx == params.rankIdx) { continue; }
+
+                    auto offsetIn = stageOffset + blockOffset;
+                    auto offsetOut = commOffsetInRank + blockOffsetInRank;
+                    auto globalLoopIdx = offsetOut.row() / blockShapeMN.row();
+
+                    reduceScatter(blockShapeMN, offsetOut, offsetIn, actualCommBlockShape, 
+                                 gmC_accum, params.layoutC_accum, globalLoopIdx, 
+                                 remoteRankIdx % params.rankSize);
+                }       
+            }
+            reduceScatter.ReleaseEventID();
+            AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0);
+            AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0);
+            AscendC::SetAtomicNone();
+            AscendC::PipeBarrier<PIPE_ALL>();
+
+            shmemx_barrier_all_vec(); // 再次同步
+            // 通知AIC，AIV已经处理完当前阶段的缓冲区，AIC可以开始写入新数据
+            Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_MTE3>(flagAivFinishCompute[stageId]);
+        }
+        
+        // --- 反量化操作 ---
+        // 在所有计算和通信完成后，对最终的int32结果进行反量化，得到bfloat16输出
+        uint32_t M_per_rank = params.problemShape.m() / params.rankSize;
+        uint32_t N = params.problemShape.n();
+        GemmCoord problemShapeEpilogue{M_per_rank, N, 1};
+        uint32_t coreNum = AscendC::GetBlockNum();
+        uint32_t coreIdx = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum();
+
+        // 初始化反量化Epilogue对象
+        Dequant dequantEpilogue(resource, params.dequantParams);
+
+        auto cord = Dequant::TileShape::ToCoord();
+        typename Dequant::EpilogueTileSwizzle tileScheduler(problemShapeEpilogue.GetCoordMN(), cord);
+        uint32_t tileLoops = tileScheduler.GetLoops();
+
+        // AIV分工处理不同的块
+        for(uint32_t i = coreIdx; i < tileLoops; i += coreNum) {
+            auto tileCoord = tileScheduler.GetTileCoord(i);
+            auto actualTileShape = tileScheduler.GetActualTileShape(tileCoord);
+            auto acc_offset = tileCoord * cord;
+            // 调用反量化Epilogue
+            dequantEpilogue(
+                GemmCoord(cord[0], cord[1], 1),
+                GemmCoord(tileCoord.row(), tileCoord.column(), 0), 
+                GemmCoord(actualTileShape.row(), actualTileShape.column(), 1), 
+                gmC_accum[params.layoutC_accum.GetOffset(acc_offset)], 
+                params.layoutC_accum.GetTileLayout(actualTileShape)
+            );
+        }
+        AscendC::PipeBarrier<PIPE_ALL>();
+    }
+
+private:
+    // --- 成员变量 ---
+    Catlass::Arch::CrossCoreFlag flagAicFinishStore[WORKSPACE_STAGES]; // 用于AIC->AIV同步的标志
+    Catlass::Arch::CrossCoreFlag flagAivFinishCompute[WORKSPACE_STAGES]; // 用于AIV->AIC同步的标志
+    Catlass::Arch::Resource<ArchTag> resource; // 硬件资源对象
 };
 
-int main(int argc, char **argv)
-{
-    int status = SHMEM_SUCCESS;
-    Options options;
-    options.Parse(argc, argv);
-    int rankSize = options.rankSize;
-    int rankId = options.rankId;
-    std::string ipPort = options.ipPort;
-    uint32_t m = options.m;
-    uint32_t n = options.n;
-    uint32_t k = options.k;
-    int32_t deviceId = options.deviceIdList[rankId];
+} // namespace Catcoc::DGemm::Kernel
 
-    std::cout << "[TEST] input rank_size: " << rankSize << " rank_id:" << rankId << " input_ip: " << ipPort << "\n";
-
-    aclrtStream stream = nullptr;
-    ACL_CHECK(aclInit(nullptr));
-    ACL_CHECK(aclrtSetDevice(deviceId));
-    ACL_CHECK(aclrtCreateStream(&stream));
-    shmem_init_attr_t *attributes;
-    status = shmem_set_attr(rankId, rankSize, gNpuMallocSpace, ipPort.c_str(), &attributes);
-    status = shmem_init_attr(attributes);
-    status = shmem_init_status();
-
-    // Prepare FFTS address
-    uint64_t fftsAddr{0};
-    uint32_t fftsLen{0};
-    RT_CHECK(rtGetC2cCtrlAddr(&fftsAddr, &fftsLen));
-
-    // Memory sizes
-    size_t x1Size = static_cast<size_t>(m) * k * sizeof(int8_t);
-    size_t x2Size = static_cast<size_t>(k) * n * sizeof(int8_t);
-    size_t scaleX1Size = static_cast<size_t>(m) * sizeof(float);
-    size_t scaleX2Size = static_cast<size_t>(n) * sizeof(float);
-    size_t biasSize = static_cast<size_t>(n) * sizeof(int32_t);
-    size_t cAccumSize = static_cast<size_t>(m) * n * sizeof(int32_t) / rankSize;
-    size_t dOutSize = static_cast<size_t>(m) * n * sizeof(bfloat16_t) / rankSize;
-
-    // Allocate and copy x1
-    uint8_t *x1Device, *x1Host;
-    ACL_CHECK(aclrtMalloc((void **)(&x1Device), x1Size, ACL_MEM_MALLOC_HUGE_FIRST));
-    ACL_CHECK(aclrtMallocHost((void **)(&x1Host), x1Size));
-    ReadFile("./output/x1_gm.bin", x1Host, x1Size);
-    ACL_CHECK(aclrtMemcpy(x1Device, x1Size, x1Host, x1Size, ACL_MEMCPY_HOST_TO_DEVICE));
-
-    // Allocate and copy x2
-    uint8_t *x2Device, *x2Host;
-    ACL_CHECK(aclrtMalloc((void **)(&x2Device), x2Size, ACL_MEM_MALLOC_HUGE_FIRST));
-    ACL_CHECK(aclrtMallocHost((void **)(&x2Host), x2Size));
-    ReadFile("./output/x2_gm.bin", x2Host, x2Size);
-    ACL_CHECK(aclrtMemcpy(x2Device, x2Size, x2Host, x2Size, ACL_MEMCPY_HOST_TO_DEVICE));
-
-    // Allocate and copy scale_x1
-    uint8_t *scaleX1Device, *scaleX1Host;
-    ACL_CHECK(aclrtMalloc((void **)(&scaleX1Device), scaleX1Size, ACL_MEM_MALLOC_HUGE_FIRST));
-    ACL_CHECK(aclrtMallocHost((void **)(&scaleX1Host), scaleX1Size));
-    ReadFile("./output/scale_x1_gm.bin", scaleX1Host, scaleX1Size);
-    ACL_CHECK(aclrtMemcpy(scaleX1Device, scaleX1Size, scaleX1Host, scaleX1Size, ACL_MEMCPY_HOST_TO_DEVICE));
-
-    // Allocate and copy scale_x2
-    uint8_t *scaleX2Device, *scaleX2Host;
-    ACL_CHECK(aclrtMalloc((void **)(&scaleX2Device), scaleX2Size, ACL_MEM_MALLOC_HUGE_FIRST));
-    ACL_CHECK(aclrtMallocHost((void **)(&scaleX2Host), scaleX2Size));
-    ReadFile("./output/scale_x2_gm.bin", scaleX2Host, scaleX2Size);
-    ACL_CHECK(aclrtMemcpy(scaleX2Device, scaleX2Size, scaleX2Host, scaleX2Size, ACL_MEMCPY_HOST_TO_DEVICE));
-
-    // Allocate and copy bias
-    uint8_t *biasDevice, *biasHost;
-    ACL_CHECK(aclrtMalloc((void **)(&biasDevice), biasSize, ACL_MEM_MALLOC_HUGE_FIRST));
-    ACL_CHECK(aclrtMallocHost((void **)(&biasHost), biasSize));
-    ReadFile("./output/bias_gm.bin", biasHost, biasSize);
-    ACL_CHECK(aclrtMemcpy(biasDevice, biasSize, biasHost, biasSize, ACL_MEMCPY_HOST_TO_DEVICE));
-
-    // Allocate intermediate and final output buffers
-    uint8_t *cAccumDevice;
-    ACL_CHECK(aclrtMalloc((void **)(&cAccumDevice), cAccumSize, ACL_MEM_MALLOC_HUGE_FIRST));
-    ACL_CHECK(aclrtMemset(cAccumDevice, cAccumSize, 0, cAccumSize));
-    uint8_t *dOutDevice, *dOutHost;
-    ACL_CHECK(aclrtMalloc((void **)(&dOutDevice), dOutSize, ACL_MEM_MALLOC_HUGE_FIRST));
-    ACL_CHECK(aclrtMallocHost((void **)(&dOutHost), dOutSize));
-
-    // Allocate shared memory workspace
-    void *symmPtr = shmem_malloc((204 * 1024 * 1024) * sizeof(int32_t));
-    uint8_t *symmetricPtr = (uint8_t *)symmPtr;
-
-    ACL_CHECK(aclrtSynchronizeStream(stream));
-    for (int i = 0; i < 1; i++) {
-        ShmemQuantMatmulReduceScatter<<<BLOCK_NUM, nullptr, stream>>>(fftsAddr,
-            x1Device, x2Device, scaleX1Device, scaleX2Device, biasDevice,
-            cAccumDevice, dOutDevice, symmetricPtr, m, n, k);
-    }
-    ACL_CHECK(aclrtSynchronizeStream(stream));
-
-    ACL_CHECK(aclrtMemcpy(dOutHost, dOutSize, dOutDevice, dOutSize, ACL_MEMCPY_DEVICE_TO_HOST));
-    WriteFile("./output/output.bin", dOutHost, dOutSize, options.rankId * dOutSize);
-    if (rankId == 0) {
-        std::printf("test finished\n");
-    }
-
-    shmem_free(symmPtr);
-
-    ACL_CHECK(aclrtFreeHost(x1Host));
-    ACL_CHECK(aclrtFreeHost(x2Host));
-    ACL_CHECK(aclrtFreeHost(scaleX1Host));
-    ACL_CHECK(aclrtFreeHost(scaleX2Host));
-    ACL_CHECK(aclrtFreeHost(biasHost));
-    ACL_CHECK(aclrtFreeHost(dOutHost));
-    ACL_CHECK(aclrtFree(x1Device));
-    ACL_CHECK(aclrtFree(x2Device));
-    ACL_CHECK(aclrtFree(scaleX1Device));
-    ACL_CHECK(aclrtFree(scaleX2Device));
-    ACL_CHECK(aclrtFree(biasDevice));
-    ACL_CHECK(aclrtFree(cAccumDevice));
-    ACL_CHECK(aclrtFree(dOutDevice));
-
-    std::cout << "[TEST] begin to exit...... rankId: " << rankId << "\n";
-    status = shmem_finalize();
-    ACL_CHECK(aclrtDestroyStream(stream));
-    ACL_CHECK(aclrtResetDevice(deviceId));
-    ACL_CHECK(aclFinalize());
-
-    return 0;
-}
+#endif // CATCOC_DGEMM_KERNEL_QUANT_MATMUL_REDUCE_SCATTER_HPP
