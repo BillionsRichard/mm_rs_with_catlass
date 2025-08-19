@@ -5,7 +5,7 @@
 ### 1.1 功能描述
 量化矩阵乘法Reduce-Scatter算子（QuantizedMatmulReduceScatter）是一个支持INT8量化的分布式矩阵乘法算子，结合reduce-scatter通信模式，用于高效的大规模分布式深度学习训练。
 
-它首先在每个计算单元（Rank）上独立执行INT8矩阵乘法并加上偏置，得到INT32累加结果。随后，通过Reduce-Scatter操作对所有Rank的INT32结果进行求和，并将结果分片回传给各个Rank。最后，每个Rank对接收到的INT32分片执行反量化，得到最终的BFLOAT16输出。
+它首先在每个计算单元（Rank）上独立执行INT8矩阵乘法，并在计算过程中**融合偏置加法**，直接得到`INT32_ACC = INT8_A x INT8_B + INT32_BIAS`的累加结果。随后，通过Reduce-Scatter操作对所有Rank的INT32结果进行求和，并将结果分片回传给各个Rank。最后，每个Rank对接收到的INT32分片执行反量化，得到最终的BFLOAT16输出。
 
 ### 1.2 算子签名
 ```cpp
@@ -40,19 +40,19 @@ void QuantizedMatmulReduceScatter(
 ### 2.1 核心计算流程
 ```mermaid
 graph TD
-    subgraph "各Rank独立计算"
-        A[int8 A] --> C{INT8 Matmul}
+    subgraph "各Rank独立计算-AIC"
+        A[int8 A] --> C{INT8 Matmul + Bias}
         B[int8 B] --> C
+        Bias[int32 Bias] --> C
         C --> D[INT32 Accumulator]
-        D --> H[Add Bias]
     end
 
-    subgraph "Rank间通信"
-        H --> E{Reduce-Scatter on INT32}
-        F[Other Ranks Matmul+Bias Results] --> E
+    subgraph "Rank间通信-AIV"
+        D --> E{Reduce-Scatter on INT32}
+        F[Other Ranks' Accumulator] --> E
     end
 
-    subgraph "各Rank独立后处理"
+    subgraph "各Rank独立后处理-AIV"
         E --> G[INT32 Sliced Accumulator]
         I[float32 scale_x1] --> J{Dequantize}
         K[float32 scale_x2] --> J
@@ -67,10 +67,10 @@ graph TD
     x1_int8 = round(x1_fp32 / scale_x1)
     x2_int8 = round(x2_fp32 / scale_x2)
 
-    // 伪代码: INT8矩阵乘法 + 加偏置 (Per-Rank)
-    accumulator_int32_per_rank = (x1_int8 × x2_int8) + bias
+    // 伪代码: NT8矩阵乘法融合加偏置（Per-Rank，on AIC）
+    accumulator_int32_per_rank = matmul_bias_add(x1_int8, x2_int8, bias)
 
-    // 伪代码: Reduce-Scatter
+    // 伪代码：Reduce-Scatter（on AIV)
     reduced_accumulator_int32 = reduce_sum(accumulator_int32_per_rank) across all ranks
 
     // 伪代码: 反量化
@@ -86,11 +86,11 @@ graph TD
 
 ### 3.1 计算与通信分离
 算子采用计算（AIC）和通信/后处理（AIV）分离的设计。
-- **AIC (AI Core)**: 负责执行高密度的 `INT8 × INT8 → INT32` 矩阵乘法计算。
-- **AIV (AI Vector Core)**: 负责执行 `Reduce-Scatter` 通信，以及后续的偏置加法、反量化等处理。
+- **AIC (AI Core)**: 负责执行高密度的 `INT8 × INT8 + INT32 → INT32` 矩阵乘法与偏置加法融合计算。
+- **AIV (AI Vector Core)**: 负责执行 `Reduce-Scatter` 通信，以及后续的反量化等处理。
 
 ### 3.2 主要模块
-- **BlockMmad**: `catlass`库提供的矩阵乘法模块，用于执行分块的INT8矩阵乘法。
+- **BlockMmad**: `catlass`库提供的矩阵乘法模块，通过`MmadAtlasA2PingpongBias`调度策略，**执行分块的INT8矩阵乘法并融合偏置加法**。
 - **CommBlockEpilogue**: `catcoc`库提供的通信Epilogue，用于执行 `Reduce-Scatter` 操作。它将本地计算出的 `INT32` 累加结果与其他Rank进行交换和累加。
 - **BlockEpilogueDequant**: `catlass`库提供的后处理Epilogue，用于在 `Reduce-Scatter` 完成后，对每个Rank持有的 `INT32` 结果分片进行反量化，并转换为 `BFLOAT16`。
 
@@ -147,12 +147,12 @@ typename BlockEpilogueDequant::Params dequantParams{
 ### 6.1 两阶段计算与通信
 算子的核心流程分为两个主要阶段：
 
-1.  **阶段一：本地INT8矩阵乘法**
-    - 每个Rank独立地计算其负责的 `A` 矩阵分片 (`A_i`) 与完整的 `B` 矩阵的乘积，得到 `INT32` 的中间结果 `C_i`。
+1.  **阶段一：本地INT8矩阵乘法 + 偏置加法 (AIC)**
+    - 每个Rank独立地计算其负责的 `A` 矩阵分片 (`A_i`) 与完整的 `B` 矩阵的乘积，并加上偏置 `bias`，得到 `INT32` 的中间结果 `C_i`。
 
-2.  **阶段二：INT32 Reduce-Scatter + 本地反量化**
+2.  **阶段二：INT32 Reduce-Scatter + 本地反量化 (AIV)**
     - **通信**：所有Rank通过共享内存，对 `INT32` 中间结果 `C_i` 执行 `Reduce-Scatter` 操作。操作完成后，每个Rank会得到最终结果矩阵的一个分片（`Output_slice_i`），但此时数据类型仍为 `INT32`。
-    - **后处理**：每个Rank独立地对其持有的 `INT32` 分片执行偏置加法和反量化操作，最终得到 `BFLOAT16` 格式的输出。
+    - **后处理**：每个Rank独立地对其持有的 `INT32` 分片执行反量化操作，最终得到 `BFLOAT16` 格式的输出。
 
 ### 6.2 流程图
 ```mermaid
@@ -160,15 +160,15 @@ sequenceDiagram
     participant Rank0 as Rank 0
     participant Rank1 as Rank 1
     
-    Note over Rank0,Rank1: 阶段1：本地INT8计算
-    Rank0->>Rank0: INT8 Matmul: C0_int32 = A0_int8 × B_int8
-    Rank1->>Rank1: INT8 Matmul: C1_int32 = A1_int8 × B_int8
+    Note over Rank0,Rank1: 阶段1：本地INT8计算 + 偏置加法 (AIC)
+    Rank0->>Rank0: Matmul+Bias: C0_int32 = (A0_int8 × B_int8) + bias
+    Rank1->>Rank1: Matmul+Bias: C1_int32 = (A1_int8 × B_int8) + bias
     
-    Note over Rank0,Rank1: 阶段2：INT32 Reduce-Scatter
+    Note over Rank0,Rank1: 阶段2：INT32 Reduce-Scatter (AIV)
     Rank0-->>Rank1: 交换和累加C0, C1的INT32结果
     Rank1-->>Rank0: (通过共享内存)
     
-    Note over Rank0,Rank1: 阶段3：本地反量化
+    Note over Rank0,Rank1: 阶段3：本地反量化 (AIV)
     Rank0->>Rank0: Dequantize(slice0_int32) -> Output0_bf16
     Rank1->>Rank1: Dequantize(slice1_int32) -> Output1_bf16
 ```
