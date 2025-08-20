@@ -16,6 +16,7 @@ PARENT_PATH=${PROJECT_ROOT}/examples/dynamic_tiling/
 # eg. 性能测试WARM_UP_TIMES设置成10, PERF_TEST_CYCLE_TIMES成3
 export WARM_UP_TIMES=10
 export PERF_TEST_CYCLE_TIMES=3
+export SEARCH_PARAMS=0
 
 CSV_FILE="${SCRIPT_DIR}/test_shapes.csv"
 

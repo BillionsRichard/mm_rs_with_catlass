@@ -22,6 +22,16 @@ endfunction()
 
 add_subdirectory(impl)
 
+set(TILING_SOURCES
+    tiling/coc_tiling_lut.cpp
+    tiling/reducescatter_tiling.cpp
+    tiling/allreduce_tiling.cpp
+    tiling/allgather_tiling.cpp
+)
+add_library(tiling_lib SHARED ${TILING_SOURCES})
+target_include_directories(tiling_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/tiling ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_options(tiling_lib PRIVATE -O3)
+
 add_executable(dynamic_tiling main.cpp)
 
 target_include_directories(dynamic_tiling PRIVATE
@@ -37,6 +47,7 @@ target_include_directories(dynamic_tiling PRIVATE
     ${PROJECT_SOURCE_DIR}/examples/utils
 )
 target_link_options(dynamic_tiling PRIVATE --cce-fatobj-link)
-target_link_libraries(dynamic_tiling PRIVATE shmem ${SHARE_LIB_LINK})
+target_link_libraries(dynamic_tiling PRIVATE tiling_lib shmem ${SHARE_LIB_LINK})
+target_compile_options(dynamic_tiling PRIVATE -O3)
 
-add_dependencies(dynamic_tiling lib_impl)
+add_dependencies(dynamic_tiling lib_impl tiling_lib)

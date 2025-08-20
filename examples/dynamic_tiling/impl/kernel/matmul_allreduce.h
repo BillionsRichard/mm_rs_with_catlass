@@ -30,7 +30,8 @@ template <
     class ElementA, class LayoutA,
     class ElementB, class LayoutB,
     class ElementC, class LayoutC,
-    class ElementD, class LayoutD
+    class ElementD, class LayoutD,
+    uint32_t M0, uint32_t N0, uint32_t K0
 >
 CATLASS_DEVICE
 void MatmulAllReduceImpl(
@@ -139,6 +140,60 @@ void MatmulAllReduceImpl(
 }
 
 template <
+    class ArchTag,
+    class ElementA, class LayoutA,
+    class ElementB, class LayoutB,
+    class ElementC, class LayoutC,
+    class ElementD, class LayoutD
+>
+CATLASS_DEVICE
+void MatmulAllReduceImpl_M0_256(
+    Catlass::GemmCoord& problemShape,
+    Catlass::GemmCoord& l1TileShape,
+    GM_ADDR gmA, LayoutA& layoutA,
+    GM_ADDR gmB, LayoutB& layoutB,
+    GM_ADDR gmC, LayoutC& layoutC,
+    uint32_t commInterval,
+    Catlass::MatrixCoord& commCoreSplit,
+    Catlass::MatrixCoord& commBlockShape,
+    Catlass::MatrixCoord& commTileShape,
+    GM_ADDR symmetricPtr, LayoutC& layoutD
+)
+{
+    MatmulAllReduceImpl<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC, ElementD, LayoutD, 256, 128, 256>(
+        problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
+         commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr, layoutD
+        );
+}
+
+template <
+    class ArchTag,
+    class ElementA, class LayoutA,
+    class ElementB, class LayoutB,
+    class ElementC, class LayoutC,
+    class ElementD, class LayoutD
+>
+CATLASS_DEVICE
+void MatmulAllReduceImpl_M0_128(
+    Catlass::GemmCoord& problemShape,
+    Catlass::GemmCoord& l1TileShape,
+    GM_ADDR gmA, LayoutA& layoutA,
+    GM_ADDR gmB, LayoutB& layoutB,
+    GM_ADDR gmC, LayoutC& layoutC,
+    uint32_t commInterval,
+    Catlass::MatrixCoord& commCoreSplit,
+    Catlass::MatrixCoord& commBlockShape,
+    Catlass::MatrixCoord& commTileShape,
+    GM_ADDR symmetricPtr, LayoutC& layoutD
+)
+{
+    MatmulAllReduceImpl<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC, ElementD, LayoutD, 128, 256, 256>(
+        problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
+         commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr, layoutD
+        );
+}
+
+template <
     class ElementA, class LayoutA,
     class ElementB, class LayoutB,
     class ElementC, class LayoutC,
@@ -200,10 +255,17 @@ void MatmulAllReduce(
     LayoutC layoutC{m, n, strideC};
     LayoutD layoutD{m0 * commInterval * BLOCK_NUM * WORKSPACE_STAGES, n0, n0};
 
-    MatmulAllReduceImpl<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC, ElementD, LayoutD>
-        (problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
-         commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr, layoutD
-        );
+    if(m0 == 128){
+        MatmulAllReduceImpl_M0_128<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC, ElementD, LayoutD>
+            (problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
+            commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr, layoutD
+            );
+    } else {
+        MatmulAllReduceImpl_M0_256<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC, ElementD, LayoutD>
+            (problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
+            commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr, layoutD
+            );
+    }
 }
 
 #endif // MATMUL_ALLREDUCE_KERNEL_H

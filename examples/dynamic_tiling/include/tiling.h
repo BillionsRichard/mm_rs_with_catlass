@@ -17,8 +17,9 @@
 
 std::vector<uint32_t> vCommInterval = {1, 2, 4, 6, 8, 12, 14};
 std::vector<uint32_t> vCommTileM = {4, 8, 16, 32, 64};
+std::vector<uint32_t> vM0 = {128, 256};
 std::vector<std::pair<uint32_t, uint32_t>> vCommSplitNpuDataPair = {{1, 16}, {1, 20}};
-std::vector<std::vector<uint32_t>> allParams = {vCommInterval, vCommTileM};
+std::vector<std::vector<uint32_t>> allParams = {vCommInterval, vCommTileM, vM0};
 
 int32_t CeilDev(int32_t num, int32_t div)
 {
@@ -43,7 +44,7 @@ bool CheckCommIntervalAllReduce(const CocTilingParams &tiling, int rankSize)
 {
     auto blockCount = MAX_BLOCK_COUNT;
     uint32_t kLoops = CeilDev(tiling.k, tiling.k0);
-    int32_t maxPeerMemPerRank = (LCAL_BUFF_BYTES - FLAG_BUFF_BYTES) / INPUT_DTYPE / rankSize / blockCount;
+    int32_t maxPeerMemPerRank = SHMEM_BUFF_BYTES / INPUT_DTYPE / rankSize / blockCount;
     if (tiling.commInterval * tiling.m0 * tiling.k0 * BLOCK_NUM >= maxPeerMemPerRank) {
         return false;
     }
@@ -54,7 +55,7 @@ bool CheckCommIntervalAllGather(const CocTilingParams &tiling, int rankSize)
 {
     auto blockCount = MAX_BLOCK_COUNT;
     uint32_t kLoops = CeilDev(tiling.k, tiling.k0);
-    int32_t maxPeerMemPerRank = (LCAL_BUFF_BYTES - FLAG_BUFF_BYTES) / INPUT_DTYPE / rankSize / blockCount;
+    int32_t maxPeerMemPerRank = SHMEM_BUFF_BYTES / INPUT_DTYPE / rankSize / blockCount;
     if (tiling.commInterval * tiling.m0 * tiling.k0 * kLoops >= maxPeerMemPerRank) {
         return false;
     }
@@ -87,8 +88,11 @@ void GetTilings(std::vector<CocTilingParams> &tilings, CocTilingParams &t,
     for (const auto &tiling : allTilings) {
         uint32_t idx = 0;
         t.commInterval = tiling[idx++];
-        t.commTileM = tiling[idx++];
-        t.commBlockM = t.commTileM;
+        t.commTileM    = tiling[idx++] * 2;
+        t.commBlockM   = t.commTileM;
+        t.m0           = tiling[idx++];
+        t.k0           = 256;
+        t.n0           = (t.m0 == 128) ? 256 : 128;
         t.commNpuSplit = tiling[idx++];
         t.commDataSplit = tiling[idx++];
 
@@ -109,7 +113,7 @@ bool CreateTilingFile(const std::string filename)
         std::cerr << "Open file failed." << std::endl;
         return false;
     }
-    outFile << "Op,M,K,N,Transpose A,Transpose B,commInterval,commTileM,commBlockM,commNpuSplit,commDataSplit,Time(us)\n";
+    outFile << "Op,M,K,N,Transpose A,Transpose B,M0,commInterval,commTileM,commBlockM,commNpuSplit,commDataSplit,Time(us)\n";
     outFile.close();
     return true;
 }
@@ -129,6 +133,7 @@ bool WriteTilingInfos(std::string opName, std::vector<CocTilingParams> &cocTilin
                    << "," << cocTiling.n
                    << "," << transA
                    << "," << transB
+                   << "," << cocTiling.m0
                    << "," << cocTiling.commInterval
                    << "," << cocTiling.commTileM
                    << "," << cocTiling.commBlockM

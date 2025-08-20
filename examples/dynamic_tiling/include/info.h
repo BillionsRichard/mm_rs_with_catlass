@@ -22,7 +22,7 @@ constexpr uint32_t BLOCK_NUM = 20;
 constexpr uint32_t WARM_UP_TIMES = 10;
 constexpr uint32_t PERF_TEST_CYCLE_TIMES = 3;
 constexpr uint32_t MAX_BLOCK_COUNT = 2;
-constexpr int32_t LCAL_BUFF_BYTES = 204 * 1024 * 1024;
+constexpr int32_t SHMEM_BUFF_BYTES = 256UL * 1024 * 1024;
 constexpr int32_t FLAG_BUFF_BYTES = 5 * 512 * 1024;
 constexpr int32_t INPUT_DTYPE = 2;
 
@@ -39,6 +39,12 @@ struct CocTilingParams {
     uint32_t commDataSplit = 0;
     uint32_t commBlockM = 0;
     uint32_t rankSize = 0;
+};
+
+struct COCMatMulInfo{
+    int64_t m;
+    int64_t k;
+    int64_t n;
 };
 
 #endif // INFO_H

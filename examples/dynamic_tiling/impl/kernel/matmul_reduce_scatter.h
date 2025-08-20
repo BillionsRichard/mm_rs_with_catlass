@@ -30,7 +30,8 @@ template <
     class ElementA, class LayoutA,
     class ElementB, class LayoutB,
     class ElementD, class LayoutD,
-    class ElementSymmetric, class LayoutSymmetric
+    class ElementSymmetric, class LayoutSymmetric,
+    uint32_t M0, uint32_t N0, uint32_t K0
 >
 CATLASS_DEVICE
 void MatmulReduceScatterImpl(
@@ -117,6 +118,65 @@ void MatmulReduceScatterImpl(
 }
 
 template <
+    class ArchTag,
+    class ElementA, class LayoutA,
+    class ElementB, class LayoutB,
+    class ElementD, class LayoutD,
+    class ElementSymmetric, class LayoutSymmetric
+>
+CATLASS_DEVICE
+void MatmulReduceScatterImpl_M0_256(
+    Catlass::GemmCoord& problemShape,
+    Catlass::GemmCoord& l1TileShape,
+    GM_ADDR gmA, LayoutA& layoutA,
+    GM_ADDR gmB, LayoutB& layoutB,
+    GM_ADDR gmD, LayoutD& layoutD,
+    uint32_t rank, uint32_t rankSize, uint32_t commInterval,
+    Catlass::MatrixCoord& commCoreSplit,
+    Catlass::MatrixCoord& commBlockShape,
+    Catlass::MatrixCoord& commTileShape,
+    GM_ADDR symmetricPtr, LayoutSymmetric& layoutSymmetric
+)
+{
+    MatmulReduceScatterImpl<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementD, LayoutD, ElementSymmetric, LayoutSymmetric, 256, 128, 256>(
+        problemShape, l1TileShape,
+        gmA, layoutA, gmB, layoutB, gmD, layoutD,
+        rank, rankSize, commInterval,
+        commCoreSplit, commBlockShape, commTileShape,
+        symmetricPtr, layoutSymmetric
+    );
+}
+
+template <
+    class ArchTag,
+    class ElementA, class LayoutA,
+    class ElementB, class LayoutB,
+    class ElementD, class LayoutD,
+    class ElementSymmetric, class LayoutSymmetric
+>
+CATLASS_DEVICE
+void MatmulReduceScatterImpl_M0_128(
+    Catlass::GemmCoord& problemShape,
+    Catlass::GemmCoord& l1TileShape,
+    GM_ADDR gmA, LayoutA& layoutA,
+    GM_ADDR gmB, LayoutB& layoutB,
+    GM_ADDR gmD, LayoutD& layoutD,
+    uint32_t rank, uint32_t rankSize, uint32_t commInterval,
+    Catlass::MatrixCoord& commCoreSplit,
+    Catlass::MatrixCoord& commBlockShape,
+    Catlass::MatrixCoord& commTileShape,
+    GM_ADDR symmetricPtr, LayoutSymmetric& layoutSymmetric
+)
+{
+    MatmulReduceScatterImpl<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementD, LayoutD, ElementSymmetric, LayoutSymmetric, 128, 256, 256>(
+        problemShape, l1TileShape,
+        gmA, layoutA, gmB, layoutB, gmD, layoutD,
+        rank, rankSize, commInterval,
+        commCoreSplit, commBlockShape, commTileShape,
+        symmetricPtr, layoutSymmetric
+    );
+}
+template <
     class ElementA, class LayoutA,
     class ElementB, class LayoutB,
     class ElementD, class LayoutD,
@@ -158,14 +218,24 @@ void MatmulReduceScatter(
     LayoutB layoutB{k, n};
     LayoutD layoutD{m / rankSize, n};
     LayoutSymmetric layoutSymmetric{m0 * commInterval * BLOCK_NUM * WORKSPACE_STAGES, n0, n0};
-
-    MatmulReduceScatterImpl<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementD, LayoutD, ElementSymmetric, LayoutSymmetric>(
-        problemShape, l1TileShape,
-        gmA, layoutA, gmB, layoutB, gmD, layoutD,
-        rank, rankSize, commInterval,
-        commCoreSplit, commBlockShape, commTileShape,
-        symmetricPtr, layoutSymmetric
-    );
+    
+    if (m0 == 128){
+        MatmulReduceScatterImpl_M0_128<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementD, LayoutD, ElementSymmetric, LayoutSymmetric>(
+            problemShape, l1TileShape,
+            gmA, layoutA, gmB, layoutB, gmD, layoutD,
+            rank, rankSize, commInterval,
+            commCoreSplit, commBlockShape, commTileShape,
+            symmetricPtr, layoutSymmetric
+        );
+    } else {
+        MatmulReduceScatterImpl_M0_256<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementD, LayoutD, ElementSymmetric, LayoutSymmetric>(
+            problemShape, l1TileShape,
+            gmA, layoutA, gmB, layoutB, gmD, layoutD,
+            rank, rankSize, commInterval,
+            commCoreSplit, commBlockShape, commTileShape,
+            symmetricPtr, layoutSymmetric
+        );
+    }
 }
 
 #endif // MATMUL_REDUCE_SCATTER_KERNEL_H

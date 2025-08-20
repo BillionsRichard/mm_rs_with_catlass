@@ -9,6 +9,8 @@
  */
 #include <acl/acl.h>
 #include <runtime/rt_ffts.h>
+#include <fstream>
+#include <string>
 
 #include <iostream>
 #include <vector>
@@ -24,10 +26,11 @@
 #include "host/shmem_host_rma.h"
 #include "host/shmem_host_team.h"
 
-#include "info.h"
 #include "utils.h"
+#include "info.h"
 #include "tiling.h"
 #include "launch_map.h"
+#include "coc_tiling_lut.h"
 
 using half = __fp16;
 
@@ -223,6 +226,7 @@ int main(int argc, char **argv)
         cocTiling.m = m;
         cocTiling.n = n;
         cocTiling.k = k;
+        COCMatMulInfo info{ int64_t(m), int64_t(k), int64_t(n) };
         cocTiling.m0 = M0;
         cocTiling.n0 = N0;
         cocTiling.k0 = K0;
@@ -276,17 +280,27 @@ int main(int argc, char **argv)
             ACL_CHECK(aclrtMemcpy(cDevice, cSizePerRank, matrixCInit.data(), cSizePerRank, ACL_MEMCPY_HOST_TO_DEVICE));
         }
 
-        void *symmPtr = shmem_malloc(LCAL_BUFF_BYTES * sizeof(half));
+        void *symmPtr = shmem_malloc(SHMEM_BUFF_BYTES);
         uint8_t *gmSymmetric = (uint8_t *)symmPtr;
-
+        
         uint32_t warmUpTimes = std::getenv("WARM_UP_TIMES") == nullptr ? WARM_UP_TIMES : std::stoull(std::getenv("WARM_UP_TIMES"));
         uint32_t perfTestCycleTimes = std::getenv("PERF_TEST_CYCLE_TIMES") == nullptr ? PERF_TEST_CYCLE_TIMES : std::stoull(std::getenv("PERF_TEST_CYCLE_TIMES"));
+        uint32_t searchparams = (std::getenv("SEARCH_PARAMS") == nullptr) ? 1U : std::stoul(std::getenv("SEARCH_PARAMS"));
 
         std::vector<CocTilingParams> cocTilings;
         if (warmUpTimes == 0) {
             cocTilings.push_back(cocTiling);
         } else {
-            GetTilings(cocTilings, cocTiling, commType, rankSize);
+            if (searchparams == 1) {
+                // 搜索 tiling
+                GetTilings(cocTilings, cocTiling, commType, rankSize);
+            } else {
+                bool ok = ApplyLookupTable(info, commType, rankSize, cocTiling);
+                if (!ok) {
+                    std::cerr << "[LUT] no table for (" << opName << "," << rankSize << "), using defaults\n";
+                }
+                cocTilings.push_back(cocTiling);
+            }
         }
 
         ACL_CHECK(aclrtSynchronizeStream(stream));
