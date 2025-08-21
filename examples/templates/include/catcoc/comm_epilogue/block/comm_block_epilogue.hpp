@@ -27,4 +27,5 @@ class CommBlockEpilogue {
 
 #include "catcoc/comm_epilogue/block/comm_block_epilogue_to_local_mem.hpp"
 #include "catcoc/comm_epilogue/block/comm_block_epilogue_to_share_mem.hpp"
+#include "catcoc/comm_epilogue/block/comm_block_epilogue_remote_copy.hpp"
 #endif // CATCOC_COMM_EPILOGUE_BLOCK_EPILOGUE_HPP

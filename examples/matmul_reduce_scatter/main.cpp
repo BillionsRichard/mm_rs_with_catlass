@@ -104,15 +104,14 @@ void ShmemMatmulReduceScatter(
 
     constexpr uint32_t UB_STAGES = 2;
     using EpilogueReduceScatterTileShape = Catlass::MatrixShape<32, 256>;
-    using EpilogueReduceScatterDispatch = CommEpilogue::EpilogueAtlasA2CommToLocalMem<UB_STAGES,
+    using EpilogueReduceScatterDispatch = CommEpilogue::EpilogueAtlasA2CommRemoteCopy<UB_STAGES,
         Catcoc::detail::CopyMode::Scatter>;
     using BlockEpilogueReduceScatter = CommEpilogue::Block::CommBlockEpilogue<
         EpilogueReduceScatterDispatch,
         RemoteSrcType, RemoteDstType,
         CommCoreSplit,
         CommBlockShape,
-        EpilogueReduceScatterTileShape, TileRemoteCopy, TileScheduler,
-        BlockMmadScheduler
+        EpilogueReduceScatterTileShape, TileRemoteCopy, TileScheduler
     >;
 
     constexpr uint32_t WORKSPACE_STAGES = 2;
@@ -125,13 +124,7 @@ void ShmemMatmulReduceScatter(
         WORKSPACE_STAGES
     >;
 
-    Catlass::GemmCoord problemShapeInRank = problemShape / Catlass::MakeCoord<uint32_t>(rankSize, 1, 1);
-    BlockMmadScheduler mmadBlockScheduler(problemShapeInRank, L1TileShape::ToCoordMN());
-
-    Catlass::layout::RowMajor layoutSymmetric{
-        L1TileShape::M * COMM_INTERVAL * BLOCK_NUM * WORKSPACE_STAGES, L1TileShape::N,
-        L1TileShape::N
-    };
+    typename BlockEpilogueReduceScatter::Params reduceScatterParams{};
 
     typename MatmulReduceScatterKernel::Params params{
         problemShape, rankIdx, rankSize,
@@ -140,11 +133,7 @@ void ShmemMatmulReduceScatter(
         gmB, layoutB,
         gmD, layoutD,
         gmSymmetric,
-        {
-            reinterpret_cast<__gm__ ElementC *>(gmSymmetric),
-            layoutSymmetric,
-            mmadBlockScheduler
-        }
+        reduceScatterParams
     };
 
     MatmulReduceScatterKernel matmulReduceScatterKernel;

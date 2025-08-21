@@ -42,7 +42,6 @@
 #include "catcoc/dgemm/block/block_swizzle_allgather.hpp"
 #include "catcoc/dgemm/kernel/allgather_matmul.hpp"
 
-static uint32_t gNpuNum = 8;
 static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 1024;
 
 using namespace AscendC;
@@ -53,17 +52,15 @@ constexpr uint32_t BLOCK_NUM = 20;
 using LayoutA = Catlass::layout::RowMajor;
 using LayoutB = Catlass::layout::RowMajor;
 using LayoutC = Catlass::layout::RowMajor;
-using LayoutD = Catlass::layout::RowMajor;
 
 using ElementA = half;
 using ElementB = half;
 using ElementC = half;
-using ElementD = half;
 
 CATLASS_GLOBAL
 void ShmemAllGatherMatmul(
     uint64_t fftsAddr,
-    GM_ADDR gmA, GM_ADDR gmB, GM_ADDR gmD, GM_ADDR gmSymmetric,
+    GM_ADDR gmA, GM_ADDR gmB, GM_ADDR gmC, GM_ADDR gmSymmetric,
     uint32_t m, uint32_t n, uint32_t k)
 {
     // Set FFTS address
@@ -79,7 +76,7 @@ void ShmemAllGatherMatmul(
     Catlass::GemmCoord problemShape{m, n, k};
     LayoutA layoutA{m, k};
     LayoutB layoutB{k, n};
-    LayoutD layoutD{m * rankSize, n};
+    LayoutC layoutC{m * rankSize, n};
 
     // Block level, define BlockMmad
     constexpr bool ENABLE_UNIT_FLAG = true;
@@ -89,35 +86,32 @@ void ShmemAllGatherMatmul(
     using AType = Catlass::Gemm::GemmType<ElementA, LayoutA>;
     using BType = Catlass::Gemm::GemmType<ElementB, LayoutB>;
     using CType = Catlass::Gemm::GemmType<ElementC, LayoutC>;
-    using DType = Catlass::Gemm::GemmType<ElementD, LayoutD>;
     using BlockMmad = Catlass::Gemm::Block::BlockMmad<
         MmadDispatchPolicy, L1TileShape, L0TileShape, AType, BType, CType
     >;
 
-    using BlockMmadScheduler = Catcoc::DGemm::Block::GemmIdentityBlockSwizzleAllGather<7, 1, 2>;
-    using BlockRemapScheduler = Catlass::Gemm::Block::GemmIdentityBlockSwizzle<7, 1>;
+    using BlockMmadScheduler = typename Catcoc::DGemm::Block::GemmBlockSwizzleAllGatherMesh<7, 1>;
     using BlockEpilogueScheduler = Catcoc::CommEpilogue::Block::BlockCommSwizzle<0>;
 
-    using RemoteSrcType = CType;
-    using RemoteDstType = DType;
+    using RemoteSrcType = AType;
+    using RemoteDstType = AType;
     using CopyDirect = Catcoc::detail::CopyDirect;
     using TileRemoteCopy = CommEpilogue::Tile::TileRemoteCopy<ArchTag, RemoteSrcType, RemoteDstType, CopyDirect::Put>;
     using TileScheduler = Catlass::Epilogue::Tile::EpilogueIdentityTileSwizzle;
 
-    using CommBlockShape = Catlass::MatrixShape<64, UINT_MAX>;
+    using CommBlockShape = Catlass::MatrixShape<64, UINT_MAX / 2>;
     using CommCoreSplit = Catlass::MatrixShape<20, 1>;
 
     constexpr uint32_t UB_STAGES = 2;
     using EpilogueAllGatherTileShape = Catlass::MatrixShape<32, 256>;
-    using EpilogueAllGatherDispatch = CommEpilogue::EpilogueAtlasA2CommToShareMem<UB_STAGES,
+    using EpilogueAllGatherDispatch = CommEpilogue::EpilogueAtlasA2CommRemoteCopy<UB_STAGES,
         Catcoc::detail::CopyMode::Gather>;
     using BlockEpilogueAllGather = CommEpilogue::Block::CommBlockEpilogue<
         EpilogueAllGatherDispatch,
         RemoteSrcType, RemoteDstType,
         CommCoreSplit,
         CommBlockShape,
-        EpilogueAllGatherTileShape, TileRemoteCopy, TileScheduler,
-        BlockRemapScheduler
+        EpilogueAllGatherTileShape, TileRemoteCopy, TileScheduler
     >;
 
     constexpr uint32_t WORKSPACE_STAGES = 2;
@@ -130,15 +124,7 @@ void ShmemAllGatherMatmul(
         WORKSPACE_STAGES
     >;
 
-    Catlass::GemmCoord remapProblemShape{problemShape.m(), problemShape.k(), problemShape.k()};
-    BlockRemapScheduler remapBlockScheduler(remapProblemShape,
-        Catlass::MakeCoord(L1TileShape::M, problemShape.k()));
-
-    Catlass::layout::RowMajor layoutSymmetric{
-        L1TileShape::M * COMM_INTERVAL * rankSize * WORKSPACE_STAGES,
-        k,
-        k
-    };
+    typename BlockEpilogueAllGather::Params allGatherParams{};
 
     // Prepare params
     typename AllGatherMatmulKernel::Params params{
@@ -147,13 +133,9 @@ void ShmemAllGatherMatmul(
         COMM_INTERVAL,
         gmA, layoutA,
         gmB, layoutB,
-        gmD, layoutD,
+        gmC, layoutC,
         gmSymmetric,
-        {
-            reinterpret_cast<__gm__ ElementC *>(gmSymmetric),
-            layoutSymmetric,
-            remapBlockScheduler
-        }
+        allGatherParams
     };
 
     // Call kernel
@@ -249,7 +231,7 @@ int main(int argc, char **argv)
 
     size_t aSize = static_cast<size_t>(m) * k * sizeof(__fp16);
     size_t bSize = static_cast<size_t>(k) * n * sizeof(__fp16);
-    size_t dSize = static_cast<size_t>(m) * rankSize * n * sizeof(__fp16);
+    size_t cSize = static_cast<size_t>(m) * rankSize * n * sizeof(__fp16);
 
     uint8_t *aDevice;
     ACL_CHECK(aclrtMalloc((void **)(&aDevice), aSize, ACL_MEM_MALLOC_HUGE_FIRST));
@@ -265,10 +247,10 @@ int main(int argc, char **argv)
     ReadFile(options.GetDataPath("rank_" + std::to_string(rankId) + "_b.bin"), bHost, bSize);
     ACL_CHECK(aclrtMemcpy(bDevice, bSize, bHost, bSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
-    uint8_t *dDevice;
-    ACL_CHECK(aclrtMalloc((void **)(&dDevice), dSize, ACL_MEM_MALLOC_HUGE_FIRST));
-    uint8_t *dHost;
-    ACL_CHECK(aclrtMallocHost((void **)(&dHost), dSize));
+    uint8_t *cDevice;
+    ACL_CHECK(aclrtMalloc((void **)(&cDevice), cSize, ACL_MEM_MALLOC_HUGE_FIRST));
+    uint8_t *cHost;
+    ACL_CHECK(aclrtMallocHost((void **)(&cHost), cSize));
 
     void *symmPtr = shmem_malloc((204 * 1024 * 1024) * sizeof(__fp16));
     uint8_t *gmSymmetric = (uint8_t *)symmPtr;
@@ -278,15 +260,15 @@ int main(int argc, char **argv)
     for (int i = 0; i < 1; i++) {
         ShmemAllGatherMatmul<<<BLOCK_NUM, nullptr, stream>>>(
             shmemx_get_ffts_config(),
-            aDevice, bDevice, dDevice, gmSymmetric,
+            aDevice, bDevice, cDevice, gmSymmetric,
             m, n, k
         );
     }
     ACL_CHECK(aclrtSynchronizeStream(stream));
     std::cout << "After calling AG_MM kernel " << std::endl;
 
-    ACL_CHECK(aclrtMemcpy(dHost, dSize, dDevice, dSize, ACL_MEMCPY_DEVICE_TO_HOST));
-    WriteFile(options.GetDataPath("shmem_output.bin"), dHost, dSize);
+    ACL_CHECK(aclrtMemcpy(cHost, cSize, cDevice, cSize, ACL_MEMCPY_DEVICE_TO_HOST));
+    WriteFile(options.GetDataPath("shmem_output.bin"), cHost, cSize);
     if (rankId == 0) {
         std::printf("test finished\n");
     }
@@ -295,10 +277,10 @@ int main(int argc, char **argv)
 
     ACL_CHECK(aclrtFreeHost(aHost));
     ACL_CHECK(aclrtFreeHost(bHost));
-    ACL_CHECK(aclrtFreeHost(dHost));
+    ACL_CHECK(aclrtFreeHost(cHost));
     ACL_CHECK(aclrtFree(aDevice));
     ACL_CHECK(aclrtFree(bDevice));
-    ACL_CHECK(aclrtFree(dDevice));
+    ACL_CHECK(aclrtFree(cDevice));
 
     std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
     status = shmem_finalize();

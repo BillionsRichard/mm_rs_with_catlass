@@ -7,7 +7,6 @@ using namespace AscendC;
 using ElementA = half;
 using ElementB = half;
 using ElementC = half;
-using ElementD = half;
 
 using LayoutA0 = Catlass::layout::RowMajor;
 using LayoutB0 = Catlass::layout::RowMajor;
@@ -16,7 +15,6 @@ using LayoutA1 = Catlass::layout::ColumnMajor;
 using LayoutB1 = Catlass::layout::ColumnMajor;
 
 using LayoutC = Catlass::layout::RowMajor;
-using LayoutD = Catlass::layout::RowMajor;
 
 void LaunchMatmulAllReduceFP16(
     void *stream, uint64_t fftsAddr,
@@ -28,16 +26,16 @@ void LaunchMatmulAllReduceFP16(
     (void)aW;
     (void)bW;
     if (!transA && !transB) {
-        MatmulAllReduce<ElementA, LayoutA0, ElementB, LayoutB0, ElementC, LayoutC, ElementD, LayoutD>
+        MatmulAllReduce<ElementA, LayoutA0, ElementB, LayoutB0, ElementC, LayoutC>
             <<<BLOCK_NUM, nullptr, stream>>>(fftsAddr, a, b, c, symmetricPtr, cocTiling);
     } else if (!transA && transB) {
-        MatmulAllReduce<ElementA, LayoutA0, ElementB, LayoutB1, ElementC, LayoutC, ElementD, LayoutD>
+        MatmulAllReduce<ElementA, LayoutA0, ElementB, LayoutB1, ElementC, LayoutC>
             <<<BLOCK_NUM, nullptr, stream>>>(fftsAddr, a, b, c, symmetricPtr, cocTiling);
     } else if (transA && !transB) {
-        MatmulAllReduce<ElementA, LayoutA1, ElementB, LayoutB0, ElementC, LayoutC, ElementD, LayoutD>
+        MatmulAllReduce<ElementA, LayoutA1, ElementB, LayoutB0, ElementC, LayoutC>
             <<<BLOCK_NUM, nullptr, stream>>>(fftsAddr, a, b, c, symmetricPtr, cocTiling);
     } else {
-        MatmulAllReduce<ElementA, LayoutA1, ElementB, LayoutB1, ElementC, LayoutC, ElementD, LayoutD>
+        MatmulAllReduce<ElementA, LayoutA1, ElementB, LayoutB1, ElementC, LayoutC>
             <<<BLOCK_NUM, nullptr, stream>>>(fftsAddr, a, b, c, symmetricPtr, cocTiling);
     }
 }
@@ -52,10 +50,10 @@ void LaunchAllGatherMatmulFP16(
     (void)aW;
     (void)bW;
     if (!transA && !transB) {
-        AllGatherMatmul<ElementA, LayoutA0, ElementB, LayoutB0, ElementC, LayoutC, ElementD, LayoutD>
+        AllGatherMatmul<ElementA, LayoutA0, ElementB, LayoutB0, ElementC, LayoutC>
             <<<BLOCK_NUM, nullptr, stream>>>(fftsAddr, a, b, c, symmetricPtr, cocTiling);
     } else if (!transA && transB) {
-        AllGatherMatmul<ElementA, LayoutA0, ElementB, LayoutB1, ElementC, LayoutC, ElementD, LayoutD>
+        AllGatherMatmul<ElementA, LayoutA0, ElementB, LayoutB1, ElementC, LayoutC>
             <<<BLOCK_NUM, nullptr, stream>>>(fftsAddr, a, b, c, symmetricPtr, cocTiling);
     }
 }
@@ -70,16 +68,16 @@ void LaunchMatmulReduceScatterFP16(
     (void)aW;
     (void)bW;
     if (!transA && !transB) {
-        MatmulReduceScatter<ElementA, LayoutA0, ElementB, LayoutB0, ElementC, LayoutC, ElementD, LayoutD>
+        MatmulReduceScatter<ElementA, LayoutA0, ElementB, LayoutB0, ElementC, LayoutC>
             <<<BLOCK_NUM, nullptr, stream>>>(fftsAddr, a, b, c, symmetricPtr, cocTiling);
     } else if (!transA && transB) {
-        MatmulReduceScatter<ElementA, LayoutA0, ElementB, LayoutB1, ElementC, LayoutC, ElementD, LayoutD>
+        MatmulReduceScatter<ElementA, LayoutA0, ElementB, LayoutB1, ElementC, LayoutC>
             <<<BLOCK_NUM, nullptr, stream>>>(fftsAddr, a, b, c, symmetricPtr, cocTiling);
     } else if (transA && !transB) {
-        MatmulReduceScatter<ElementA, LayoutA1, ElementB, LayoutB0, ElementC, LayoutC, ElementD, LayoutD>
+        MatmulReduceScatter<ElementA, LayoutA1, ElementB, LayoutB0, ElementC, LayoutC>
             <<<BLOCK_NUM, nullptr, stream>>>(fftsAddr, a, b, c, symmetricPtr, cocTiling);
     } else {
-        MatmulReduceScatter<ElementA, LayoutA1, ElementB, LayoutB1, ElementC, LayoutC, ElementD, LayoutD>
+        MatmulReduceScatter<ElementA, LayoutA1, ElementB, LayoutB1, ElementC, LayoutC>
             <<<BLOCK_NUM, nullptr, stream>>>(fftsAddr, a, b, c, symmetricPtr, cocTiling);
     }
 }
