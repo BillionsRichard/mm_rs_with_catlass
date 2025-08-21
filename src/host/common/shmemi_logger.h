@@ -33,6 +33,7 @@ enum log_level : int32_t {
     INFO_LEVEL,
     WARN_LEVEL,
     ERROR_LEVEL,
+    FATAL_LEVEL,
     BUTT_LEVEL /* no use */
 };
 
@@ -107,9 +108,9 @@ private:
     }
 
 private:
-    const std::string m_log_level_desc[BUTT_LEVEL] = {"debug", "info", "warn", "error"};
+    const std::string m_log_level_desc[BUTT_LEVEL] = {"debug", "info", "warn", "error", "fatal"};
 
-    log_level m_log_level = INFO_LEVEL;
+    log_level m_log_level = ERROR_LEVEL;
     external_log m_log_func = nullptr;
 };
 }  // namespace shm
