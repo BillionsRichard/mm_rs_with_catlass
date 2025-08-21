@@ -44,8 +44,6 @@ git submodule init
 function fn_build()
 {
     fn_build_memfabric
-    git submodule update --recursive 3rdparty/catlass
-
     rm -rf build
     mkdir -p build
 
@@ -216,6 +214,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         -examples)
+            cd $THIRD_PARTY_DIR; [[ ! -d "catlass" ]] && git clone https://gitee.com/ascend/catlass; cd $PROJECT_ROOT
             COMPILE_OPTIONS="${COMPILE_OPTIONS} -DUSE_EXAMPLES=ON"
             shift
             ;;
