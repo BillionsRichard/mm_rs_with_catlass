@@ -167,7 +167,8 @@ public:
         AscendC::GlobalTensor<ElementSrc> const& gmC,
         LayoutSrc const &layoutC,
         uint32_t const &globalLoopIdx,
-        uint32_t const &rankIdx)
+        uint32_t const &rankIdx,
+        int32_t const &teamIdx)
     {
         // Remap the idx & actual shape of the gemm block
         GemmCoord remapOutputBlockCoordMNK = params.gemmRemapper.GetBlockCoord(globalLoopIdx);
@@ -216,7 +217,8 @@ public:
                 actualTileShape,
                 ubSList[ubListId],
                 copyEventIdList[ubListId],
-                rankIdx
+                rankIdx,
+                teamIdx
             );
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(copyEventIdList[ubListId]);
             ubListId = (ubListId + 1 < UB_STAGES) ? (ubListId + 1) : 0;

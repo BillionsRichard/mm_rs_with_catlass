@@ -56,7 +56,7 @@ void ShmemQuantMatmulReduceScatter(
     uint64_t fftsAddr,
     GM_ADDR x1, GM_ADDR x2, GM_ADDR scale_x1, GM_ADDR scale_x2, GM_ADDR bias,
     GM_ADDR c_accum, GM_ADDR d_out, GM_ADDR symmetricPtr,
-    uint32_t m, uint32_t n, uint32_t k
+    uint32_t m, uint32_t n, uint32_t k, shmem_team_t teamIdx = 0
 )
 {
     // Set FFTS address
@@ -68,8 +68,8 @@ void ShmemQuantMatmulReduceScatter(
     Catlass::GemmCoord problemShape{m, n, k};
 
     // Prepare comm address
-    uint32_t rank = shmem_my_pe();
-    uint32_t rankSize = shmem_n_pes();
+    uint32_t rank = shmem_team_my_pe(teamIdx);
+    uint32_t rankSize = shmem_team_n_pes(teamIdx);
 
     // Define layouts
     Catlass::layout::RowMajor layoutA{m, k, k};
@@ -184,7 +184,7 @@ void ShmemQuantMatmulReduceScatter(
     // Prepare params
     typename QuantMatmulReduceScatterKernel::Params params{
         problemShape,
-        rank, rankSize,
+        rank, rankSize, teamIdx,
         x1, layoutA,
         x2, layoutB,
         bias, layout_bias, // Pass bias pointer directly
@@ -281,6 +281,7 @@ int main(int argc, char **argv)
     ACL_CHECK(aclInit(nullptr));
     ACL_CHECK(aclrtSetDevice(deviceId));
     ACL_CHECK(aclrtCreateStream(&stream));
+    status = shmem_set_conf_store_tls(false, nullptr, 0);
     shmem_init_attr_t *attributes;
     status = shmem_set_attr(rankId, rankSize, gNpuMallocSpace, ipPort.c_str(), &attributes);
     status = shmem_init_attr(attributes);

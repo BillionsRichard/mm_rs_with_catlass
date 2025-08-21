@@ -58,6 +58,8 @@ public:
         GemmCoord problemShape; // The shape of the entire problem (M, N, K)
         uint32_t rankIdx;       // The ID of the current compute card (Rank)
         uint32_t rankSize;      // The total number of compute cards
+        int32_t teamIdx;
+
         GM_ADDR ptrA; LayoutA layoutA; // Global memory address and layout of matrix A
         GM_ADDR ptrB; LayoutB layoutB; // Global memory address and layout of matrix B
         GM_ADDR ptrBias; LayoutBias layoutBias; // Global memory address and layout of Bias
@@ -70,8 +72,8 @@ public:
 
         CATLASS_DEVICE Params() {} // Default constructor
         CATLASS_DEVICE Params(     // Parameterized constructor, for host-side initialization
-            GemmCoord const &problemShape_, 
-            uint32_t rank_, uint32_t rankSize_,
+            GemmCoord const &problemShape_,
+            uint32_t rank_, uint32_t rankSize_, int32_t teamIdx_,
             GM_ADDR ptrA_, LayoutA const &layoutA_, 
             GM_ADDR ptrB_, LayoutB const &layoutB_, 
             GM_ADDR ptrBias_, LayoutBias const &layoutBias_, 
@@ -81,7 +83,7 @@ public:
             GM_ADDR ptrD_out_, LayoutD const &layoutD_out_, 
             uint32_t commInterval_
         ) : problemShape(problemShape_), 
-            rankIdx(rank_), rankSize(rankSize_),
+            rankIdx(rank_), rankSize(rankSize_), teamIdx(teamIdx_),
             ptrA(ptrA_), layoutA(layoutA_), 
             ptrB(ptrB_), layoutB(layoutB_), 
             ptrBias(ptrBias_), layoutBias(layoutBias_), 
@@ -312,7 +314,7 @@ public:
 
                     reduceScatter(blockShapeMN, offsetOut, offsetIn, actualCommBlockShape, 
                                  gmC_accum, params.layoutC_accum, globalLoopIdx, 
-                                 remoteRankIdx % params.rankSize);
+                                 remoteRankIdx % params.rankSize, params.teamIdx);
                 }       
             }
             reduceScatter.ReleaseEventID();

@@ -44,7 +44,7 @@ void MatmulReduceScatterImpl(
     Catlass::MatrixCoord& commCoreSplit,
     Catlass::MatrixCoord& commBlockShape,
     Catlass::MatrixCoord& commTileShape,
-    GM_ADDR symmetricPtr, LayoutSymmetric& layoutSymmetric
+    GM_ADDR symmetricPtr, LayoutSymmetric& layoutSymmetric, shmem_team_t teamIdx = 0
 )
 {
     constexpr bool ENABLE_UNIT_FLAG = true;
@@ -93,10 +93,13 @@ void MatmulReduceScatterImpl(
     Catlass::GemmCoord problemShapeInRank = problemShape / Catlass::MakeCoord<uint32_t>(rankSize, 1, 1);
     BlockMmadScheduler matmulBlockScheduler(problemShapeInRank, Catlass::MakeCoord<uint32_t>(M0, N0));
 
+    // uint32_t rank = shmem_team_my_pe(teamIdx);
+    // uint32_t rankSize = shmem_team_n_pes(teamIdx);
+
     // Prepare params
     typename MatmulReduceScatterKernel::Params params{
         problemShape,
-        rank, rankSize,
+        rank, rankSize, teamIdx,
         commInterval,
         gmA, layoutA,
         gmB, layoutB,
@@ -184,7 +187,7 @@ template <
 >
 CATLASS_GLOBAL
 void MatmulReduceScatter(
-    uint64_t fftsAddr, GM_ADDR gmA, GM_ADDR gmB, GM_ADDR gmD, GM_ADDR symmetricPtr, CocTilingParams cocTiling
+    uint64_t fftsAddr, GM_ADDR gmA, GM_ADDR gmB, GM_ADDR gmD, GM_ADDR symmetricPtr, CocTilingParams cocTiling, shmem_team_t teamIdx = 0
 )
 {
     AscendC::SetSyncBaseAddr(fftsAddr);
@@ -211,8 +214,8 @@ void MatmulReduceScatter(
     Catlass::MatrixCoord commBlockShape{commBlockM, n0};
     Catlass::MatrixCoord commTileShape{commTileM / 2, n0};
 
-    uint32_t rank = shmem_my_pe();
-    uint32_t rankSize = shmem_n_pes();
+    uint32_t rank = shmem_team_my_pe(teamIdx);
+    uint32_t rankSize = shmem_team_n_pes(teamIdx);
 
     LayoutA layoutA{m, k};
     LayoutB layoutB{k, n};
