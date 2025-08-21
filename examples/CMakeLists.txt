@@ -54,6 +54,7 @@ foreach(EXAMPLE
     allgather_matmul
     matmul_allreduce
     matmul_reduce_scatter
+    quant_matmul_reduce_scatter
     dynamic_tiling
 )
     add_subdirectory(${EXAMPLE})
