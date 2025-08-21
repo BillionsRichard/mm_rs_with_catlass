@@ -103,8 +103,9 @@ function fn_build_googletest()
     if [ -d "$THIRD_PARTY_DIR/googletest/lib" ]; then
         return 0
     fi
-    git submodule update --recursive 3rdparty/googletest
-    cd $THIRD_PARTY_DIR/googletest
+    cd $THIRD_PARTY_DIR
+    [[ ! -d "googletest" ]] && git clone --branch v1.14.0 --depth 1 https://github.com/google/googletest.git
+    cd googletest
     rm -rf build && mkdir build && cd build
     cmake .. -DCMAKE_INSTALL_PREFIX=$THIRD_PARTY_DIR/googletest -DCMAKE_SKIP_RPATH=TRUE -DCMAKE_CXX_FLAGS="-fPIC"
     cmake --build . --parallel $(nproc)

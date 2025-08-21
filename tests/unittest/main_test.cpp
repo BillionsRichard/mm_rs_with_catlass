@@ -33,6 +33,8 @@ void test_init(int rank_id, int n_ranks, uint64_t local_mem_size, aclrtStream *s
     aclrtStream stream = nullptr;
     EXPECT_EQ(status = aclrtCreateStream(&stream), 0);
 
+    EXPECT_EQ(status = shmem_set_conf_store_tls(false, nullptr, 0), 0);
+
     shmem_init_attr_t* attributes;
     shmem_set_attr(rank_id, n_ranks, local_mem_size, test_global_ipport, &attributes);
     status = shmem_init_attr(attributes);

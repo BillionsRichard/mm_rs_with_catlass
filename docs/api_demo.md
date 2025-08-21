@@ -66,7 +66,44 @@ aclFinalize();
 
 ```
 
-## Team API
+### 自定义日志打印
+
+自定义日志打印是可选操作，如果未注册自定义日志打印函数，日志则默认打屏，接口示例如下。
+```c
+void cpp_logger_example(int level, const char* msg)
+{
+    // do print here
+}
+
+// set self-defined log
+int ret = shmem_set_extern_logger(cpp_logger_example);
+
+// set log level. 0-debug, 1-info, 2-warn, 3-error
+ret = shmem_set_log_level(level);
+```
+
+### 注册私钥口令解密函数
+
+shmem的多卡之间业务面TCP通信，通过memfabric_hybrid提供的能力实现，为了保证通信安全，该特性默认开启，使用时传入初始化TLS信息，TLS信息格式参考docs/security.md样例，其中私钥是密文，私钥口令是密文，私钥口令解密函数通过如下方式注册，调用者实现解密过程。
+
+```c
+int my_key_password_decrypt_handler(const char *cipherText, size_t cipherTextLen, char *plainText, size_t &plainTextLen)
+{
+    // cipherText: input encrypted key password
+    // plainText: output decrypted key password
+    // plainTextLen: output decrypted key password length
+    // do decrypt here
+}
+
+int ret = shmem_register_decrypt_handler(my_key_password_decrypt_handler);
+```
+
+如需关闭加密特性，则调用如下接口。关闭后，则无需调用shmem_register_decrypt_handler注册接口。
+```c
+int ret = shmem_set_conf_store_tls(false, nullptr, 0);
+```
+
+### Team API
 SHMEM的通信域管理接口样例
 
 ### host侧接口样例

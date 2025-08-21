@@ -68,6 +68,45 @@ int shmem_initialize(int rank, int world_size, int64_t mem_size)
 
     return 0;
 }
+
+static int py_decrypt_handler_wrapper(const char *cipherText, size_t cipherTextLen, char *plainText, size_t &plainTextLen)
+{
+    if (cipherTextLen > MAX_CIPHER_LEN || !g_py_decrypt_func || g_py_decrypt_func.is_none()) {
+        std::cerr << "input cipher len is too long or decrypt func invalid." << std::endl;
+        return -1;
+    }
+
+    try {
+        py::str py_cipher = py::str(cipherText, cipherTextLen);
+        std::string plain = py::cast<std::string>(g_py_decrypt_func(py_cipher).cast<py::str>());
+        if (plain.size() >= plainTextLen) {
+            std::cerr << "output cipher len is too long" << std::endl;
+            return -1;
+        }
+
+        std::copy(plain.begin(), plain.end(), plainText);
+        plainText[plain.size()] = '\0';
+        plainTextLen = plain.size();
+        return 0;
+    } catch (const py::error_already_set &e) {
+        return -1;
+    }
+}
+
+int32_t register_python_decrypt_handler(py::function py_decrypt_func)
+{
+    if (!py_decrypt_func || py_decrypt_func.is_none()) {
+        return shmem_register_decrypt_handler(nullptr);
+    }
+
+    g_py_decrypt_func = py_decrypt_func;
+    return shmem_register_decrypt_handler(py_decrypt_handler_wrapper);
+}
+
+int32_t shmem_set_conf_store_tls_info(bool enable, std::string &tls_info)
+{
+    return shmem_set_conf_store_tls(enable, tls_info.c_str(), tls_info.size());
+}
 }
 }
 
@@ -89,6 +128,28 @@ Returns:
           R"(
 Finalize share memory module.
     )");
+
+    m.def("register_decrypt_handler", &shm::register_python_decrypt_handler, py::call_guard<py::gil_scoped_release>(),
+          py::arg("py_decrypt_func"), R"(
+Register a Python decrypt handler.
+Parameters:
+    py_decrypt_func (callable): Python function that accepts (str cipher_text) and returns (str plain_text)
+        cipher_text: the encrypted text (private key password)
+        plain_text: the decrypted text (private key password)
+Returns:
+    returns zero on success. On error, none-zero is returned.
+)");
+
+    m.def("set_conf_store_tls", &shm::shmem_set_conf_store_tls_info, py::call_guard<py::gil_scoped_release>(),
+          py::arg("enable"), py::arg("tls_info"), R"(
+set the config store tls info.
+Parameters:
+    enable (boolean): enable config store tls or not
+        tls_info (string): tls config string
+Returns:
+    returns zero on success. On error, none-zero is returned.
+)");
+
 
     m.def(
         "shmem_malloc",

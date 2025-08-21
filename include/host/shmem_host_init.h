@@ -70,6 +70,40 @@ SHMEM_HOST_API int shmem_set_timeout(shmem_init_attr_t *attributes, uint32_t val
 SHMEM_HOST_API int shmem_init_attr(shmem_init_attr_t *attributes);
 
 /**
+ * @brief Register a decrypt key password handler.
+ *
+ * @param decrypt_handler decrypt function pointer
+ * @return Returns 0 on success or an error code on failure
+ */
+SHMEM_HOST_API int32_t shmem_register_decrypt_handler(const shmem_decrypt_handler decrypt_handler);
+
+/**
+ * @brief Set the log print function for the SHMEM library.
+ *
+ * @param func the logging function, takes level and msg as parameter
+ * @return Returns 0 on success or an error code on failure
+ */
+SHMEM_HOST_API int32_t shmem_set_extern_logger(void (*func)(int level, const char *msg));
+
+/**
+ * @brief Set the logging level.
+ *
+ * @param level the logging level. 0-debug, 1-info, 2-warn, 3-error
+ * @return Returns 0 on success or an error code on failure
+ */
+SHMEM_HOST_API int32_t shmem_set_log_level(int level);
+
+/**
+ * @brief Initialize the config store tls info.
+ *
+ * @param enable whether to enable tls
+ * @param tls_info the format describle in memfabric SECURITYNOTE.md, if disabled tls_info won't be use
+ * @param tls_info_len length of tls_info, if disabled tls_info_len won't be use
+ * @return Returns 0 on success or an error code on failure
+ */
+SHMEM_HOST_API int32_t shmem_set_conf_store_tls(bool enable, const char *tls_info, const uint32_t tls_info_len);
+
+/**
  * @brief Release all resources used by the SHMEM library.
  *
  * @return Returns 0 on success or an error code on failure

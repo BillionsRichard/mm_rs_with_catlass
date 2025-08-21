@@ -248,6 +248,7 @@ int main(int argc, char **argv)
     ACL_CHECK(aclInit(nullptr));
     ACL_CHECK(aclrtSetDevice(deviceId));
     ACL_CHECK(aclrtCreateStream(&stream));
+    status = shmem_set_conf_store_tls(false, nullptr, 0);
     shmem_init_attr_t *attributes;
     status = shmem_set_attr(rankId, rankSize, NPU_MALLOC_SPACE, ipPort.c_str(), &attributes);
     status = shmem_init_attr(attributes);

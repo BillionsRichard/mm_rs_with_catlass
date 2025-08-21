@@ -174,6 +174,8 @@ int main(int argc, char *argv[])
     f_npu = atoi(argv[6]);
     data_type = argv[7];
     uint64_t local_mem_size = 1024UL * 1024UL * 1024;
+    int32_t ret = shmem_set_conf_store_tls(false, nullptr, 0);
+    std::cout << "init shmem tls result:" << ret << std::endl;
     if (std::string(data_type) == "int") {
         status = test_shmem_all_gather<int>(rank_id, n_ranks, local_mem_size);
     }

@@ -95,6 +95,16 @@ typedef struct {
     shmem_init_optional_attr_t option_attr;  
 } shmem_init_attr_t;
 
+/**
+ * @brief Callback function of private key password decryptor, see shmem_register_decrypt_handler
+ *
+ * @param cipherText       [in] the encrypted text(private password)
+ * @param cipherTextLen    [in] the length of encrypted text
+ * @param plainText        [out] the decrypted text(private password)
+ * @param plaintextLen     [out] the length of plainText
+ */
+typedef int (*shmem_decrypt_handler)(const char *cipherText, size_t cipherTextLen, char *plainText, size_t &plainTextLen);
+
 /**@} */ // end of group_structs
 
 #ifdef __cplusplus
