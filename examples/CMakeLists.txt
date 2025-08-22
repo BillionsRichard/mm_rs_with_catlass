@@ -54,6 +54,7 @@ foreach(EXAMPLE
     allgather_matmul
     matmul_allreduce
     matmul_reduce_scatter
+    # matmul_reduce_scatter_quant_perchn
     quant_matmul_reduce_scatter
     dynamic_tiling
 )
