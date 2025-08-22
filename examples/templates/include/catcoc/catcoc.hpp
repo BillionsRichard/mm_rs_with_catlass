@@ -7,7 +7,7 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
- 
+
 #ifndef CATCOC_HPP
 #define CATCOC_HPP
 
@@ -17,6 +17,17 @@
 #include "catlass/coord.hpp"
 
 namespace Catcoc {
+
+template <typename Index, typename LongIndex, int RANK>
+CATLASS_HOST_DEVICE
+LongIndex Numel(Catlass::Coord<RANK, Index, LongIndex> const &coord)
+{
+    LongIndex product = 1;
+    for (int i = 0; i < RANK; ++i) {
+        product *= static_cast<LongIndex>(coord[i]);
+    }
+    return product;
+}
 
 template <typename Index, typename LongIndex, int RANK>
 CATLASS_HOST_DEVICE

@@ -6,6 +6,7 @@ class CommType(IntEnum):
     MATMUL_ALLREDUCE = 0
     ALLGATHER_MATMUL = 1
     MATMUL_REDUCE_SCATTER = 2
+    ALLGATHER_MATMUL_WITH_GATHER_RESULT = 4
 
     @classmethod
     def from_str(cls, arg: str):
@@ -19,7 +20,7 @@ class DataType(IntEnum):
     @classmethod
     def from_str(cls, arg: str):
         return cls(int(arg))
-    
+
     @property
     def torch_type(self):
         return {
@@ -27,7 +28,7 @@ class DataType(IntEnum):
             DataType.FLOAT16: torch.float16,
             DataType.BF16: torch.bfloat16,
         }[self]
-    
+
 def tensor_to_file(tensor: torch.Tensor, file_name: str) -> None:
     if tensor.dtype == torch.bfloat16:
         tensor.view(torch.uint16).numpy().tofile(file_name)

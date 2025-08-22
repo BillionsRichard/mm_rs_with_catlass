@@ -96,7 +96,8 @@ void GetTilings(std::vector<CocTilingParams> &tilings, CocTilingParams &t,
         t.commNpuSplit = tiling[idx++];
         t.commDataSplit = tiling[idx++];
 
-        if (commType == ALLGATHER_MATMUL && !CheckCommIntervalAllGather(t, rankSize))
+        if ((commType == ALLGATHER_MATMUL || commType == ALLGATHER_MATMUL_WITH_GATHER_RESULT)
+            && !CheckCommIntervalAllGather(t, rankSize))
             continue;
         if (commType == MATMUL_REDUCE_SCATTER && !CheckCommIntervalReduceScatter(t, rankSize))
             continue;

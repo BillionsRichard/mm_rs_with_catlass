@@ -28,6 +28,9 @@ const std::map<LutKey, const LUTGroup*> g_allLutGroups = {
   {{ALLGATHER_MATMUL, 2}, &AllGather2p},
   {{ALLGATHER_MATMUL, 4}, &AllGather4p},
   {{ALLGATHER_MATMUL, 8}, &AllGather8p},
+  {{ALLGATHER_MATMUL_WITH_GATHER_RESULT, 2}, &AllGather2p},
+  {{ALLGATHER_MATMUL_WITH_GATHER_RESULT, 4}, &AllGather4p},
+  {{ALLGATHER_MATMUL_WITH_GATHER_RESULT, 8}, &AllGather8p},
   // 继续添加...
 };
 

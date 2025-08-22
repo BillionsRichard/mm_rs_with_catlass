@@ -30,7 +30,7 @@ struct BlockCommSwizzle {
 
     static_assert((IS_DETERMINISTIC && SWIZZLE_DIRECTION == 0) || !IS_DETERMINISTIC,
         "Deterministic calculation requires that the swizzle direction be 0.");
-    
+
     DistMatrixCoord problemShape;
     DistMatrixCoord loops;
 
@@ -48,7 +48,7 @@ struct BlockCommSwizzle {
     {
         blockShape = Catlass::MakeCoord<uint32_t>(blockShapeInRank_.row(), blockShapeInRank_.column(), 1);
         loops = Catlass::MakeCoord<uint32_t>(loopsInRank_.row(), loopsInRank_.column(), problemShape_.rank());
-        
+
         if constexpr (IS_DETERMINISTIC) {
             coreSplit = MatrixCoord{coreSplit.row() * coreSplit.column(), 1};
         }
@@ -112,10 +112,10 @@ struct BlockCommSwizzle {
         problemShape = problemShape_;
         loops = CeilDiv(problemShape, blockShape);
     }
-    
+
     CATLASS_DEVICE
     uint32_t GetCoreLoop() const
-    {   
+    {
         if constexpr (IS_DETERMINISTIC) {
             return RoundUp<uint32_t>(loops.row() * loops.column(), coreSplit.row()) * loops.rank();
         } else {
@@ -212,6 +212,62 @@ struct BlockCommSwizzle {
         auto residue = problemShape.GetCoordInRank() - Min<uint32_t, 2>(problemShape.GetCoordInRank(), blockOffset);
         auto actualBlockShape = Min(blockShape.GetCoordInRank(), residue);
         return actualBlockShape;
+    }
+};
+
+struct BlockSchedulerCopyGatherA {
+    DistMatrixCoord problemShape;
+    DistMatrixCoord tileShape;
+    DistMatrixCoord gridShape;
+
+    CATLASS_DEVICE
+    BlockSchedulerCopyGatherA() = default;
+
+    CATLASS_DEVICE
+    BlockSchedulerCopyGatherA(DistMatrixCoord const &problemShape_, DistMatrixCoord const &tileShape_) :
+        problemShape(problemShape_), tileShape(tileShape_)
+    {
+        gridShape = CeilDiv(problemShape, tileShape);
+    }
+
+    CATLASS_DEVICE
+    BlockSchedulerCopyGatherA(DistMatrixCoord const &problemShape_, MatrixCoord const &tileShapeMN_) :
+        BlockSchedulerCopyGatherA(problemShape_, DistMatrixCoord{tileShapeMN_.row(), tileShapeMN_.column(), 1})
+    {
+    }
+
+    CATLASS_DEVICE
+    uint32_t GetCoreLoops() const
+    {
+        return Numel(gridShape);
+    }
+
+    CATLASS_DEVICE
+    DistMatrixCoord GetBlockCoord(uint32_t loopIdx) const
+    {
+        uint32_t dataLoops = Numel(gridShape.GetCoordInRank());
+        uint32_t rankIdx = loopIdx / dataLoops;
+        uint32_t dataIdx = loopIdx % dataLoops;
+        return {dataIdx / gridShape.column(), dataIdx % gridShape.column(), rankIdx};
+    }
+
+    CATLASS_DEVICE
+    DistMatrixCoord GetBlockOffset(uint32_t loopIdx) const
+    {
+        return GetBlockCoord(loopIdx) * tileShape;
+    }
+
+    CATLASS_DEVICE
+    DistMatrixCoord GetActualBlockShapeByOffset(DistMatrixCoord const &blockOffset) const
+    {
+        return Min(tileShape, problemShape - blockOffset);
+    }
+
+    CATLASS_DEVICE
+    DistMatrixCoord GetActualBlockShape(DistMatrixCoord const &blockCoord) const
+    {
+        auto blockOffset = blockCoord * tileShape;
+        return GetActualBlockShapeByOffset(blockOffset);
     }
 };
 
