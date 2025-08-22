@@ -249,82 +249,89 @@ public:
         AscendC::GlobalTensor<ElementC> gmC_accum; 
         gmC_accum.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrC_accum));
 
+        auto layoutSymmetric = Catlass::layout::RowMajor{
+            WORKSPACE_STAGES * blockPerComm * L1TileShape::M, L1TileShape::N,
+            L1TileShape::N
+        };
+
         MatrixCoord commBlockShape = params.reduceScatterParams.BlockShape();
         MatrixCoord commCoreSplit = params.reduceScatterParams.CoreSplit();
-        MatrixCoord commShape = MatrixCoord{blockPerComm, 1} * blockShapeMN;
-        MatrixCoord dataLoopsMx = CeilDiv(commShape, commBlockShape);
-        uint32_t dLoopsInRank = CeilDiv(dataLoopsMx.row() * dataLoopsMx.column(), params.rankSize);
-        // CommScheduler commScheduler(params.rankIdx, params.rankSize, commCoreSplit, commShape, commBlockShape, dLoopsInRank);
-        CommScheduler commScheduler(params.rankIdx, params.rankSize, commBlockShape, commCoreSplit);
-        MatrixCoord actualCommShapeInRank = commShape / Catlass::MakeCoord<uint32_t>(params.rankSize, 1);
+        CommScheduler commScheduler(commBlockShape, commCoreSplit);
 
-        auto layoutCommLogicShape = Catlass::MakeCoord<int>(1, dLoopsInRank, commBlockShape.row());
-        auto layoutComm = layout::AffineRankN<3>::Packed(layoutCommLogicShape);
 
         // --- Main loop: corresponds to the AIC pipeline ---
         for (uint32_t commIdx = 0; commIdx < commLoops; ++commIdx) {
             uint32_t stageId = commIdx % WORKSPACE_STAGES;
-            // ... Code for handling the boundary case of the last loop is omitted ...
-            // if (commIdx == commLoops - 1) {
-            //     uint32_t actualBlockInComm = coreLoops - commIdx * blockPerComm;
-            //     commShape = MatrixCoord{actualBlockInComm, 1} * blockShapeMN;
-            //     dataLoopsMx = CeilDiv(commShape, commBlockShape);
-            //     dLoopsInRank = CeilDiv(dataLoopsMx.row() * dataLoopsMx.column(), params.rankSize);
-            //     commScheduler.Update(commShape, commBlockShape, dLoopsInRank);
-            //     layoutCommLogicShape = Catlass::MakeCoord<int>(1, dLoopsInRank, commBlockShape.row());
-            //     layoutComm = layout::AffineRankN<3>::Packed(layoutCommLogicShape);
-            //     actualCommShapeInRank = commShape / Catlass::MakeCoord<uint32_t>(params.rankSize, 1);
-            // }
-            //replace new start
             uint32_t actualBlockInComm = Min(blockPerComm, coreLoops - commIdx * blockPerComm);
-            MatrixCoord actualCommShape = MatrixCoord{actualBlockInComm, 1} * blockShapeMN;
-            MatrixCoord actualCommShapeInRank = actualCommShape / Catlass::MakeCoord<uint32_t>(params.rankSize, 1);
-            commScheduler.template SetProblemSize<ReduceScatter::RemoteCopyMode, true>(actualCommShape);
+            auto actualCommShape =
+                DistMatrixCoord{actualBlockInComm * blockShapeMN.row() / params.rankSize, blockShapeMN.column(), params.rankSize};
+            MatrixCoord loopsInRank = CeilDiv(MatrixCoord(actualCommShape.GetCoordInRank()), commBlockShape);
+
+            commScheduler.UpdateProblem(actualCommShape, loopsInRank);
             //replace new end
             auto commAicoreNum = commScheduler.GetRealCore();
             auto commCoreLoops = commScheduler.GetCoreLoop();
 
             MatrixCoord stageOffset = MatrixCoord{stageId * blockPerComm, 0} * blockShapeMN;
             MatrixCoord commOffsetInRank = MatrixCoord{commIdx * blockPerCommInRank, 0} * blockShapeMN;
-
+            uint32_t mmadStartLoopIdxInComm = commIdx * blockPerCommInRank;
+            
             // Wait for AIC to complete computation
             Catlass::Arch::CrossCoreWaitFlag(flagAicFinishStore[stageId]);
             // --- Reduce-Scatter Communication Operation ---
-            shmemx_barrier_all_vec(); // All Ranks synchronize here
+            shmemx_barrier_all_vec();          // All Ranksynchronize here
             AscendC::SetAtomicAdd<ElementC>(); // Set the hardware atomic add function
             AscendC::PipeBarrier<PIPE_ALL>();
 
-            // ... It will sum the results in gmC_accum from all Ranks and write the sliced results back to each Rank's own gmC_accum ...
-            reduceScatter.AllocEventID();
+            // It will sum the results in gmC_accum from all Ranks and write the sliced results back to each Rank's own gmC_accum ...
+            reduceScatter.InitBlockLoop();
             if (aivIndex == 0 && aicoreIndex < commAicoreNum) {
                 for (uint32_t commLoopIdx = aicoreIndex; commLoopIdx < commCoreLoops; commLoopIdx += commAicoreNum) {
-                    MatrixCoord commBlockCoord = commScheduler.GetBlockIdx(commLoopIdx);
-                    MatrixCoord blockOffset = commScheduler.template GetBlockOffset<ReduceScatter::RemoteCopyMode, 
-                                                ReduceScatter::RemoteCopyDirect>(commBlockCoord);
-                    MatrixCoord actualCommBlockShape = commScheduler.template GetActualBlockShape<ReduceScatter::RemoteCopyMode, 
-                                                ReduceScatter::RemoteCopyDirect>(commBlockCoord);
-                    MatrixCoord blockOffsetInRank = blockOffset % actualCommShapeInRank;
+                    DistMatrixCoord commBlockCoord = commScheduler.GetBlockCoord(commLoopIdx);
+                    MatrixCoord blockOffset = commScheduler.GetBlockOffset(
+                        DistMatrixCoord{commBlockCoord.GetCoordInRank(), params.rankIdx});
+                    MatrixCoord blockOffsetInRank = commScheduler.GetBlockOffsetInRank(commBlockCoord.GetCoordInRank());
+                    MatrixCoord actualCommBlockShape = commScheduler.GetActualBlockShapeByOffset(blockOffsetInRank);
 
-                    uint32_t remoteRankIdx = commBlockCoord.column();
+                    uint32_t remoteRankIdx = commBlockCoord.rank();
                     if (remoteRankIdx == params.rankIdx) { continue; }
 
-                    auto offsetIn = stageOffset + blockOffset;
-                    auto offsetOut = commOffsetInRank + blockOffsetInRank;
-                    auto globalLoopIdx = offsetOut.row() / blockShapeMN.row();
+                    uint32_t mmadLoopIdx = mmadStartLoopIdxInComm + blockOffsetInRank.row() / blockShapeMN.row();
+                    GemmCoord mmadBlockCoordMNK = matmulBlockScheduler.GetBlockCoord(mmadLoopIdx);
+                    MatrixCoord mmadBlockCoord = mmadBlockCoordMNK.GetCoordMN();
+                    MatrixCoord actualMmadBlockShape =
+                    matmulBlockScheduler.GetActualBlockShape(mmadBlockCoordMNK).GetCoordMN();
 
-                    reduceScatter(blockShapeMN, offsetOut, offsetIn, actualCommBlockShape, 
-                                 gmC_accum, params.layoutC_accum, globalLoopIdx, 
-                                 remoteRankIdx % params.rankSize, params.teamIdx);
+                    MatrixCoord offsetInMmadBlock = blockOffsetInRank % blockShapeMN;
+                    MatrixCoord residueInMmadBlock = actualMmadBlockShape -
+                        Min<uint32_t, 2>(actualMmadBlockShape, offsetInMmadBlock);
+                    actualCommBlockShape = Min<uint32_t, 2>(actualCommBlockShape, residueInMmadBlock);
+
+                    auto offsetSrc = stageOffset + blockOffset;
+                    MatrixCoord mmadBlockOffset = mmadBlockCoord * blockShapeMN;
+                    auto offsetDst = mmadBlockOffset + offsetInMmadBlock;
+                    
+                    auto gmBlockSrc = gmC_workspace[layoutSymmetric.GetOffset(offsetSrc)];
+                    auto layoutBlockSrc = layoutSymmetric.GetTileLayout(actualCommBlockShape);
+
+                    auto gmBlockDst = gmC_accum[params.layoutC_accum.GetOffset(offsetDst)];
+                    auto layoutBlockDst = params.layoutC_accum.GetTileLayout(actualCommBlockShape);
+
+                    reduceScatter(
+                        gmBlockSrc, layoutBlockSrc,
+                        gmBlockDst, layoutBlockDst,
+                        actualCommBlockShape, remoteRankIdx % params.rankSize
+                    );
                 }       
             }
-            reduceScatter.ReleaseEventID();
+            reduceScatter.FinalizeBlockLoop();
             AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0);
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0);
             AscendC::SetAtomicNone();
             AscendC::PipeBarrier<PIPE_ALL>();
 
-            shmemx_barrier_all_vec(); // Synchronize again
-            // Notify AIC that AIV has finished processing the current stage's buffer, and AIC can start writing new data
+            shmemx_barrier_all_vec();
+
             Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_MTE3>(flagAivFinishCompute[stageId]);
         }
         

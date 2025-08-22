@@ -110,15 +110,14 @@ void ShmemQuantMatmulReduceScatter(
 
     constexpr uint32_t ubStages = 2;
     using ReduceScatterTileShape = Catlass::MatrixShape<32, 256>;
-    using ReduceScatterDispatch = CommEpilogue::EpilogueAtlasA2CommToLocalMem<ubStages,
+    using ReduceScatterDispatch = CommEpilogue::EpilogueAtlasA2CommRemoteCopy<ubStages,
         Catcoc::detail::CopyMode::Scatter>;
     using BlockEpilogueReduceScatter = CommEpilogue::Block::CommBlockEpilogue<
         ReduceScatterDispatch,
         ReduceScatterCType, ReduceScatterDType,
         CommCoreSplit,
         CommBlockShape,
-        ReduceScatterTileShape, TileRemoteCopy, TileScheduler,
-        BlockScheduler
+        ReduceScatterTileShape, TileRemoteCopy, TileScheduler
     >;
 
     // Define types for PerTokenDequant Epilogue
@@ -168,9 +167,6 @@ void ShmemQuantMatmulReduceScatter(
     };
 
     typename BlockEpilogueReduceScatter::Params reduceScatterParams{
-        reinterpret_cast<__gm__ int32_t *>(symmetricPtr),
-        layoutPeerMemStore,
-        matmulBlockScheduler
     };
     
     uint32_t m_per_rank = m / rankSize;
