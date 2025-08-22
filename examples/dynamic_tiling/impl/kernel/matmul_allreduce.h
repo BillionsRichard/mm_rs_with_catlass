@@ -29,7 +29,6 @@ template <
     class ArchTag,
     class ElementA, class LayoutA,
     class ElementB, class LayoutB,
-    class ElementC, class LayoutC,
     class ElementD, class LayoutD,
     uint32_t M0, uint32_t N0, uint32_t K0
 >
@@ -39,12 +38,12 @@ void MatmulAllReduceImpl(
     Catlass::GemmCoord& l1TileShape,
     GM_ADDR gmA, LayoutA& layoutA,
     GM_ADDR gmB, LayoutB& layoutB,
-    GM_ADDR gmC, LayoutC& layoutC,
+    GM_ADDR gmD, LayoutD& layoutD,
     uint32_t commInterval,
     Catlass::MatrixCoord& commCoreSplit,
     Catlass::MatrixCoord& commBlockShape,
     Catlass::MatrixCoord& commTileShape,
-    GM_ADDR symmetricPtr, LayoutC& layoutD, shmem_team_t teamIdx = 0
+    GM_ADDR symmetricPtr
 )
 {
     constexpr bool ENABLE_UNIT_FLAG = true;
@@ -55,42 +54,40 @@ void MatmulAllReduceImpl(
 
     using AType = Catlass::Gemm::GemmType<ElementA, LayoutA>;
     using BType = Catlass::Gemm::GemmType<ElementB, LayoutB>;
-    using CType = Catlass::Gemm::GemmType<ElementC, LayoutC>;
     using DType = Catlass::Gemm::GemmType<ElementD, LayoutD>;
+    using SymmetricType = DType;
     using BlockMmad = Catlass::Gemm::Block::BlockMmad<
-        MmadDispatchPolicy, L1TileShape, L0TileShape, AType, BType, CType
+        MmadDispatchPolicy, L1TileShape, L0TileShape, AType, BType, SymmetricType
     >;
 
     using BlockMmadScheduler = Catlass::Gemm::Block::GemmIdentityBlockSwizzle<7, 1>;
     using BlockEpilogueScheduler = Catcoc::CommEpilogue::Block::BlockCommSwizzle<0, true>;
 
-    using RemoteSrcType = CType;
+    using RemoteSrcType = SymmetricType;
     using RemoteDstType = DType;
     using CopyDirect = Catcoc::detail::CopyDirect;
     using TileRemoteCopy = CommEpilogue::Tile::TileRemoteCopy<ArchTag, RemoteSrcType, RemoteDstType, CopyDirect::Get>;
     using TileScheduler = Catlass::Epilogue::Tile::EpilogueIdentityTileSwizzle;
 
     constexpr bool isDynamic = true;
-    using EpilogueReduceScatterDispatch = CommEpilogue::EpilogueAtlasA2CommToShareMem<UB_STAGES,
+    using EpilogueReduceScatterDispatch = CommEpilogue::EpilogueAtlasA2CommRemoteCopy<UB_STAGES,
         Catcoc::detail::CopyMode::Scatter, isDynamic>;
     using BlockEpilogueReduceScatter = CommEpilogue::Block::CommBlockEpilogue<
         EpilogueReduceScatterDispatch,
         RemoteSrcType, RemoteDstType,
         void,
         void,
-        void, TileRemoteCopy, TileScheduler,
-        BlockMmadScheduler
+        void, TileRemoteCopy, TileScheduler
     >;
 
-    using EpilogueAllGatherDispatch = CommEpilogue::EpilogueAtlasA2CommToLocalMem<UB_STAGES,
+    using EpilogueAllGatherDispatch = CommEpilogue::EpilogueAtlasA2CommRemoteCopy<UB_STAGES,
         Catcoc::detail::CopyMode::Gather, isDynamic>;
     using BlockEpilogueAllGather = CommEpilogue::Block::CommBlockEpilogue<
         EpilogueAllGatherDispatch,
         RemoteSrcType, RemoteDstType,
         void,
         void,
-        void, TileRemoteCopy, TileScheduler,
-        BlockMmadScheduler
+        void, TileRemoteCopy, TileScheduler
     >;
 
     using MatmulAllReduceKernel = DGemm::Kernel::MatmulAllReduce<
@@ -102,36 +99,31 @@ void MatmulAllReduceImpl(
         WORKSPACE_STAGES
     >;
 
-    uint32_t rank = shmem_team_my_pe(teamIdx);
-    uint32_t rankSize = shmem_team_n_pes(teamIdx);
+    uint32_t rank = shmem_my_pe();
+    uint32_t rankSize = shmem_n_pes();
 
-    BlockMmadScheduler mmadBlockScheduler(problemShape, L1TileShape::ToCoordMN());
+    typename BlockEpilogueReduceScatter::Params reduceScatterParams{
+        commCoreSplit,
+        commBlockShape,
+        commTileShape
+    };
+    typename BlockEpilogueAllGather::Params allGatherParams{
+        commCoreSplit,
+        commBlockShape,
+        commTileShape
+    };
 
     // Prepare params
     typename MatmulAllReduceKernel::Params params{
         problemShape,
-        rank, rankSize, teamIdx,
+        rank, rankSize,
         commInterval,
         gmA, layoutA,
         gmB, layoutB,
-        gmC, layoutC,
+        gmD, layoutD,
         symmetricPtr,
-        {
-            reinterpret_cast<__gm__ ElementC *>(symmetricPtr),
-            layoutD,
-            mmadBlockScheduler,
-            commCoreSplit,
-            commBlockShape,
-            commTileShape
-        },
-        {
-            reinterpret_cast<__gm__ ElementC *>(symmetricPtr),
-            layoutD,
-            mmadBlockScheduler,
-            commCoreSplit,
-            commBlockShape,
-            commTileShape
-        }
+        reduceScatterParams,
+        allGatherParams
     };
 
     // Call kernel
@@ -143,7 +135,6 @@ template <
     class ArchTag,
     class ElementA, class LayoutA,
     class ElementB, class LayoutB,
-    class ElementC, class LayoutC,
     class ElementD, class LayoutD
 >
 CATLASS_DEVICE
@@ -152,25 +143,24 @@ void MatmulAllReduceImpl_M0_256(
     Catlass::GemmCoord& l1TileShape,
     GM_ADDR gmA, LayoutA& layoutA,
     GM_ADDR gmB, LayoutB& layoutB,
-    GM_ADDR gmC, LayoutC& layoutC,
+    GM_ADDR gmD, LayoutD& layoutD,
     uint32_t commInterval,
     Catlass::MatrixCoord& commCoreSplit,
     Catlass::MatrixCoord& commBlockShape,
     Catlass::MatrixCoord& commTileShape,
-    GM_ADDR symmetricPtr, LayoutC& layoutD
+    GM_ADDR symmetricPtr
 )
 {
-    MatmulAllReduceImpl<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC, ElementD, LayoutD, 256, 128, 256>(
-        problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
-         commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr, layoutD
-        );
+    MatmulAllReduceImpl<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementD, LayoutD, 256, 128, 256>(
+        problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmD, layoutD,
+        commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr
+    );
 }
 
 template <
     class ArchTag,
     class ElementA, class LayoutA,
     class ElementB, class LayoutB,
-    class ElementC, class LayoutC,
     class ElementD, class LayoutD
 >
 CATLASS_DEVICE
@@ -179,29 +169,28 @@ void MatmulAllReduceImpl_M0_128(
     Catlass::GemmCoord& l1TileShape,
     GM_ADDR gmA, LayoutA& layoutA,
     GM_ADDR gmB, LayoutB& layoutB,
-    GM_ADDR gmC, LayoutC& layoutC,
+    GM_ADDR gmD, LayoutD& layoutD,
     uint32_t commInterval,
     Catlass::MatrixCoord& commCoreSplit,
     Catlass::MatrixCoord& commBlockShape,
     Catlass::MatrixCoord& commTileShape,
-    GM_ADDR symmetricPtr, LayoutC& layoutD
+    GM_ADDR symmetricPtr
 )
 {
-    MatmulAllReduceImpl<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC, ElementD, LayoutD, 128, 256, 256>(
-        problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
-         commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr, layoutD
-        );
+    MatmulAllReduceImpl<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementD, LayoutD, 128, 256, 256>(
+        problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmD, layoutD,
+        commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr
+    );
 }
 
 template <
     class ElementA, class LayoutA,
     class ElementB, class LayoutB,
-    class ElementC, class LayoutC,
     class ElementD, class LayoutD
 >
 CATLASS_GLOBAL
 void MatmulAllReduce(
-    uint64_t fftsAddr, GM_ADDR gmA, GM_ADDR gmB, GM_ADDR gmC, GM_ADDR symmetricPtr, CocTilingParams cocTiling
+    uint64_t fftsAddr, GM_ADDR gmA, GM_ADDR gmB, GM_ADDR gmD, GM_ADDR symmetricPtr, CocTilingParams cocTiling
 )
 {
     AscendC::SetSyncBaseAddr(fftsAddr);
@@ -243,28 +232,27 @@ void MatmulAllReduce(
         strideB = k;
     }
 
-    uint32_t strideC;
-    if constexpr (std::is_same_v<LayoutC, Catlass::layout::RowMajor>) {
-        strideC = n;
-    } else if constexpr (std::is_same_v<LayoutC, Catlass::layout::ColumnMajor>) {
-        strideC = m;
+    uint32_t strideD;
+    if constexpr (std::is_same_v<LayoutD, Catlass::layout::RowMajor>) {
+        strideD = n;
+    } else if constexpr (std::is_same_v<LayoutD, Catlass::layout::ColumnMajor>) {
+        strideD = m;
     }
 
     LayoutA layoutA{m, k, strideA};
     LayoutB layoutB{k, n, strideB};
-    LayoutC layoutC{m, n, strideC};
-    LayoutD layoutD{m0 * commInterval * BLOCK_NUM * WORKSPACE_STAGES, n0, n0};
+    LayoutD layoutD{m, n, strideD};
 
     if(m0 == 128){
-        MatmulAllReduceImpl_M0_128<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC, ElementD, LayoutD>
-            (problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
-            commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr, layoutD
-            );
+        MatmulAllReduceImpl_M0_128<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementD, LayoutD>(
+            problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmD, layoutD,
+            commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr
+        );
     } else {
-        MatmulAllReduceImpl_M0_256<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC, ElementD, LayoutD>
-            (problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
-            commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr, layoutD
-            );
+        MatmulAllReduceImpl_M0_256<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementD, LayoutD>(
+            problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmD, layoutD,
+            commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr
+        );
     }
 }
 

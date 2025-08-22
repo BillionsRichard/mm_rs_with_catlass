@@ -15,7 +15,10 @@ def gen_golden_data():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('comm_type', type=CommType.from_str,
-                        choices=[CommType.MATMUL_ALLREDUCE, CommType.ALLGATHER_MATMUL, CommType.MATMUL_REDUCE_SCATTER])
+                        choices=[CommType.MATMUL_ALLREDUCE,
+                                 CommType.ALLGATHER_MATMUL,
+                                 CommType.MATMUL_REDUCE_SCATTER,
+                                 CommType.ALLGATHER_MATMUL_WITH_GATHER_RESULT])
     parser.add_argument('out_dtype', type=DataType.from_str, choices=[DataType.FLOAT16, DataType.BF16])
     parser.add_argument('rank_size', type=int)
     parser.add_argument('m', type=int)
@@ -32,12 +35,13 @@ def gen_golden_data():
 
     os.makedirs(data_dir, exist_ok=True)
     b_all_rank = gen_random_data([K, N], dtype=args.out_dtype.torch_type)
-    a_all_rank = gen_random_data([M, K], dtype=args.out_dtype.torch_type)
 
     l0c_dtype = torch.float32
+    matrix_a_list = []
     matrix_c_list = []
     for i in range(args.rank_size):
-        a_gm = a_all_rank
+        a_gm = gen_random_data([M, K], dtype=args.out_dtype.torch_type)
+        matrix_a_list.append(a_gm)
         b_gm = b_all_rank
         matrix_c = torch.matmul(a_gm.to(l0c_dtype), b_gm.to(l0c_dtype))
         matrix_c_list.append(matrix_c)
@@ -52,7 +56,7 @@ def gen_golden_data():
         tensor_to_file(b_gm, b_gm_path)
 
     golden = None
-    if args.comm_type == CommType.ALLGATHER_MATMUL:
+    if args.comm_type in [CommType.ALLGATHER_MATMUL, CommType.ALLGATHER_MATMUL_WITH_GATHER_RESULT]:
         golden = torch.cat(matrix_c_list, dim=0)
     else:
         golden = torch.zeros_like(matrix_c_list[0])
@@ -60,6 +64,9 @@ def gen_golden_data():
             golden += matrix_c_list[i]
 
     tensor_to_file(golden, os.path.join(data_dir, "golden.bin"))
+
+    if args.comm_type == CommType.ALLGATHER_MATMUL_WITH_GATHER_RESULT:
+        tensor_to_file(torch.cat(matrix_a_list, dim=0).to(torch.float32), os.path.join(data_dir, "gather_a.bin"))
 
 if __name__ == '__main__':
     gen_golden_data()

@@ -40,28 +40,33 @@
 #include "catcoc/comm_epilogue/tile/tile_remote_copy.hpp"
 #include "catcoc/detail/remote_copy_type.hpp"
 #include "catcoc/dgemm/block/block_swizzle_allgather.hpp"
-#include "catcoc/dgemm/kernel/allgather_matmul.hpp"
+#include "catcoc/dgemm/kernel/allgather_matmul_with_gather_result.hpp"
 
+static uint32_t gNpuNum = 8;
 static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 1024;
 
 using namespace AscendC;
 using namespace Catcoc;
 
 constexpr uint32_t BLOCK_NUM = 20;
-
-using LayoutA = Catlass::layout::RowMajor;
-using LayoutB = Catlass::layout::RowMajor;
-using LayoutC = Catlass::layout::RowMajor;
+constexpr int32_t BLOCK_SIZE_16 = 16;
 
 using ElementA = half;
 using ElementB = half;
 using ElementC = half;
+using ElementGatherA = ElementA;
+
+using LayoutA = Catlass::layout::RowMajor;
+using LayoutB = Catlass::layout::RowMajor;
+using LayoutC = Catlass::layout::RowMajor;
+using LayoutGatherA = LayoutA;
 
 CATLASS_GLOBAL
-void ShmemAllGatherMatmul(
+void ShmemAllGatherMatmulWithGatherResult(
     uint64_t fftsAddr,
-    GM_ADDR gmA, GM_ADDR gmB, GM_ADDR gmC, GM_ADDR gmSymmetric,
-    uint32_t m, uint32_t n, uint32_t k)
+    GM_ADDR gmA, GM_ADDR gmB, GM_ADDR gmC, GM_ADDR gmGatherA, GM_ADDR gmSymmetric,
+    uint32_t m, uint32_t n, uint32_t k
+)
 {
     // Set FFTS address
     AscendC::SetSyncBaseAddr(fftsAddr);
@@ -77,8 +82,8 @@ void ShmemAllGatherMatmul(
     LayoutA layoutA{m, k};
     LayoutB layoutB{k, n};
     LayoutC layoutC{m * rankSize, n};
+    LayoutGatherA layoutGatherA{m * rankSize, k};
 
-    // Block level, define BlockMmad
     constexpr bool ENABLE_UNIT_FLAG = true;
     using MmadDispatchPolicy = Catlass::Gemm::MmadAtlasA2Pingpong<ENABLE_UNIT_FLAG>;
     using L1TileShape = Catlass::GemmShape<128, 256, 256>;
@@ -86,21 +91,25 @@ void ShmemAllGatherMatmul(
     using AType = Catlass::Gemm::GemmType<ElementA, LayoutA>;
     using BType = Catlass::Gemm::GemmType<ElementB, LayoutB>;
     using CType = Catlass::Gemm::GemmType<ElementC, LayoutC>;
+    using GatherAType = AType;
     using BlockMmad = Catlass::Gemm::Block::BlockMmad<
-        MmadDispatchPolicy, L1TileShape, L0TileShape, AType, BType, CType
+        MmadDispatchPolicy,
+        L1TileShape, L0TileShape,
+        AType, BType, CType
     >;
 
-    using BlockMmadScheduler = typename Catcoc::DGemm::Block::GemmBlockSwizzleAllGatherMesh<7, 1>;
-    using BlockEpilogueScheduler = Catcoc::CommEpilogue::Block::BlockCommSwizzle<0>;
+    using BlockScheduler = typename Catcoc::DGemm::Block::GemmBlockSwizzleAllGatherMesh<7, 1>;
+    using BlockCommScheduler = CommEpilogue::Block::BlockCommSwizzle<0>;
+    using BlockCopyGatherAScheduler = CommEpilogue::Block::BlockSchedulerCopyGatherA;
 
     using RemoteSrcType = AType;
-    using RemoteDstType = AType;
+    using RemoteDstType = GatherAType;
     using CopyDirect = Catcoc::detail::CopyDirect;
     using TileRemoteCopy = CommEpilogue::Tile::TileRemoteCopy<ArchTag, RemoteSrcType, RemoteDstType, CopyDirect::Put>;
     using TileScheduler = Catlass::Epilogue::Tile::EpilogueIdentityTileSwizzle;
 
     using CommBlockShape = Catlass::MatrixShape<64, UINT_MAX / 2>;
-    using CommCoreSplit = Catlass::MatrixShape<20, 1>;
+    using CommCoreSplit = Catlass::MatrixShape<16, 1>;
 
     constexpr uint32_t UB_STAGES = 2;
     using EpilogueAllGatherTileShape = Catlass::MatrixShape<32, 256>;
@@ -114,32 +123,47 @@ void ShmemAllGatherMatmul(
         EpilogueAllGatherTileShape, TileRemoteCopy, TileScheduler
     >;
 
+    using CopyGatherABlockShape = Catlass::MatrixShape<48, UINT_MAX / 2>;
+    using CopyGatherATileShape = Catlass::MatrixShape<48, 1024>;
+    using CopyGatherADispatchPolicy = CommEpilogue::EpilogueAtlasA2CommLocalCopy<UB_STAGES>;
+    using BlockEpilogueCopyGatherA = CommEpilogue::Block::CommBlockEpilogue<
+        CopyGatherADispatchPolicy,
+        AType, GatherAType,
+        CopyGatherABlockShape,
+        CopyGatherATileShape,
+        TileScheduler
+    >;
+
     constexpr uint32_t WORKSPACE_STAGES = 2;
     constexpr uint32_t COMM_INTERVAL = 3;
-    using AllGatherMatmulKernel = DGemm::Kernel::AllGatherMatmul<
+    using AllGatherMatmulWithGatherResultKernel = DGemm::Kernel::AllGatherMatmulWithGatherResult<
         BlockMmad,
         BlockEpilogueAllGather,
-        BlockMmadScheduler,
-        BlockEpilogueScheduler,
+        BlockEpilogueCopyGatherA,
+        BlockScheduler,
+        BlockCommScheduler,
+        BlockCopyGatherAScheduler,
         WORKSPACE_STAGES
     >;
 
     typename BlockEpilogueAllGather::Params allGatherParams{};
+    typename BlockEpilogueCopyGatherA::Params copyGatherAParams{};
 
     // Prepare params
-    typename AllGatherMatmulKernel::Params params{
+    typename AllGatherMatmulWithGatherResultKernel::Params params{
         problemShape,
         rank, rankSize,
-        COMM_INTERVAL,
         gmA, layoutA,
         gmB, layoutB,
-        gmC, layoutC,
         gmSymmetric,
-        allGatherParams
+        allGatherParams,
+        copyGatherAParams,
+        gmGatherA, layoutGatherA,
+        gmC, layoutC,
+        COMM_INTERVAL
     };
 
-    // Call kernel
-    AllGatherMatmulKernel matmulCommKernel;
+    AllGatherMatmulWithGatherResultKernel matmulCommKernel;
     matmulCommKernel(params);
 }
 
@@ -232,6 +256,7 @@ int main(int argc, char **argv)
     size_t aSize = static_cast<size_t>(m) * k * sizeof(__fp16);
     size_t bSize = static_cast<size_t>(k) * n * sizeof(__fp16);
     size_t cSize = static_cast<size_t>(m) * rankSize * n * sizeof(__fp16);
+    size_t gatherASize = static_cast<size_t>(m) * rankSize * k * sizeof(__fp16);
 
     uint8_t *aDevice;
     ACL_CHECK(aclrtMalloc((void **)(&aDevice), aSize, ACL_MEM_MALLOC_HUGE_FIRST));
@@ -252,24 +277,31 @@ int main(int argc, char **argv)
     uint8_t *cHost;
     ACL_CHECK(aclrtMallocHost((void **)(&cHost), cSize));
 
+    uint8_t *gatherADevice;
+    ACL_CHECK(aclrtMalloc((void **)(&gatherADevice), gatherASize, ACL_MEM_MALLOC_HUGE_FIRST));
+    uint8_t *gatherAHost;
+    ACL_CHECK(aclrtMallocHost((void **)(&gatherAHost), gatherASize));
+
     void *symmPtr = shmem_malloc((204 * 1024 * 1024) * sizeof(__fp16));
     uint8_t *gmSymmetric = (uint8_t *)symmPtr;
 
     ACL_CHECK(aclrtSynchronizeStream(stream));
     std::cout << "Before calling AG_MM kernel " << std::endl;
     for (int i = 0; i < 1; i++) {
-        ShmemAllGatherMatmul<<<BLOCK_NUM, nullptr, stream>>>(
+        ShmemAllGatherMatmulWithGatherResult<<<BLOCK_NUM, nullptr, stream>>>(
             shmemx_get_ffts_config(),
-            aDevice, bDevice, cDevice, gmSymmetric,
+            aDevice, bDevice, cDevice, gatherADevice, gmSymmetric,
             m, n, k
         );
     }
     ACL_CHECK(aclrtSynchronizeStream(stream));
     std::cout << "After calling AG_MM kernel " << std::endl;
 
-    ACL_CHECK(aclrtMemcpy(cHost, cSize, cDevice, cSize, ACL_MEMCPY_DEVICE_TO_HOST));
-    WriteFile(options.GetDataPath("shmem_output.bin"), cHost, cSize);
     if (rankId == 0) {
+        ACL_CHECK(aclrtMemcpy(cHost, cSize, cDevice, cSize, ACL_MEMCPY_DEVICE_TO_HOST));
+        ACL_CHECK(aclrtMemcpy(gatherAHost, gatherASize, gatherADevice, gatherASize, ACL_MEMCPY_DEVICE_TO_HOST));
+        WriteFile(options.GetDataPath("shmem_output.bin"), cHost, cSize);
+        WriteFile(options.GetDataPath("shmem_gather_a.bin"), gatherAHost, gatherASize);
         std::printf("test finished\n");
     }
 
@@ -278,9 +310,11 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtFreeHost(aHost));
     ACL_CHECK(aclrtFreeHost(bHost));
     ACL_CHECK(aclrtFreeHost(cHost));
+    ACL_CHECK(aclrtFreeHost(gatherAHost));
     ACL_CHECK(aclrtFree(aDevice));
     ACL_CHECK(aclrtFree(bDevice));
     ACL_CHECK(aclrtFree(cDevice));
+    ACL_CHECK(aclrtFree(gatherADevice));
 
     std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
     status = shmem_finalize();

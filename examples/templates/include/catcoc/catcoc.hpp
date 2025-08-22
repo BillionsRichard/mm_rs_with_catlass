@@ -7,7 +7,7 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
- 
+
 #ifndef CATCOC_HPP
 #define CATCOC_HPP
 
@@ -17,6 +17,17 @@
 #include "catlass/coord.hpp"
 
 namespace Catcoc {
+
+template <typename Index, typename LongIndex, int RANK>
+CATLASS_HOST_DEVICE
+LongIndex Numel(Catlass::Coord<RANK, Index, LongIndex> const &coord)
+{
+    LongIndex product = 1;
+    for (int i = 0; i < RANK; ++i) {
+        product *= static_cast<LongIndex>(coord[i]);
+    }
+    return product;
+}
 
 template <typename Index, typename LongIndex, int RANK>
 CATLASS_HOST_DEVICE
@@ -47,12 +58,30 @@ auto Min(Catlass::Coord<RANK, Index> const &lhs, Catlass::Coord<RANK, Index> con
     return result;
 }
 
+template <class T>
+CATLASS_HOST_DEVICE constexpr
+T Max(T const &lhs, T const &rhs)
+{
+    return (lhs > rhs) ? lhs : rhs;
+}
+
+template <typename Index, int RANK>
+CATLASS_HOST_DEVICE constexpr
+auto Max(Catlass::Coord<RANK, Index> const &lhs, Catlass::Coord<RANK, Index> const &rhs)
+{
+    Catlass::Coord<RANK, Index> result;
+    for (int i = 0; i < RANK; ++i) {
+        result[i] = Max(lhs[i], rhs[i]);
+    }
+    return result;
+}
+
 namespace layout {
 
-template <int RANK_>
+template <int RANK_, typename Index_=int32_t>
 struct AffineRankN {
     static int const RANK = RANK_;
-    using Index = int32_t;
+    using Index = Index_;
     using LongIndex = int64_t;
     using TensorCoord = Catlass::Coord<RANK, Index>;
     using Stride = Catlass::Coord<RANK, LongIndex>;

@@ -13,6 +13,7 @@
 
 #include "catcoc/catcoc.hpp"
 #include "catcoc/detail/remote_copy_type.hpp"
+#include "catcoc/dist_coord.hpp"
 
 // from catlass
 #include "catlass/detail/alignment.hpp"
@@ -25,30 +26,28 @@ using Catlass::MatrixCoord;
 template<uint32_t SWIZZLE_DIRECTION_ = 0, bool IS_DETERMINISTIC_ = false>
 struct BlockCommSwizzle {
     static constexpr uint32_t SWIZZLE_DIRECTION = SWIZZLE_DIRECTION_;
-    static constexpr bool IS_DETERMINISTIC = IS_DETERMINISTIC_;
+    static constexpr uint32_t IS_DETERMINISTIC = IS_DETERMINISTIC_;
 
     static_assert((IS_DETERMINISTIC && SWIZZLE_DIRECTION == 0) || !IS_DETERMINISTIC,
         "Deterministic calculation requires that the swizzle direction be 0.");
     
-    uint32_t rankSize, rankIdx;
-    MatrixCoord problemSize;
-    MatrixCoord problemSizePerRank;
-    uint32_t mLoops, nLoops;
-
-    uint32_t nStride;
+    DistMatrixCoord problemShape;
+    DistMatrixCoord loops;
 
     uint32_t swizzleOffset;
     MatrixCoord coreSplit;
-    MatrixCoord blockShape;
+    DistMatrixCoord blockShape;
 
     CATLASS_DEVICE
     BlockCommSwizzle() {}
 
     CATLASS_DEVICE
-    BlockCommSwizzle(uint32_t rankIdx_, uint32_t rankSize_,
-        MatrixCoord const &blockShape_, MatrixCoord const &coreSplit_) 
-        : rankIdx(rankIdx_), rankSize(rankSize_), blockShape(blockShape_), coreSplit(coreSplit_)
+    BlockCommSwizzle(DistMatrixCoord const &problemShape_, MatrixCoord const &blockShapeInRank_,
+        MatrixCoord const &coreSplit_, MatrixCoord const &loopsInRank_)
+        : problemShape(problemShape_), coreSplit(coreSplit_)
     {
+        blockShape = Catlass::MakeCoord<uint32_t>(blockShapeInRank_.row(), blockShapeInRank_.column(), 1);
+        loops = Catlass::MakeCoord<uint32_t>(loopsInRank_.row(), loopsInRank_.column(), problemShape_.rank());
         // deterministic calculation does not allow npu split
         if constexpr (IS_DETERMINISTIC) {
             coreSplit = MatrixCoord{coreSplit.row() * coreSplit.column(), 1};
@@ -59,41 +58,65 @@ struct BlockCommSwizzle {
         } else {
             swizzleOffset = coreSplit.column();
         }
-        nLoops = rankSize;
-        nStride = rankSize / coreSplit.column();
     }
     
     CATLASS_DEVICE
-    uint32_t GetCoreLoop() const
+    BlockCommSwizzle(MatrixCoord const &blockShapeInRank_, MatrixCoord const &coreSplit_)
+        : coreSplit(coreSplit_)
     {   
+        blockShape = Catlass::MakeCoord<uint32_t>(blockShapeInRank_.row(), blockShapeInRank_.column(), 1);
         if constexpr (IS_DETERMINISTIC) {
-            return RoundUp<uint32_t>(mLoops, coreSplit.row()) * nLoops;
-        } else {
-            return mLoops * nLoops;
+            coreSplit = MatrixCoord{coreSplit.row() * coreSplit.column(), 1};
         }
-    }
-
-    template <detail::CopyMode CopyMode_, bool Align=false> CATLASS_DEVICE
-    void SetProblemSize(MatrixCoord problemSize_)
-    {
-        problemSize = problemSize_;
-        MatrixCoord commRankCount{rankSize, 1};
-        if constexpr (CopyMode_ == detail::CopyMode::P2P) {
-            problemSizePerRank = problemSize;
+        if constexpr (SWIZZLE_DIRECTION == 0) {
+            swizzleOffset = coreSplit.row();
         } else {
-            problemSizePerRank = CeilDiv(problemSize, commRankCount);
-            if constexpr (Align) {
-                problemSizePerRank =
-                    {RoundUp<uint32_t>(problemSizePerRank.row(), blockShape.row()), problemSizePerRank.column()};
-            }
+            swizzleOffset = coreSplit.column();
         }
-        mLoops = CeilDiv(problemSizePerRank.row(), blockShape.row());
     }
 
     CATLASS_DEVICE
-    uint32_t GetRankStride() const
+    BlockCommSwizzle(DistMatrixCoord const &blockShape_, MatrixCoord const &coreSplit_)
+        : blockShape(blockShape_), coreSplit(coreSplit_)
     {
-        return problemSizePerRank.row();
+        if constexpr (IS_DETERMINISTIC) {
+            coreSplit = MatrixCoord{coreSplit.row() * coreSplit.column(), 1};
+        }
+
+        if constexpr (SWIZZLE_DIRECTION == 0) {
+            swizzleOffset = coreSplit.row();
+        } else {
+            swizzleOffset = coreSplit.column();
+        }
+    }
+
+    CATLASS_DEVICE
+    void UpdateProblem(DistMatrixCoord const &problemShape_, DistMatrixCoord const &loops_)
+    {
+        problemShape = problemShape_;
+        loops = loops_;
+            }
+    CATLASS_DEVICE
+    void UpdateProblem(DistMatrixCoord const &problemShape_, MatrixCoord const &loopsInRank_)
+    {
+        problemShape = problemShape_;
+        loops = Catlass::MakeCoord<uint32_t>(loopsInRank_.row(), loopsInRank_.column(), problemShape_.rank());
+        }
+    CATLASS_DEVICE
+    void UpdateProblem(DistMatrixCoord const &problemShape_)
+    {
+        problemShape = problemShape_;
+        loops = CeilDiv(problemShape, blockShape);
+    }
+
+    CATLASS_DEVICE
+    uint32_t GetCoreLoop() const
+    {
+        if constexpr (IS_DETERMINISTIC) {
+            return RoundUp<uint32_t>(loops.row() * loops.column(), coreSplit.row()) * loops.rank();
+        } else {
+            return loops.row() * loops.column() * loops.rank();
+        }
     }
 
     CATLASS_DEVICE
@@ -103,91 +126,142 @@ struct BlockCommSwizzle {
     }
 
     CATLASS_DEVICE
-    MatrixCoord GetBlockIdx(uint32_t taskIdx) const {
+    DistMatrixCoord GetBlockCoord(uint32_t taskIdx) const
+    {
         uint32_t innerIdx = taskIdx % GetCoreLoop();
-        if (SWIZZLE_DIRECTION == 0) { // Zn
-            uint32_t tileBlockLoop = CeilDiv(mLoops, swizzleOffset);
-            uint32_t tileBlockIdx = innerIdx / (swizzleOffset * nLoops);
-            uint32_t inTileBlockIdx = innerIdx % (swizzleOffset * nLoops);
+        uint32_t dataLoops = loops.row() * loops.column();
+        uint32_t rankLoops = loops.rank();
+        uint32_t nStride = loops.rank() / coreSplit.column();
+        if constexpr (SWIZZLE_DIRECTION == 0) { // Zn
+            uint32_t tileBlockLoop = CeilDiv(dataLoops, swizzleOffset);
+            uint32_t tileBlockIdx = innerIdx / (swizzleOffset * rankLoops);
+            uint32_t inTileBlockIdx = innerIdx % (swizzleOffset * rankLoops);
 
             uint32_t nRow = swizzleOffset;
             if constexpr (!IS_DETERMINISTIC) {
                 if (tileBlockIdx == tileBlockLoop - 1) {
-                    nRow = mLoops - swizzleOffset * tileBlockIdx;
+                    nRow = dataLoops - swizzleOffset * tileBlockIdx;
                 }
             }
-            uint32_t mIdx = tileBlockIdx * swizzleOffset + inTileBlockIdx % nRow;
-            uint32_t nIdx = inTileBlockIdx / nRow;
+            uint32_t dataIdx = tileBlockIdx * swizzleOffset + inTileBlockIdx % nRow;
+            uint32_t rankIdx = inTileBlockIdx / nRow;
 
-            nIdx = (nIdx * nStride) % nLoops + (nIdx * nStride) / nLoops;
-            nIdx = (nIdx + mIdx) % nLoops;
+            rankIdx = (rankIdx * nStride) % rankLoops + (rankIdx * nStride) / rankLoops;
+            rankIdx = (rankIdx + dataIdx) % rankLoops;
 
-            return MatrixCoord{mIdx, nIdx};
+            return DistMatrixCoord{dataIdx / loops.column(), dataIdx % loops.column(), rankIdx};
         } else if (SWIZZLE_DIRECTION == 1) { // Nz
-            uint32_t tileBlockLoop = CeilDiv(nLoops, swizzleOffset);
-            uint32_t tileBlockIdx = innerIdx / (swizzleOffset * mLoops);
-            uint32_t inTileBlockIdx = innerIdx % (swizzleOffset * mLoops);
+            uint32_t tileBlockLoop = CeilDiv(rankLoops, swizzleOffset);
+            uint32_t tileBlockIdx = innerIdx / (swizzleOffset * dataLoops);
+            uint32_t inTileBlockIdx = innerIdx % (swizzleOffset * dataLoops);
 
             uint32_t nCol = swizzleOffset;
             if (tileBlockIdx == tileBlockLoop - 1) {
-                nCol = nLoops - swizzleOffset * tileBlockIdx;
+                nCol = rankLoops - swizzleOffset * tileBlockIdx;
             }
-            uint32_t mIdx = inTileBlockIdx / nCol;
-            uint32_t nIdx = tileBlockIdx * swizzleOffset + inTileBlockIdx % nCol;
+            uint32_t dataIdx = inTileBlockIdx / nCol;
+            uint32_t rankIdx = tileBlockIdx * swizzleOffset + inTileBlockIdx % nCol;
 
-            nIdx = (nIdx * nStride) % nLoops + (nIdx * nStride) / nLoops;
-            nIdx = (nIdx + mIdx) % nLoops;
+            rankIdx = (rankIdx * nStride) % rankLoops + (rankIdx * nStride) / rankLoops;
+            rankIdx = (rankIdx + dataIdx) % rankLoops;
 
-            return MatrixCoord{mIdx, nIdx};
+            return DistMatrixCoord{dataIdx / loops.column(), dataIdx % loops.column(), rankIdx};
         }
-        return MatrixCoord{};
+        return DistMatrixCoord{};
     }
 
-    template <detail::CopyMode CopyMode_, detail::CopyDirect CopyDirect_> 
     CATLASS_DEVICE
-    MatrixCoord GetBlockOffset(MatrixCoord blockIdx) const {
-        MatrixCoord rankCoord;
+    MatrixCoord GetBlockOffset(DistMatrixCoord blockCoord) const
+    {
+        if (blockCoord.rank() >= loops.rank()
+            || blockCoord.row() >= loops.row()
+            || blockCoord.column() >= loops.column()) {
+            return MatrixCoord{UINT_MAX, UINT_MAX};
+        }
 
-        if constexpr ((CopyMode_ == detail::CopyMode::Scatter && CopyDirect_ == detail::CopyDirect::Get)
-            ||(CopyMode_ == detail::CopyMode::Gather && CopyDirect_ == detail::CopyDirect::Put)) {
-            rankCoord = MatrixCoord{rankIdx, 0};
-        }
-        else if constexpr ((CopyMode_ == detail::CopyMode::Scatter && CopyDirect_ == detail::CopyDirect::Put)
-            ||(CopyMode_ == detail::CopyMode::Gather && CopyDirect_ == detail::CopyDirect::Get)) {
-            rankCoord = MatrixCoord{blockIdx.column(), 0};
-        }
-        return rankCoord * problemSizePerRank + MatrixCoord{blockIdx.row(), 0} * blockShape;
+        auto layoutRowLogicShape = Catlass::MakeCoord<uint32_t>(loops.rank(), loops.row());
+        auto layoutRowExpandRank = layout::AffineRankN<2, uint32_t>::Packed(layoutRowLogicShape);
+        uint32_t rowCoordPostRank = layoutRowExpandRank(Catlass::MakeCoord<uint32_t>(blockCoord.rank(), blockCoord.row()));
+        return MatrixCoord{rowCoordPostRank, blockCoord.column()} * blockShape.GetCoordInRank();
     }
 
-    template <detail::CopyMode CopyMode_, detail::CopyDirect CopyDirect_> 
     CATLASS_DEVICE
-    MatrixCoord GetBlockOffset(MatrixCoord blockIdx, MatrixCoord rankStride) const {
-        uint32_t rank;
-
-        if constexpr ((CopyMode_ == detail::CopyMode::Scatter && CopyDirect_ == detail::CopyDirect::Get)
-            ||(CopyMode_ == detail::CopyMode::Gather && CopyDirect_ == detail::CopyDirect::Put)) {
-            rank = rankIdx;
+    MatrixCoord GetBlockOffsetInRank(MatrixCoord blockCoordInRank) const
+    {
+        if (blockCoordInRank.row() >= loops.row() || blockCoordInRank.column() >= loops.column()) {
+            return MatrixCoord{UINT_MAX, UINT_MAX};
         }
-        else if constexpr ((CopyMode_ == detail::CopyMode::Scatter && CopyDirect_ == detail::CopyDirect::Put)
-            ||(CopyMode_ == detail::CopyMode::Gather && CopyDirect_ == detail::CopyDirect::Get)) {
-            rank = blockIdx.column();
-        }
-        auto layoutRankLogicShape = Catlass::MakeCoord<int64_t>(rankStride.row(), rankStride.column());
-        auto layoutRank = layout::AffineRankN<2>(layoutRankLogicShape);
-        auto offset = layoutRank(Catlass::MakeCoord<int>(blockIdx.row(), rank));
-        return MatrixCoord{offset, 0};
+        return blockCoordInRank * blockShape.GetCoordInRank();
     }
 
-    template <detail::CopyMode CopyMode_, detail::CopyDirect CopyDirect_> 
     CATLASS_DEVICE
-    MatrixCoord GetActualBlockShape(MatrixCoord blockIdx) const {
-        if (blockIdx.row() >= mLoops) {
-            return MatrixCoord{};
-        }
-        auto blockOffset = GetBlockOffset<CopyMode_, CopyDirect_>(blockIdx);
-        auto residue = problemSize - Min<uint32_t, 2>(problemSize, blockOffset);
-        auto actualBlockShape = Min(blockShape, residue);
+    MatrixCoord GetActualBlockShapeByOffset(MatrixCoord blockOffset)
+    {
+        auto residue = problemShape.GetCoordInRank() - Min<uint32_t, 2>(problemShape.GetCoordInRank(), blockOffset);
+        auto actualBlockShape = Min(blockShape.GetCoordInRank(), residue);
         return actualBlockShape;
+    }
+
+    CATLASS_DEVICE
+    MatrixCoord GetActualBlockShape(MatrixCoord blockCoordInRank) const {
+        auto blockOffset = GetBlockOffsetInRank(blockCoordInRank);
+        auto residue = problemShape.GetCoordInRank() - Min<uint32_t, 2>(problemShape.GetCoordInRank(), blockOffset);
+        auto actualBlockShape = Min(blockShape.GetCoordInRank(), residue);
+        return actualBlockShape;
+    }
+};
+
+struct BlockSchedulerCopyGatherA {
+    DistMatrixCoord problemShape;
+    DistMatrixCoord tileShape;
+    DistMatrixCoord gridShape;
+
+    CATLASS_DEVICE
+    BlockSchedulerCopyGatherA() = default;
+
+    CATLASS_DEVICE
+    BlockSchedulerCopyGatherA(DistMatrixCoord const &problemShape_, DistMatrixCoord const &tileShape_) :
+        problemShape(problemShape_), tileShape(tileShape_)
+    {
+        gridShape = CeilDiv(problemShape, tileShape);
+        }
+
+    CATLASS_DEVICE
+    BlockSchedulerCopyGatherA(DistMatrixCoord const &problemShape_, MatrixCoord const &tileShapeMN_) :
+        BlockSchedulerCopyGatherA(problemShape_, DistMatrixCoord{tileShapeMN_.row(), tileShapeMN_.column(), 1})
+    {
+    }
+
+    CATLASS_DEVICE
+    uint32_t GetCoreLoops() const
+    {
+        return Numel(gridShape);
+        }
+
+    CATLASS_DEVICE
+    DistMatrixCoord GetBlockCoord(uint32_t loopIdx) const
+    {
+        uint32_t dataLoops = Numel(gridShape.GetCoordInRank());
+        uint32_t rankIdx = loopIdx / dataLoops;
+        uint32_t dataIdx = loopIdx % dataLoops;
+        return {dataIdx / gridShape.column(), dataIdx % gridShape.column(), rankIdx};
+    }
+
+    CATLASS_DEVICE
+    DistMatrixCoord GetBlockOffset(uint32_t loopIdx) const
+    {
+        return GetBlockCoord(loopIdx) * tileShape;
+        }
+    CATLASS_DEVICE
+    DistMatrixCoord GetActualBlockShapeByOffset(DistMatrixCoord const &blockOffset) const
+    {
+        return Min(tileShape, problemShape - blockOffset);
+    }
+    CATLASS_DEVICE
+    DistMatrixCoord GetActualBlockShape(DistMatrixCoord const &blockCoord) const
+    {
+        auto blockOffset = blockCoord * tileShape;
+        return GetActualBlockShapeByOffset(blockOffset);
     }
 };
 

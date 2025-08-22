@@ -23,8 +23,10 @@ class CommBlockEpilogue {
     static_assert(DEPENDENT_FALSE<DispatchPolicy>, "Could not find an epilogue specialization");
 };
 
-} // namespace Catcoc::CommEpilogue::Block 
+} // namespace Catcoc::CommEpilogue::Block
 
 #include "catcoc/comm_epilogue/block/comm_block_epilogue_to_local_mem.hpp"
 #include "catcoc/comm_epilogue/block/comm_block_epilogue_to_share_mem.hpp"
+#include "catcoc/comm_epilogue/block/comm_block_epilogue_remote_copy.hpp"
+#include "catcoc/comm_epilogue/block/comm_block_epilogue_local_copy.hpp"
 #endif // CATCOC_COMM_EPILOGUE_BLOCK_EPILOGUE_HPP

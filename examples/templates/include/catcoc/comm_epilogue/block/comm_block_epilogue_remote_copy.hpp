@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef CATCOC_COMM_EPILOGUE_BLOCK_EPILOGUE_TO_LOCAL_MEM_HPP
-#define CATCOC_COMM_EPILOGUE_BLOCK_EPILOGUE_TO_LOCAL_MEM_HPP
+#ifndef CATCOC_COMM_EPILOGUE_BLOCK_EPILOGUE_BLOCK_REMOTE_COPY_HPP
+#define CATCOC_COMM_EPILOGUE_BLOCK_EPILOGUE_BLOCK_REMOTE_COPY_HPP
 
 #include "catcoc/catcoc.hpp"
 #include "catcoc/comm_epilogue/comm_dispatch_policy.hpp"
@@ -36,23 +36,21 @@ template <
     class BlockShape_,
     class TileShape_,
     class TileRemoteCopy_,
-    class EpilogueTileSwizzle_,
-    class GemmRemapper_
+    class EpilogueTileSwizzle_
 >
 class CommBlockEpilogue <
-    EpilogueAtlasA2CommToLocalMem<UB_STAGES_, CopyMode_, IsDynamic_>,
+    EpilogueAtlasA2CommRemoteCopy<UB_STAGES_, CopyMode_, IsDynamic_>,
     SrcType_,
     DstType_,
     CoreSplit_,
     BlockShape_,
     TileShape_,
     TileRemoteCopy_,
-    EpilogueTileSwizzle_,
-    GemmRemapper_
+    EpilogueTileSwizzle_
 > {
 public:
     // Type aliases
-    using DispatchPolicy = EpilogueAtlasA2CommToLocalMem<UB_STAGES_, CopyMode_, IsDynamic_>;
+    using DispatchPolicy = EpilogueAtlasA2CommRemoteCopy<UB_STAGES_, CopyMode_, IsDynamic_>;
     static constexpr uint32_t UB_STAGES = UB_STAGES_;
     static constexpr bool IsDynamic = IsDynamic_;
     using ArchTag = typename DispatchPolicy::ArchTag;
@@ -66,7 +64,6 @@ public:
     using TileShape = TileShape_;
     using TileRemoteCopy = TileRemoteCopy_;
     using EpilogueTileSwizzle = EpilogueTileSwizzle_;
-    using GemmRemapper = GemmRemapper_;
     static constexpr detail::CopyMode RemoteCopyMode = CopyMode_;
     static constexpr detail::CopyDirect RemoteCopyDirect = TileRemoteCopy::RemoteCopyDirect;
 
@@ -76,16 +73,8 @@ public:
 
     template <>
     struct ParamsBase<false> {
-        __gm__ ElementDst *shmemPtr{nullptr};
-        LayoutDst shmemLayout;
-        GemmRemapper gemmRemapper;
-
         CATLASS_HOST_DEVICE
         ParamsBase() {}
-
-        CATLASS_HOST_DEVICE
-        ParamsBase(__gm__ ElementDst *shmemPtr_, LayoutDst const &shmemLayout_, GemmRemapper const &gemmRemapper_) 
-            : shmemPtr(shmemPtr_), shmemLayout(shmemLayout_), gemmRemapper(gemmRemapper_) {}
 
         CATLASS_DEVICE
         static MatrixCoord CoreSplit() { return CoreSplit::ToCoord(); }
@@ -97,9 +86,6 @@ public:
 
     template <>
     struct ParamsBase<true> {
-        __gm__ ElementDst *shmemPtr{nullptr};
-        LayoutDst shmemLayout;
-        GemmRemapper gemmRemapper;
         MatrixCoord coreSplit;
         MatrixCoord blockShape;
         MatrixCoord tileShape;
@@ -108,10 +94,8 @@ public:
         ParamsBase() {}
 
         CATLASS_HOST_DEVICE
-        ParamsBase(__gm__ ElementDst *shmemPtr_, LayoutDst const &shmemLayout_, GemmRemapper const &gemmRemapper_,
-            MatrixCoord coreSplit_, MatrixCoord blockShape_, MatrixCoord tileShape_) 
-            : shmemPtr(shmemPtr_), shmemLayout(shmemLayout_), gemmRemapper(gemmRemapper_),
-              coreSplit(coreSplit_), blockShape(blockShape_), tileShape(tileShape_) {}
+        ParamsBase(MatrixCoord coreSplit_, MatrixCoord blockShape_, MatrixCoord tileShape_) 
+            : coreSplit(coreSplit_), blockShape(blockShape_), tileShape(tileShape_) {}
 
         CATLASS_DEVICE
         MatrixCoord CoreSplit() const { return coreSplit; }
@@ -127,7 +111,6 @@ public:
     CommBlockEpilogue(Catlass::Arch::Resource<ArchTag> &resource, Params const &params) : params(params)
     {
         size_t ubOffset = 0;
-
         for (uint32_t i = 0; i < UB_STAGES; ++i) {
             ubSList[i] = resource.ubBuf.template GetBufferByByte<ElementDst>(ubOffset);
             ubOffset += params.TileShape().row() * params.TileShape().column() * sizeof(ElementDst);
@@ -135,7 +118,7 @@ public:
     }
 
     CATLASS_DEVICE
-    void AllocEventID()
+    void InitBlockLoop()
     {
         uint32_t copyEventId = 0;
         for (uint32_t i = 0; i < UB_STAGES; ++i) {
@@ -145,7 +128,7 @@ public:
     }
 
     CATLASS_DEVICE
-    void ReleaseEventID()
+    void FinalizeBlockLoop()
     {
         for (uint32_t i = 0; i < UB_STAGES; ++i) {
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(copyEventIdList[i]);
@@ -160,30 +143,12 @@ public:
 
     CATLASS_DEVICE
     void operator() (
-        MatrixCoord const &gemmBlockShape,
-        MatrixCoord const &outputBlockOffset,
-        MatrixCoord const &inputBlockOffset,
-        MatrixCoord const &commBlockShape,
-        AscendC::GlobalTensor<ElementSrc> const& gmC,
-        LayoutSrc const &layoutC,
-        uint32_t const &globalLoopIdx,
-        uint32_t const &rankIdx)
+        AscendC::GlobalTensor<ElementSrc> const& gmSrc, LayoutSrc const &layoutSrc,
+        AscendC::GlobalTensor<ElementDst> const& gmDst, LayoutDst const &layoutDst,
+        MatrixCoord const &actualCommBlockShape, uint32_t rankIdx
+    )
     {
-        // Remap the idx & actual shape of the gemm block
-        GemmCoord remapOutputBlockCoordMNK = params.gemmRemapper.GetBlockCoord(globalLoopIdx);
-        GemmCoord actualGemmBlockShapeMNK = params.gemmRemapper.GetActualBlockShape(remapOutputBlockCoordMNK);
-        MatrixCoord remapOutputBlockCoord = remapOutputBlockCoordMNK.GetCoordMN();
-        MatrixCoord actualGemmBlockShape = actualGemmBlockShapeMNK.GetCoordMN();
-
-        // Calculate the actual output offset of the communication block
-        MatrixCoord blockOutterOffset = remapOutputBlockCoord * gemmBlockShape;
-        MatrixCoord blockInnerOffset = outputBlockOffset % gemmBlockShape;
-
-        // Get actual communication block shape
-        MatrixCoord actualCommBlockShape;
-        if (blockInnerOffset.row() < actualGemmBlockShape.row()) {
-            actualCommBlockShape = MatrixCoord::Min(actualGemmBlockShape - blockInnerOffset, commBlockShape);
-        } else {
+        if (actualCommBlockShape.row() == 0) {
             return;
         }
         
@@ -191,28 +156,23 @@ public:
         EpilogueTileSwizzle epilogueTileSwizzle{actualCommBlockShape, tileShape};
         uint32_t tileLoops = epilogueTileSwizzle.GetLoops();
 
-        for (uint32_t innerLoopIdx = 0; innerLoopIdx < tileLoops; innerLoopIdx++) {
-            auto tileCoord = epilogueTileSwizzle.GetTileCoord(innerLoopIdx);
+        for (uint32_t tileIdx = 0; tileIdx < tileLoops; tileIdx++) {
+            auto tileCoord = epilogueTileSwizzle.GetTileCoord(tileIdx);
             auto actualTileShape = epilogueTileSwizzle.GetActualTileShape(tileCoord);
             auto tileOffsetInBlock = tileCoord * tileShape;
-            
-            auto inTileOffset = inputBlockOffset + tileOffsetInBlock;
-            auto outTileOffset = blockOutterOffset + blockInnerOffset + tileOffsetInBlock;
-
-            // Get the data and layout of output
-            auto gmSubblockC = gmC[layoutC.GetOffset(outTileOffset)];
-            auto layoutSubblockC = layoutC.GetTileLayout(actualTileShape);
 
             // Get the data and layout of input
-            AscendC::GlobalTensor<ElementDst> gmS;
-            gmS.SetGlobalBuffer(reinterpret_cast<__gm__ ElementDst *>(params.shmemPtr));
-            auto gmSubblockS = gmS[params.shmemLayout.GetOffset(inTileOffset)];
-            auto layoutSubblockS = params.shmemLayout.GetTileLayout(actualTileShape);
+            auto gmTileSrc = gmSrc[layoutSrc.GetOffset(tileOffsetInBlock)];
+            auto layoutTileSrc = layoutSrc.GetTileLayout(actualTileShape);
+            
+            // Get the data and layout of output
+            auto gmTileDst = gmDst[layoutDst.GetOffset(tileOffsetInBlock)];
+            auto layoutTileDst = layoutDst.GetTileLayout(actualTileShape);
 
             AscendC::WaitFlag<AscendC::HardEvent::MTE3_MTE2>(copyEventIdList[ubListId]);
             tileRemoteCopy(
-                gmSubblockC, layoutSubblockC,
-                gmSubblockS, layoutSubblockS,
+                gmTileDst, layoutTileDst,
+                gmTileSrc, layoutTileSrc,
                 actualTileShape,
                 ubSList[ubListId],
                 copyEventIdList[ubListId],
@@ -233,4 +193,4 @@ private:
 
 } // namespace Catcoc::CommEpilogue::Block 
 
-#endif // CATCOC_COMM_EPILOGUE_BLOCK_EPILOGUE_TO_LOCAL_MEM_HPP
+#endif // CATCOC_COMM_EPILOGUE_BLOCK_EPILOGUE_BLOCK_REMOTE_COPY_HPP

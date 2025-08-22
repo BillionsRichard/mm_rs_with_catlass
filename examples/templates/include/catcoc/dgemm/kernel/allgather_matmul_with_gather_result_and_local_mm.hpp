@@ -7,8 +7,8 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#ifndef CATCOC_DGEMM_KERNEL_ALLGATHER_MATMUL_LOCAL_MM_HPP
-#define CATCOC_DGEMM_KERNEL_ALLGATHER_MATMUL_LOCAL_MM_HPP
+#ifndef CATCOC_DGEMM_KERNEL_ALLGATHER_MATMUL_WITH_GATHER_RESULT_HPP
+#define CATCOC_DGEMM_KERNEL_ALLGATHER_MATMUL_WITH_GATHER_RESULT_HPP
 
 #include "catcoc/catcoc.hpp"
 
@@ -26,11 +26,13 @@ using Catlass::GemmCoord;
 template <
     class BlockMmad_,
     class BlockEpilogueAllGather_,
+    class BlockEpilogueCopyGatherA_,
     class BlockScheduler_,
-    class BlockEpilogueScheduler_,
+    class BlockAllGatherScheduler_,
+    class BlockCopyGatherAScheduler_,
     uint32_t WORKSPACE_STAGES_
 >
-class AllGatherMatmul {
+class AllGatherMatmulWithGatherResult {
 public:
     using BlockMmad = BlockMmad_;
     using ArchTag = typename BlockMmad::ArchTag;
@@ -41,12 +43,18 @@ public:
     using LayoutB = typename BlockMmad::LayoutB;
     using ElementC = typename BlockMmad::ElementC;
     using LayoutC = typename BlockMmad::LayoutC;
+    using ElementGatherA = ElementA;
+    using LayoutGatherA = LayoutA;
 
     using AllGather = BlockEpilogueAllGather_;
     using AllGatherParams = typename AllGather::Params;
 
+    using CopyGatherA = BlockEpilogueCopyGatherA_;
+    using CopyGatherAParams = typename CopyGatherA::Params;
+
     using BlockScheduler = BlockScheduler_;
-    using CommScheduler = BlockEpilogueScheduler_;
+    using BlockAllGatherScheduler = BlockAllGatherScheduler_;
+    using BlockCopyGatherAScheduler = BlockCopyGatherAScheduler_;
 
     static constexpr uint32_t WORKSPACE_STAGES = WORKSPACE_STAGES_;
 
@@ -58,17 +66,20 @@ public:
         uint32_t rankIdx;
         uint32_t rankSize;
 
-        uint32_t commInterval;
-
         __gm__ ElementA *ptrA;
         LayoutA layoutA;
         __gm__ ElementB *ptrB;
         LayoutB layoutB;
+        GM_ADDR ptrSymmetric;
+        AllGatherParams allGatherParams;
+        CopyGatherAParams copyGatherAParams;
+
+        __gm__ ElementGatherA *ptrGatherA;
+        LayoutGatherA layoutGatherA;
         __gm__ ElementC *ptrC;
         LayoutC layoutC;
-        GM_ADDR ptrSymmetric;
 
-        AllGatherParams allGatherParams;
+        uint32_t commInterval;
 
         // Methods
         CATLASS_DEVICE
@@ -78,27 +89,31 @@ public:
         Params(
             GemmCoord const &problemShape_,
             uint32_t rank_, uint32_t rankSize_,
-            uint32_t commInterval_,
             GM_ADDR ptrA_, LayoutA const &layoutA_,
             GM_ADDR ptrB_, LayoutB const &layoutB_,
-            GM_ADDR ptrC_, LayoutC const &layoutC_,
             GM_ADDR ptrSymmetric_,
-            AllGatherParams const &allGatherParams_
+            AllGatherParams const &allGatherParams_,
+            CopyGatherAParams const &copyGatherAParams_,
+            GM_ADDR ptrGatherA_, LayoutGatherA const &layoutGatherA_,
+            GM_ADDR ptrC_, LayoutC const &layoutC_,
+            uint32_t commInterval_
         ) : problemShape(problemShape_),
             rankIdx(rank_), rankSize(rankSize_),
-            commInterval(commInterval_),
             ptrA(reinterpret_cast<__gm__ ElementA *>(ptrA_)), layoutA(layoutA_),
             ptrB(reinterpret_cast<__gm__ ElementB *>(ptrB_)), layoutB(layoutB_),
-            ptrC(reinterpret_cast<__gm__ ElementC *>(ptrC_)), layoutC(layoutC_),
             ptrSymmetric(ptrSymmetric_),
-            allGatherParams(allGatherParams_)
+            allGatherParams(allGatherParams_),
+            copyGatherAParams(copyGatherAParams_),
+            ptrGatherA(reinterpret_cast<__gm__ ElementGatherA *>(ptrGatherA_)), layoutGatherA(layoutGatherA_),
+            ptrC(reinterpret_cast<__gm__ ElementC *>(ptrC_)), layoutC(layoutC_),
+            commInterval(commInterval_)
         {
         }
     };
 
     // Methods
     CATLASS_DEVICE
-    AllGatherMatmul()
+    AllGatherMatmulWithGatherResult()
     {
         for (uint32_t stageIdx = 0; stageIdx< WORKSPACE_STAGES; ++stageIdx) {
             flagAicFinishStore[stageIdx] = Catlass::Arch::CrossCoreFlag(stageIdx);
@@ -126,13 +141,13 @@ public:
         // Represent the full gm
         AscendC::GlobalTensor<ElementA> gmALocal;
         gmALocal.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(params.ptrA));
-        AscendC::GlobalTensor<ElementA> gmAShmem;
-        gmAShmem.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(params.ptrSymmetric));
+        AscendC::GlobalTensor<ElementGatherA> gmSymmetric;
+        gmSymmetric.SetGlobalBuffer(reinterpret_cast<__gm__ ElementGatherA *>(params.ptrSymmetric));
         AscendC::GlobalTensor<ElementB> gmB;
         gmB.SetGlobalBuffer(params.ptrB);
         AscendC::GlobalTensor<ElementC> gmC;
         gmC.SetGlobalBuffer(params.ptrC);
-        
+
         //// Local matmul
         auto localProblemShape = Catlass::MakeCoord<uint32_t>(
             params.problemShape.m(), params.problemShape.n(), params.problemShape.k(), 1
@@ -181,8 +196,10 @@ public:
             );
             BlockScheduler mmadScheduler(actualProblemShape, blockShape.GetCoordMN());
             uint32_t coreLoops = mmadScheduler.GetCoreLoops();
-            
+
+            // wait aiv
             Catlass::Arch::CrossCoreWaitFlag(flagAivFinishCompute[stageId]);
+
             for (uint32_t loopIdx = aicoreIdx; loopIdx < coreLoops; loopIdx += aicoreNum) {
                 auto blockOffset = mmadScheduler.GetBlockOffset(loopIdx);
                 auto actualBlockShape = mmadScheduler.GetActualBlockShapeByOffset(blockOffset);
@@ -193,15 +210,16 @@ public:
                 }
                 MatrixCoord commOffsetA{layoutSymmetricRow(Catlass::MakeCoord<int>(stageId, srcRankIdx, 0)), 0};
                 MatrixCoord commOffsetC{layoutCRow(Catlass::MakeCoord<int>(srcRankIdx, commIdx, 0)), 0};
-                
-                auto offsetA = commOffsetA + blockOffset.GetCoordMK();
-                auto offsetB = blockOffset.GetCoordKN();
-                auto offsetC = commOffsetC + blockOffset.GetCoordMN();
 
-                auto gmBlockA = gmAShmem[layoutSymmetric.GetOffset(offsetA)];
+                MatrixCoord offsetA = commOffsetA + blockOffset.GetCoordMK();
+                MatrixCoord offsetB = blockOffset.GetCoordKN();
+                MatrixCoord offsetC = commOffsetC + blockOffset.GetCoordMN();
+
+                auto gmBlockA = gmSymmetric[layoutSymmetric.GetOffset(offsetA)];
                 auto gmBlockB = gmB[params.layoutB.GetOffset(offsetB)];
                 auto gmBlockC = gmC[layoutC.GetOffset(offsetC)];
 
+                // Compute block-scoped matrix multiply-add
                 mmad(
                     gmBlockA, layoutSymmetric,
                     gmBlockB, params.layoutB,
@@ -219,6 +237,7 @@ public:
     CATLASS_DEVICE
     void operator()<AscendC::AIV>(Params &params)
     {
+        uint32_t aicoreNum = AscendC::GetBlockNum();
         uint32_t aicoreIdx = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum();
         uint32_t subcoreIdx = AscendC::GetSubBlockIdx();
 
@@ -227,12 +246,17 @@ public:
         uint32_t commLoops = CeilDiv(params.problemShape.m(), commSizeM);
 
         AllGather allGather(resource, params.allGatherParams);
+        CopyGatherA copyGatherA(resource, params.copyGatherAParams);
 
         AscendC::GlobalTensor<ElementA> gmA;
         gmA.SetGlobalBuffer(params.ptrA);
-        AscendC::GlobalTensor<ElementA> gmSymmetric;
-        gmSymmetric.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(params.ptrSymmetric));
+        AscendC::GlobalTensor<ElementGatherA> gmGatherA;
+        gmGatherA.SetGlobalBuffer(params.ptrGatherA);
+        AscendC::GlobalTensor<ElementGatherA> gmSymmetric;
+        gmSymmetric.SetGlobalBuffer(reinterpret_cast<__gm__ ElementGatherA *>(params.ptrSymmetric));
 
+        auto layoutGatherARowLogicStride = Catlass::MakeCoord<int64_t>(params.problemShape.m(), commSizeM, 1);
+        layout::AffineRankN<3> layoutGatherARow{layoutGatherARowLogicStride};
         auto layoutSymmetric = Catlass::layout::RowMajor(
             WORKSPACE_STAGES * params.rankSize * commSizeM, params.problemShape.k(),
             RoundUp<int64_t>(params.problemShape.k(), Catlass::BYTE_PER_FRACTAL / sizeof(ElementA))
@@ -242,13 +266,18 @@ public:
 
         MatrixCoord commBlockShape = params.allGatherParams.BlockShape();
         MatrixCoord commCoreSplit = params.allGatherParams.CoreSplit();
-        CommScheduler commScheduler(commBlockShape, commCoreSplit);
-        for (uint32_t commIdx = 0; commIdx < commLoops; ++commIdx) {
+        BlockAllGatherScheduler commScheduler(commBlockShape, commCoreSplit);
+
+        MatrixCoord copyGatherABlockShape = params.copyGatherAParams.BlockShape();
+
+        uint32_t copyCommIdx;
+        uint32_t copyStageId;
+        DistMatrixCoord copyActualShape;
+        for (uint32_t commIdx = 0; commIdx < commLoops + 1; ++commIdx) {
             uint32_t stageId = commIdx % WORKSPACE_STAGES;
 
             uint32_t actualCommSizeM = Min(commSizeM, params.problemShape.m() - commIdx * commSizeM);
             auto actualCommShape = DistMatrixCoord(actualCommSizeM, params.problemShape.k(), params.rankSize);
-            
             MatrixCoord loopsInRank = CeilDiv(MatrixCoord(actualCommShape.GetCoordInRank()), commBlockShape);
             commScheduler.UpdateProblem(actualCommShape, loopsInRank);
             auto commAicoreNum = commScheduler.GetRealCore();
@@ -264,42 +293,94 @@ public:
 
             shmemx_barrier_all_vec();
 
-            allGather.InitBlockLoop();
-            if (subcoreIdx == 0 && aicoreIdx < commAicoreNum) {
-                for (uint32_t commLoopIdx = aicoreIdx; commLoopIdx < commCoreLoops; commLoopIdx += commAicoreNum) {
-                    DistMatrixCoord commBlockCoord = commScheduler.GetBlockCoord(commLoopIdx);
-                    MatrixCoord blockOffsetInRank = commScheduler.GetBlockOffsetInRank(commBlockCoord.GetCoordInRank());
-                    MatrixCoord actualCommBlockShape = commScheduler.GetActualBlockShapeByOffset(blockOffsetInRank);
-                    
-                    uint32_t remoteRankIdx = commBlockCoord.rank();
-                    if (remoteRankIdx == params.rankIdx) {
-                        continue;
+            if (commIdx < commLoops) {
+                if (subcoreIdx == 0 && aicoreIdx < commAicoreNum) {
+                    allGather.InitBlockLoop();
+                    for (uint32_t commLoopIdx = aicoreIdx; commLoopIdx < commCoreLoops; commLoopIdx += commAicoreNum) {
+                        DistMatrixCoord commBlockCoord = commScheduler.GetBlockCoord(commLoopIdx);
+                        MatrixCoord blockOffsetInRank = commScheduler.GetBlockOffsetInRank(commBlockCoord.GetCoordInRank());
+                        MatrixCoord actualCommBlockShape = commScheduler.GetActualBlockShapeByOffset(blockOffsetInRank);
+
+                        uint32_t remoteRankIdx = commBlockCoord.rank();
+                        if (remoteRankIdx == params.rankIdx) {
+                            continue;
+                        }
+
+                        auto offsetSrc = commSrcOffset + blockOffsetInRank;
+                        auto offsetDst = commDstOffset + blockOffsetInRank;
+
+                        auto gmBlockSrc = gmA[params.layoutA.GetOffset(offsetSrc)];
+                        auto layoutBlockSrc = params.layoutA.GetTileLayout(actualCommBlockShape);
+
+                        auto gmBlockDst = gmSymmetric[layoutSymmetric.GetOffset(offsetDst)];
+                        auto layoutBlockDst = layoutSymmetric.GetTileLayout(actualCommBlockShape);
+
+                        allGather(
+                            gmBlockSrc, layoutBlockSrc,
+                            gmBlockDst, layoutBlockDst,
+                            actualCommBlockShape, remoteRankIdx % params.rankSize
+                        );
                     }
-
-                    auto offsetSrc = commSrcOffset + blockOffsetInRank;
-                    auto offsetDst = commDstOffset + blockOffsetInRank;
-
-                    auto gmBlockSrc = gmA[params.layoutA.GetOffset(offsetSrc)];
-                    auto layoutBlockSrc = params.layoutA.GetTileLayout(actualCommBlockShape);
-
-                    auto gmBlockDst = gmSymmetric[layoutSymmetric.GetOffset(offsetDst)];
-                    auto layoutBlockDst = layoutSymmetric.GetTileLayout(actualCommBlockShape);
-
-                    allGather(
-                        gmBlockSrc, layoutBlockSrc,
-                        gmBlockDst, layoutBlockDst,
-                        actualCommBlockShape, remoteRankIdx % params.rankSize
-                    );
+                    allGather.FinalizeBlockLoop();
                 }
             }
-            allGather.FinalizeBlockLoop();
-            // AllGather is completed, waiting until tasks on all devices are complete.
+
+            if (commIdx > 0) {
+                if (subcoreIdx == 1 && aicoreIdx >= commAicoreNum) {
+                    BlockCopyGatherAScheduler copyGatherAScheduler{copyActualShape, copyGatherABlockShape};
+                    uint32_t copyCoreLoops = copyGatherAScheduler.GetCoreLoops();
+                    uint32_t copyAicoreNum = aicoreNum - commAicoreNum;
+                    uint32_t copyAicoreIdx = aicoreIdx - commAicoreNum;
+
+                    copyGatherA.InitBlockLoop();
+                    for (uint32_t loopIdx = copyAicoreIdx; loopIdx < copyCoreLoops; loopIdx += copyAicoreNum) {
+                        auto blockOffset = copyGatherAScheduler.GetBlockOffset(loopIdx);
+                        auto actualBlockShape = copyGatherAScheduler.GetActualBlockShapeByOffset(blockOffset).GetCoordInRank();
+
+                        auto rowOffsetSrc = Catlass::MakeCoord<int>(copyStageId, blockOffset.rank(), blockOffset.row());
+                        auto rowOffsetDst = Catlass::MakeCoord<int>(blockOffset.rank(), copyCommIdx, blockOffset.row());
+                        
+                        Catlass::layout::RowMajor layoutBlockSrc;
+                        AscendC::GlobalTensor<ElementA> gmBlockSrc;
+                        if (blockOffset.rank() == params.rankIdx) {
+                            MatrixCoord offsetSrc 
+                                = MatrixCoord{copyCommIdx * commSizeM, 0} + blockOffset.GetCoordInRank();
+                            gmBlockSrc = gmA[params.layoutA.GetOffset(offsetSrc)];
+                            layoutBlockSrc = params.layoutA.GetTileLayout(actualBlockShape);
+                        } else {
+                            MatrixCoord offsetSrc{
+                                static_cast<uint32_t>(layoutSymmetricRow(rowOffsetSrc)), blockOffset.column()
+                            };
+                            gmBlockSrc = gmSymmetric[layoutSymmetric.GetOffset(offsetSrc)];
+                            layoutBlockSrc = layoutSymmetric.GetTileLayout(actualBlockShape);
+                        }
+                        
+                        MatrixCoord offsetDst{
+                            static_cast<uint32_t>(layoutGatherARow(rowOffsetDst)), blockOffset.column()
+                        };
+                        auto gmBlockDst = gmGatherA[params.layoutGatherA.GetOffset(offsetDst)];
+                        auto layoutBlockDst = params.layoutGatherA.GetTileLayout(actualBlockShape);
+
+                        copyGatherA(
+                            gmBlockSrc, layoutBlockSrc,
+                            gmBlockDst, layoutBlockDst,
+                            actualBlockShape
+                        );
+                    }
+                    copyGatherA.FinalizeBlockLoop();
+                }
+            }
+
+            // BlockEpilogueAllGather is completed, waiting until tasks on all devices are complete.
             shmemx_barrier_all_vec();
 
             // set aic
             Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_MTE3>(flagAivFinishCompute[stageId]);
-        }
 
+            copyCommIdx = commIdx;
+            copyStageId = stageId;
+            copyActualShape = actualCommShape;
+        }
     }
 
 private:
@@ -311,4 +392,4 @@ private:
 
 } // namespace Catcoc::Gemm::Kernel
 
-#endif // CATCOC_DGEMM_KERNEL_ALLGATHER_MATMUL_LOCAL_MM_HPP
+#endif // CATCOC_DGEMM_KERNEL_ALLGATHER_MATMUL_WITH_GATHER_RESULT_HPP

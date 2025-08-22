@@ -19,99 +19,103 @@
 #include "catlass/matrix_coord.hpp"
 #include "catlass/gemm/block/block_swizzle.hpp"
 
+#include "catcoc/dist_coord.hpp"
 namespace Catcoc::DGemm::Block {
 
 using Catlass::MatrixCoord;
 using Catlass::GemmCoord;
 
 /// Threadblock swizzling function for GEMMs
-template <uint32_t SwizzleOffset = 1, uint32_t SwizzleDirection = 0, uint32_t BufferNum = 1>
-struct GemmIdentityBlockSwizzleAllGather :
-    public Catlass::Gemm::Block::GemmIdentityBlockSwizzle<SwizzleOffset, SwizzleDirection> {
-
-    using Base = Catlass::Gemm::Block::GemmIdentityBlockSwizzle<SwizzleOffset, SwizzleDirection>;
+template <uint32_t SWIZZLE_OFFSET = 1, uint32_t SWIZZLE_DIRECTION = 0>
     ///
     /// Data members
     ///
-
-    GemmCoord problemShape; // problemSize for total distributed Gemm
-    MatrixCoord tileMN;
-    MatrixCoord loopsMN;
-    uint32_t rankSize;
-    uint32_t mLoopsPerComm;
-
+struct GemmBlockSwizzleAllGatherMesh {
+    DistGemmCoord problemShape; // problemSize for total distributed Gemm
+    DistGemmCoord loops;
+    DistGemmCoord tileShape;
     ///
     /// Methods
     ///
 
     CATLASS_DEVICE
-    GemmIdentityBlockSwizzleAllGather() {}
+    GemmBlockSwizzleAllGatherMesh() = default;
 
     CATLASS_DEVICE
-    GemmIdentityBlockSwizzleAllGather(uint32_t rankSize_, uint32_t commInterval_, GemmCoord const &problemShape_,
-        MatrixCoord const &tileMN_)
-        : Base(problemShape_,
-            tileMN_),
-          rankSize(rankSize_), mLoopsPerComm(commInterval_ * rankSize_),
-          problemShape(GemmCoord{problemShape_.m() * rankSize_, problemShape_.n(), problemShape_.k()}),
-          tileMN(tileMN_)
+    GemmBlockSwizzleAllGatherMesh(DistGemmCoord const &problemShape_, DistGemmCoord const &tileShape_) :
+        problemShape(problemShape_), tileShape(tileShape_)
     {
-        loopsMN = Base::loopsMN * MatrixCoord{rankSize, 1};
+        loops = CeilDiv(problemShape, tileShape);
     }
 
     CATLASS_DEVICE
-    uint32_t GetBatchIdx(uint32_t taskIdx) const
+    GemmBlockSwizzleAllGatherMesh(DistGemmCoord const &problemShape_, MatrixCoord const &tileShapeMN_) :
+        problemShape(problemShape_)
     {
-        return Base::GetBatchIdx(taskIdx / rankSize);
+        tileShape = Catlass::MakeCoord<uint32_t>(tileShapeMN_[0], tileShapeMN_[1], problemShape_[2], 1);
+        loops = CeilDiv(problemShape, tileShape);
     }
 
     CATLASS_DEVICE
-    uint32_t GetMLoops() const
+    uint32_t GetCoreLoops() const
     {
-        return loopsMN.row();
+        return loops[0] * loops[1] * loops[2] * loops[3];
     }
 
     CATLASS_DEVICE
-    uint32_t GetNLoops() const
+    DistGemmCoord GetBlockCoord(uint32_t loopIdx) const
     {
-        return loopsMN.column();
+        uint32_t rows = loops[0] * loops[3];
+        uint32_t cols = loops[1];
+        uint32_t rowIdx{}, colIdx{};
+        if constexpr (SWIZZLE_DIRECTION == 0) {
+            uint32_t groupSize = SWIZZLE_OFFSET * cols;
+            uint32_t groupIdx = loopIdx / groupSize;
+            uint32_t groupOffset = loopIdx - groupIdx * groupSize;
+
+            uint32_t inGroupRows = Min(SWIZZLE_OFFSET, rows - groupIdx * SWIZZLE_OFFSET);
+            colIdx = groupOffset / inGroupRows;
+            uint32_t inGroupRowIdx = groupOffset - colIdx * inGroupRows;
+            rowIdx = groupIdx * SWIZZLE_OFFSET + inGroupRowIdx;
+            if ((groupIdx & 0b1) == 1) {
+                colIdx = cols - colIdx - 1;
+            }
+        } else if constexpr (SWIZZLE_DIRECTION == 1) {
+            uint32_t groupSize = SWIZZLE_OFFSET * rows;
+            uint32_t groupIdx = loopIdx / groupSize;
+            uint32_t groupOffset = loopIdx - groupIdx * groupSize;
+            uint32_t inGroupCols = Min(SWIZZLE_OFFSET, cols - groupIdx * SWIZZLE_OFFSET);
+            rowIdx = groupOffset / inGroupCols;
+            uint32_t inGroupColIdx = groupOffset - rowIdx * inGroupCols;
+            colIdx = groupIdx * SWIZZLE_OFFSET + inGroupColIdx;
+            if ((groupIdx & 0b1) == 1) {
+                rowIdx = rows - rowIdx - 1;
+            }
+        }
+        return {rowIdx % loops[0], colIdx, 0, rowIdx / loops[0]};
     }
 
     CATLASS_DEVICE
-    uint32_t GetCoreLoops(uint32_t batchCount = 1) const
+    DistGemmCoord GetBlockOffset(uint32_t loopIdx) const
     {
-        return loopsMN.row() * loopsMN.column() * batchCount;
+        return GetBlockCoord(loopIdx) * tileShape;
     }
 
     CATLASS_DEVICE
-    GemmCoord GetBlockCoord(uint32_t taskIdx)
+    DistGemmCoord GetActualBlockShapeByOffset(DistGemmCoord blockOffset) const
     {
-        uint32_t commCount = CeilDiv(loopsMN.row(), mLoopsPerComm);
-        uint32_t commIdx = taskIdx / (mLoopsPerComm * Base::loopsMN.column());
-        uint32_t inCommIdx = taskIdx % (mLoopsPerComm * Base::loopsMN.column());
-
-        auto actualMLoops =
-            (commIdx == commCount - 1) ? loopsMN.row() - commIdx * mLoopsPerComm : mLoopsPerComm;
-        auto actualMLoopsPerRank = actualMLoops / rankSize;
+        return Min(tileShape, problemShape - blockOffset);
 
         // 局部swizzle
-        auto tmpMNLoops = Base::loopsMN;
-        Base::loopsMN = MatrixCoord{actualMLoops, tmpMNLoops.column()};
-        auto coord = Base::GetBlockCoord(inCommIdx);
-        Base::loopsMN = tmpMNLoops;
 
-        uint32_t rankIdx = coord.m() / actualMLoopsPerRank;
-        uint32_t m = rankIdx * Base::loopsMN.row() + commIdx * (mLoopsPerComm / rankSize) + coord.m() % actualMLoopsPerRank;
 
-        return GemmCoord{m, coord.n(), coord.k()};
     }
 
     CATLASS_DEVICE
-    GemmCoord GetActualBlockShape(GemmCoord blockTileOffset)
+    DistGemmCoord GetActualBlockShape(DistGemmCoord blockCoord)
     {
-        uint32_t mIdxInRank = blockTileOffset.m() % Base::loopsMN.row();
-        GemmCoord blockTileOffsetInRank(mIdxInRank, blockTileOffset.n(), blockTileOffset.k());
-        return Base::GetActualBlockShape(blockTileOffsetInRank);
+        auto blockOffset = blockCoord * tileShape;
+        return GetActualBlockShapeByOffset(blockOffset);
     }
 };
 

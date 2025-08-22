@@ -34,6 +34,18 @@ struct EpilogueAtlasA2CommToLocalMem {
     static constexpr bool IsDynamic = IsDynamic_;
 };
 
+template <uint32_t UB_STAGES_, detail::CopyMode CopyMode_, bool IsDynamic_=false>
+struct EpilogueAtlasA2CommRemoteCopy {
+    using ArchTag = Catlass::Arch::AtlasA2;
+    static constexpr uint32_t UB_STAGES = UB_STAGES_;
+    static constexpr bool IsDynamic = IsDynamic_;
+};
+template <uint32_t UB_STAGES_, bool IsDynamic_=false>
+struct EpilogueAtlasA2CommLocalCopy {
+    using ArchTag = Catlass::Arch::AtlasA2;
+    static constexpr uint32_t UB_STAGES = UB_STAGES;
+    static constexpr bool IsDynamic = IsDynamic_;
+};
 }  // namespace Catcoc::CommEpilogue
 
 #endif  // CATCOC_EPILOGUE_DISPATCH_POLICY_HPP

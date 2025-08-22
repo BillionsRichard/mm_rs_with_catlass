@@ -21,7 +21,7 @@
 #include "catcoc/comm_epilogue/tile/tile_remote_copy.hpp"
 #include "catcoc/detail/remote_copy_type.hpp"
 #include "catcoc/dgemm/block/block_swizzle_allgather.hpp"
-#include "catcoc/dgemm/kernel/allgather_matmul_with_local_mm_opt.hpp"
+#include "catcoc/dgemm/kernel/allgather_matmul.hpp"
 
 using namespace AscendC;
 using namespace Catcoc;
@@ -31,7 +31,6 @@ template <
     class ElementA, class LayoutA,
     class ElementB, class LayoutB,
     class ElementC, class LayoutC,
-    class ElementD, class LayoutD,
     uint32_t M0, uint32_t N0, uint32_t K0
 >
 CATLASS_DEVICE
@@ -45,7 +44,7 @@ void AllGatherMatmulImpl(
     Catlass::MatrixCoord& commCoreSplit,
     Catlass::MatrixCoord& commBlockShape,
     Catlass::MatrixCoord& commTileShape,
-    GM_ADDR symmetricPtr, LayoutC& layoutD, shmem_team_t teamIdx = 0
+    GM_ADDR symmetricPtr
 )
 {
     constexpr bool ENABLE_UNIT_FLAG = true;
@@ -57,13 +56,11 @@ void AllGatherMatmulImpl(
     using AType = Catlass::Gemm::GemmType<ElementA, LayoutA>;
     using BType = Catlass::Gemm::GemmType<ElementB, LayoutB>;
     using CType = Catlass::Gemm::GemmType<ElementC, LayoutC>;
-    using DType = Catlass::Gemm::GemmType<ElementD, LayoutD>;
     using BlockMmad = Catlass::Gemm::Block::BlockMmad<
         MmadDispatchPolicy, L1TileShape, L0TileShape, AType, BType, CType
     >;
 
-    using BlockMmadScheduler = Catcoc::DGemm::Block::GemmIdentityBlockSwizzleAllGather<7, 1, 2>;
-    using BlockRemapScheduler = Catlass::Gemm::Block::GemmIdentityBlockSwizzle<7, 1>;
+    using BlockMmadScheduler = Catcoc::DGemm::Block::GemmBlockSwizzleAllGatherMesh<7, 1>;
     using BlockEpilogueScheduler = Catcoc::CommEpilogue::Block::BlockCommSwizzle<0>;
 
     using RemoteSrcType = AType;
@@ -73,15 +70,14 @@ void AllGatherMatmulImpl(
     using TileScheduler = Catlass::Epilogue::Tile::EpilogueIdentityTileSwizzle;
 
     constexpr bool isDynamic = true;
-    using EpilogueAllGatherDispatch = CommEpilogue::EpilogueAtlasA2CommToShareMem<UB_STAGES,
+    using EpilogueAllGatherDispatch = CommEpilogue::EpilogueAtlasA2CommRemoteCopy<UB_STAGES,
         Catcoc::detail::CopyMode::Gather, isDynamic>;
     using BlockEpilogueAllGather = CommEpilogue::Block::CommBlockEpilogue<
         EpilogueAllGatherDispatch,
         RemoteSrcType, RemoteDstType,
         void,
         void,
-        void, TileRemoteCopy, TileScheduler,
-        BlockRemapScheduler
+        void, TileRemoteCopy, TileScheduler
     >;
 
     using AllGatherMatmulKernel = DGemm::Kernel::AllGatherMatmul<
@@ -92,30 +88,25 @@ void AllGatherMatmulImpl(
         WORKSPACE_STAGES
     >;
 
-    uint32_t rank = shmem_team_my_pe(teamIdx);
-    uint32_t rankSize = shmem_team_n_pes(teamIdx);
+    uint32_t rank = shmem_my_pe();
+    uint32_t rankSize = shmem_n_pes();
 
-    Catlass::GemmCoord remapProblemShape{problemShape.m(), problemShape.k(), problemShape.k()};
-    BlockRemapScheduler remapBlockScheduler(remapProblemShape,
-        Catlass::MakeCoord(L1TileShape::M, problemShape.k()));
+    typename BlockEpilogueAllGather::Params allGatherParams {
+        commCoreSplit,
+        commBlockShape,
+        commTileShape
+    };
 
     // Prepare params
-    typename AllGatherMatmulKernel::Params params{
+    typename AllGatherMatmulKernel::Params params {
         problemShape,
-        rank, rankSize, teamIdx,
+        rank, rankSize,
         commInterval,
         gmA, layoutA,
         gmB, layoutB,
         gmC, layoutC,
         symmetricPtr,
-        {
-            reinterpret_cast<__gm__ ElementC *>(symmetricPtr),
-            layoutD,
-            remapBlockScheduler,
-            commCoreSplit,
-            commBlockShape,
-            commTileShape
-        }
+        allGatherParams
     };
 
     // Call kernel
@@ -127,8 +118,7 @@ template <
     class ArchTag,
     class ElementA, class LayoutA,
     class ElementB, class LayoutB,
-    class ElementC, class LayoutC,
-    class ElementD, class LayoutD
+    class ElementC, class LayoutC
 >
 CATLASS_DEVICE
 void AllGatherMatmulImpl_M0_256(
@@ -141,21 +131,20 @@ void AllGatherMatmulImpl_M0_256(
     Catlass::MatrixCoord& commCoreSplit,
     Catlass::MatrixCoord& commBlockShape,
     Catlass::MatrixCoord& commTileShape,
-    GM_ADDR symmetricPtr, LayoutC& layoutD
+    GM_ADDR symmetricPtr
 )
 {
-    AllGatherMatmulImpl<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC, ElementD, LayoutD, 256, 128, 256>
-        (problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
-         commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr, layoutD
-        );
+    AllGatherMatmulImpl<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC, 256, 128, 256>(
+        problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
+        commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr
+    );
 }
 
 template <
     class ArchTag,
     class ElementA, class LayoutA,
     class ElementB, class LayoutB,
-    class ElementC, class LayoutC,
-    class ElementD, class LayoutD
+    class ElementC, class LayoutC
 >
 CATLASS_DEVICE
 void AllGatherMatmulImpl_M0_128(
@@ -168,20 +157,19 @@ void AllGatherMatmulImpl_M0_128(
     Catlass::MatrixCoord& commCoreSplit,
     Catlass::MatrixCoord& commBlockShape,
     Catlass::MatrixCoord& commTileShape,
-    GM_ADDR symmetricPtr, LayoutC& layoutD
+    GM_ADDR symmetricPtr
 )
 {
-    AllGatherMatmulImpl<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC, ElementD, LayoutD, 128, 256, 256>
-        (problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
-         commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr, layoutD
-        );
+    AllGatherMatmulImpl<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC, 128, 256, 256>(
+        problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
+        commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr
+    );
 }
 
 template <
     class ElementA, class LayoutA,
     class ElementB, class LayoutB,
-    class ElementC, class LayoutC,
-    class ElementD, class LayoutD
+    class ElementC, class LayoutC
 >
 CATLASS_GLOBAL
 void AllGatherMatmul(
@@ -210,7 +198,7 @@ void AllGatherMatmul(
     Catlass::GemmCoord l1TileShape{m0, n0, k0};
 
     Catlass::MatrixCoord commCoreSplit{commDataSplit, commNpuSplit};
-    Catlass::MatrixCoord commBlockShape{commBlockM, UINT_MAX};
+    Catlass::MatrixCoord commBlockShape{commBlockM, UINT_MAX / 2};
     Catlass::MatrixCoord commTileShape{commTileM / 2, n0};
 
     uint32_t strideA;
@@ -230,18 +218,17 @@ void AllGatherMatmul(
     LayoutA layoutA{m, k, strideA};
     LayoutB layoutB{k, n, strideB};
     LayoutC layoutC{m * rankSize, n, n};
-    LayoutD layoutD{m0 * commInterval * rankSize * WORKSPACE_STAGES, k, k};
 
     if(m0 == 128){
-        AllGatherMatmulImpl_M0_128<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC, ElementD, LayoutD>
-            (problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
-            commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr, layoutD
-            );
+        AllGatherMatmulImpl_M0_128<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC>(
+            problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
+            commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr
+        );
     } else {
-        AllGatherMatmulImpl_M0_256<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC, ElementD, LayoutD>
-            (problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
-            commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr, layoutD
-            );
+        AllGatherMatmulImpl_M0_256<ArchTag, ElementA, LayoutA, ElementB, LayoutB, ElementC, LayoutC>(
+            problemShape, l1TileShape, gmA, layoutA, gmB, layoutB, gmC, layoutC,
+            commInterval, commCoreSplit, commBlockShape, commTileShape, symmetricPtr
+        );
     }
 }
 

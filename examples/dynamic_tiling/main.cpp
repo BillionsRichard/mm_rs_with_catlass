@@ -37,7 +37,8 @@ using half = __fp16;
 const std::map<CocCommType, std::string> commTypeMap = {
     { MATMUL_ALLREDUCE, "MatmulAllReduce" },
     { ALLGATHER_MATMUL, "AllGatherMatmul" },
-    { MATMUL_REDUCE_SCATTER, "MatmulReduceScatter" }
+    { MATMUL_REDUCE_SCATTER, "MatmulReduceScatter" },
+    { ALLGATHER_MATMUL_WITH_GATHER_RESULT, "AllGatherMatmulWithGatherResult" }
 };
 
 struct Options {
@@ -234,7 +235,7 @@ int main(int argc, char **argv)
         cocTiling.commTileM = 64;
         cocTiling.commInterval = 3;
         cocTiling.commNpuSplit = 1;
-        cocTiling.commDataSplit = 20;
+        cocTiling.commDataSplit = 16;
         cocTiling.commBlockM = 64;
         cocTiling.rankSize = rankSize;
 
@@ -242,9 +243,10 @@ int main(int argc, char **argv)
         size_t bSize = static_cast<size_t>(k) * n * sizeof(half);
         size_t cSize = static_cast<size_t>(m) * n * sizeof(half);
         size_t cSizePerRank;
+        size_t gatherASize = aSize * rankSize;
         if (commType == MATMUL_REDUCE_SCATTER) {
             cSizePerRank = cSize / rankSize;
-        } else if (commType == ALLGATHER_MATMUL) {
+        } else if (commType == ALLGATHER_MATMUL || commType == ALLGATHER_MATMUL_WITH_GATHER_RESULT) {
             cSizePerRank = cSize * rankSize;
         } else {
             cSizePerRank = cSize;
@@ -281,9 +283,14 @@ int main(int argc, char **argv)
             ACL_CHECK(aclrtMemcpy(cDevice, cSizePerRank, matrixCInit.data(), cSizePerRank, ACL_MEMCPY_HOST_TO_DEVICE));
         }
 
+        uint8_t *gatherADevice{nullptr};
+        if (commType == ALLGATHER_MATMUL_WITH_GATHER_RESULT) {
+            ACL_CHECK(aclrtMalloc((void **)(&gatherADevice), gatherASize, ACL_MEM_MALLOC_HUGE_FIRST));
+        }
+
         void *symmPtr = shmem_malloc(SHMEM_BUFF_BYTES);
         uint8_t *gmSymmetric = (uint8_t *)symmPtr;
-        
+
         uint32_t warmUpTimes = std::getenv("WARM_UP_TIMES") == nullptr ? WARM_UP_TIMES : std::stoull(std::getenv("WARM_UP_TIMES"));
         uint32_t perfTestCycleTimes = std::getenv("PERF_TEST_CYCLE_TIMES") == nullptr ? PERF_TEST_CYCLE_TIMES : std::stoull(std::getenv("PERF_TEST_CYCLE_TIMES"));
         uint32_t searchparams = (std::getenv("SEARCH_PARAMS") == nullptr) ? 1U : std::stoul(std::getenv("SEARCH_PARAMS"));
@@ -309,12 +316,12 @@ int main(int argc, char **argv)
         auto kernelFunc = KernelDispatcher::GetKernelFunc(commType, dataType);
 
         for (size_t i = 0; i < warmUpTimes; i++) {
-            kernelFunc(stream, fftsAddr, aDevice, bDevice, cDevice, nullptr, nullptr, gmSymmetric, cocTilings[0], transA, transB);
+            kernelFunc(stream, fftsAddr, aDevice, bDevice, cDevice, gatherADevice, nullptr, gmSymmetric, cocTilings[0], transA, transB);
         }
 
         for (CocTilingParams tiling : cocTilings) {
             for (size_t i = 0; i < perfTestCycleTimes; i++) {
-                kernelFunc(stream, fftsAddr, aDevice, bDevice, cDevice, nullptr, nullptr, gmSymmetric, tiling, transA, transB);
+                kernelFunc(stream, fftsAddr, aDevice, bDevice, cDevice, gatherADevice, nullptr, gmSymmetric, tiling, transA, transB);
             }
         }
 
@@ -324,14 +331,23 @@ int main(int argc, char **argv)
         ACL_CHECK(aclrtMallocHost((void **)(&cHost), cSizePerRank));
         ACL_CHECK(aclrtMemcpy(cHost, cSizePerRank, cDevice, cSizePerRank, ACL_MEMCPY_DEVICE_TO_HOST));
 
+        uint8_t *gatherAHost;
+        if (commType == ALLGATHER_MATMUL_WITH_GATHER_RESULT) {
+            ACL_CHECK(aclrtMallocHost((void **)(&gatherAHost), gatherASize));
+            ACL_CHECK(aclrtMemcpy(gatherAHost, gatherASize, gatherADevice, gatherASize, ACL_MEMCPY_DEVICE_TO_HOST));
+        }
+
         if (data_file != "") {
             if (commType == MATMUL_ALLREDUCE) {
                 if (rankId == 0) {
                     WriteFile(data_file + "/output.bin", cHost, cSizePerRank);
                 }
-            } else if (commType == ALLGATHER_MATMUL) {
+            } else if (commType == ALLGATHER_MATMUL || commType == ALLGATHER_MATMUL_WITH_GATHER_RESULT) {
                 if (rankId == 0) {
                     WriteFile(data_file + "/output.bin", cHost, cSizePerRank);
+                    if (commType == ALLGATHER_MATMUL_WITH_GATHER_RESULT) {
+                        WriteFile(data_file + "/output_gather_a.bin", gatherAHost, gatherASize);
+                    }
                 }
             } else if (commType == MATMUL_REDUCE_SCATTER) {
                 WriteFile(data_file + "/output.bin", cHost, cSizePerRank, rankId * cSizePerRank);
