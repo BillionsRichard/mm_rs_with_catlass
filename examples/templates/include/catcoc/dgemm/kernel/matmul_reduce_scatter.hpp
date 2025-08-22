@@ -47,6 +47,7 @@ public:
         GemmCoord problemShape;
         uint32_t rankIdx;
         uint32_t rankSize;
+        int32_t teamIdx;
 
         uint32_t commInterval;
 
@@ -65,14 +66,14 @@ public:
 
         CATLASS_DEVICE
         Params(
-            GemmCoord const &problemShape_, uint32_t rankIdx_, uint32_t rankSize_,
+            GemmCoord const &problemShape_, uint32_t rankIdx_, uint32_t rankSize_, int32_t teamIdx_,
             uint32_t commInterval_,
             GM_ADDR ptrA_, LayoutA const &layoutA_,
             GM_ADDR ptrB_, LayoutB const &layoutB_,
             GM_ADDR ptrD_, LayoutD const &layoutD_,
             GM_ADDR ptrSymmetric_,
             BlockEpilogueReduceScatterParams const &epilogueReduceScatter_
-        ) : problemShape(problemShape_), rankIdx(rankIdx_), rankSize(rankSize_),
+        ) : problemShape(problemShape_), rankIdx(rankIdx_), rankSize(rankSize_), teamIdx(teamIdx_),
             commInterval(commInterval_),
             ptrA(reinterpret_cast<__gm__ ElementA *>(ptrA_)), layoutA(layoutA_),
             ptrB(reinterpret_cast<__gm__ ElementB *>(ptrB_)), layoutB(layoutB_),
@@ -249,7 +250,7 @@ public:
                     auto globalLoopIdx = offsetOut.row() / blockShapeMN.row();
 
                     epilogueReduceScatter(blockShapeMN, offsetOut, offsetIn, actualCommBlockShape,
-                        gmD, params.layoutD, globalLoopIdx, remoteRankIdx % params.rankSize);
+                        gmD, params.layoutD, globalLoopIdx, remoteRankIdx % params.rankSize, params.teamIdx);
                 }
             }
             epilogueReduceScatter.ReleaseEventID();

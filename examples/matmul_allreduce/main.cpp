@@ -63,15 +63,15 @@ CATLASS_GLOBAL
 void ShmemMatmulAllReduce(
     uint64_t fftsAddr,
     GM_ADDR gmA, GM_ADDR gmB, GM_ADDR gmD, GM_ADDR gmSymmetric,
-    uint32_t m, uint32_t n, uint32_t k
+    uint32_t m, uint32_t n, uint32_t k, shmem_team_t teamIdx = 0
 )
 {
     shmemx_set_ffts_config(fftsAddr);
 
     using ArchTag = Catlass::Arch::AtlasA2;
 
-    uint32_t rankIdx = shmem_my_pe();
-    uint32_t rankSize = shmem_n_pes();
+    uint32_t rankIdx = shmem_team_my_pe(teamIdx);
+    uint32_t rankSize = shmem_team_n_pes(teamIdx);
 
     Catlass::GemmCoord problemShape{m, n, k};
     LayoutA layoutA{m, k};
@@ -146,7 +146,7 @@ void ShmemMatmulAllReduce(
     };
 
     typename MatmulAllReduceKernel::Params params{
-        problemShape, rankIdx, rankSize,
+        problemShape, rankIdx, rankSize, teamIdx,
         COMM_INTERVAL,
         gmA, layoutA,
         gmB, layoutB,

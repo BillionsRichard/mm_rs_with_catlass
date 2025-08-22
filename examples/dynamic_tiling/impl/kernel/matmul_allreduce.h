@@ -44,7 +44,7 @@ void MatmulAllReduceImpl(
     Catlass::MatrixCoord& commCoreSplit,
     Catlass::MatrixCoord& commBlockShape,
     Catlass::MatrixCoord& commTileShape,
-    GM_ADDR symmetricPtr, LayoutC& layoutD
+    GM_ADDR symmetricPtr, LayoutC& layoutD, shmem_team_t teamIdx = 0
 )
 {
     constexpr bool ENABLE_UNIT_FLAG = true;
@@ -102,15 +102,15 @@ void MatmulAllReduceImpl(
         WORKSPACE_STAGES
     >;
 
-    uint32_t rank = shmem_my_pe();
-    uint32_t rankSize = shmem_n_pes();
+    uint32_t rank = shmem_team_my_pe(teamIdx);
+    uint32_t rankSize = shmem_team_n_pes(teamIdx);
 
     BlockMmadScheduler mmadBlockScheduler(problemShape, L1TileShape::ToCoordMN());
 
     // Prepare params
     typename MatmulAllReduceKernel::Params params{
         problemShape,
-        rank, rankSize,
+        rank, rankSize, teamIdx,
         commInterval,
         gmA, layoutA,
         gmB, layoutB,
