@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This file is a part of the CANN Open Software.
+ * Licensed under CANN Open Software License Agreement Version 1.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
 #include <acl/acl.h>
 
 #include <iostream>
@@ -14,7 +23,6 @@
 #include "catlass/gemm/dispatch_policy.hpp"
 #include "catlass/gemm/gemm_type.hpp"
 #include "catlass/layout/layout.hpp"
-#include "catlass/gemm/tile/tile_copy.hpp"
 
 // shmem_host
 #include "shmem_api.h"
@@ -99,15 +107,14 @@ void ShmemMatmulReduceScatterQuantPerchn(
 
     constexpr uint32_t UB_STAGES = 2;
     using EpilogueReduceScatterTileShape = Catlass::MatrixShape<32, 256>;
-    using EpilogueReduceScatterDispatch = CommEpilogue::EpilogueAtlasA2CommToLocalMem<UB_STAGES,
+    using EpilogueReduceScatterDispatch = CommEpilogue::EpilogueAtlasA2CommRemoteCopy<UB_STAGES,
             Catcoc::detail::CopyMode::Scatter>;
     using BlockEpilogueReduceScatter = CommEpilogue::Block::CommBlockEpilogue<
         EpilogueReduceScatterDispatch,
         RemoteSrcType, RemoteDstType,
         CommCoreSplit,
         CommBlockShape,
-        EpilogueReduceScatterTileShape, TileRemoteCopy, TileScheduler,
-        BlockMmadScheduler
+        EpilogueReduceScatterTileShape, TileRemoteCopy, TileScheduler
     >;
 
     constexpr uint32_t workspaceStages = 2;
@@ -122,21 +129,12 @@ void ShmemMatmulReduceScatterQuantPerchn(
     Catlass::GemmCoord problemShapeInRank = problemShape / Catlass::MakeCoord<uint32_t>(rankSize, 1, 1);
     BlockMmadScheduler mmadBlockScheduler(problemShapeInRank, Catlass::MakeCoord(L1TileShape::M, L1TileShape::N));
 
-    Catlass::layout::RowMajor layoutPeerMemStore{
-        L1TileShape::M * commInterval * BLOCK_NUM * workspaceStages, L1TileShape::N,
-        L1TileShape::N
-    };
-
-    typename BlockEpilogueReduceScatter::Params reduceScatterParams{
-        reinterpret_cast<__gm__ ElementC *>(symmetricPtr),
-        layoutPeerMemStore,
-        mmadBlockScheduler
-    };
+    typename BlockEpilogueReduceScatter::Params reduceScatterParams{};
 
     // Prepare params
     typename MatmulReduceScatterKernel::Params params{
         problemShape,
-        rankIdx, rankSize, teamIdx,
+        rankIdx, rankSize,
         gmA, layoutA,
         gmB, layoutB,
         bias, scale,
