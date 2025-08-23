@@ -1,4 +1,4 @@
-# catcoc_example_add_executable(
-#     05_allgather_matmul_dequant
-#     SOURCES allgather_matmul.cpp
-# )
+shmem_add_fusion_example(
+    allgather_matmul_dequant
+    main.cpp
+)

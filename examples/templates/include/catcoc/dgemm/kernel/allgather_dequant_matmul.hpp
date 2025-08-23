@@ -85,7 +85,7 @@ public:
     AllGatherDequantMatmul()
     {
         for (uint32_t i = 0; i < WORKSPACE_STAGES; ++i) {
-            flagAicFinishStore[i] = Catlass::Arch::CrossCoreFlag(i);
+            flagAicFinishStore[i] = Catlass::Arch::CrossCoreFlag(i);    // 将id设置为0,1... (WORKSPACE_STAGES-1)
             flagAivFinishCompute[i] = Catlass::Arch::CrossCoreFlag(i);
         }
         flagAicFinish = Catlass::Arch::CrossCoreFlag(WORKSPACE_STAGES);
@@ -163,6 +163,7 @@ public:
         AscendC::PipeBarrier<PIPE_ALL>();
 
         Catlass::Arch::CrossCoreBarrier<0, PIPE_FIX>();
+        // 0x2->模式2：子块间的同步，对一个组中的所有子块设置flagId。
         Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_FIX>(flagAicFinish);
     }
 

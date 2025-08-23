@@ -27,7 +27,7 @@
 #include "host/shmem_host_team.h"
 
 // utils
-#include "utils/utils.h"
+#include "utils.h"
 
 #include "catcoc/catcoc.hpp"
 #include "catcoc/comm_epilogue/comm_dispatch_policy.hpp"
@@ -77,12 +77,12 @@ void ShmemAllGatherMatmul(uint64_t fftsAddr, GM_ADDR aDevice, GM_ADDR bDevice, G
     uint32_t rankSize = shmem_n_pes();
 
     // Block level, Define the layout of each input matrix
-    LayoutA layoutA{m, k};
-    LayoutB layoutB{k, n};
-    LayoutC layoutC{m * rankSize, n};
-    LayoutD layoutD{m * rankSize, n};
-    LayoutScale layoutScale{n};
-    LayoutPerTokenScale layoutPerTokenScale{m};
+    LayoutA layoutA{m, k};                      //->AG(rank_sz)-> {m*rank_sz, k}
+    LayoutB layoutB{k, n};                      // weight
+    LayoutC layoutC{m * rankSize, n};           // c = AG(A, rank_size) @ B -> {m*rank_sz, k} @ {k, n} 【+bias待实现】 = {m*rank_sz, n} ->int8 @ int8 ->int32
+    LayoutD layoutD{m * rankSize, n};           // c->dequant(s1{m*rank_sz}, s2{n}, {m*rank_sz, n})-> half({m*rank_sz, n})
+    LayoutScale layoutScale{n};                 // perChannleScale
+    LayoutPerTokenScale layoutPerTokenScale{m}; // perTokenScale(m)=> {m} ->AG(perTokenScale, rank_sz)-> {m * rank_sz}
 
     // Block level, define BlockMmad
     constexpr bool enableUnitFlag = false;
@@ -142,7 +142,7 @@ void ShmemAllGatherMatmul(uint64_t fftsAddr, GM_ADDR aDevice, GM_ADDR bDevice, G
     using BlockEpilogueDequant = Catlass::Epilogue::Block::BlockEpilogue<EpilogueDispatchPolicy,
         CType,
         ScaleType,
-        PerTokenScaleType,
+        PerTokenScaleType,//{m,}
         DType,
         TileRowBroadcastMul,
         TileBroadcastOneBlk,
@@ -203,6 +203,7 @@ struct Options {
     uint32_t m{0};
     uint32_t n{0};
     uint32_t k{0};
+    std::string dataPath;
     std::vector<int> deviceIdList{};
 
     int Parse(int argc, char **argv)
@@ -214,6 +215,7 @@ struct Options {
             M_INDEX,
             N_INDEX,
             K_INDEX,
+            DATA_PATH_INDEX,
             DEVICE_LIST_INDEX,
             INDEX_MAX
         };
@@ -229,17 +231,23 @@ struct Options {
         m = std::atoi(argv[M_INDEX]);
         n = std::atoi(argv[N_INDEX]);
         k = std::atoi(argv[K_INDEX]);
+        dataPath = argv[DATA_PATH_INDEX];
         if (argc > DEVICE_LIST_INDEX) {
             char *idListStr = argv[DEVICE_LIST_INDEX];
             for (char *idToken = std::strtok(idListStr, ","); idToken; idToken = std::strtok(nullptr, ",")) {
                 deviceIdList.push_back(std::atoi(idToken));
             }
         } else {
-            for (int i = 0; i < rankSize; ++i) {
+            for (size_t i = 0; i < rankSize; ++i) {
                 deviceIdList.push_back(i);
             }
         }
         return 0;
+    }
+
+    std::string GetDataPath(std::string const &fileName = "") const
+    {
+        return dataPath + "/" + fileName;
     }
 };
 
@@ -247,7 +255,10 @@ int main(int argc, char **argv)
 {
     int status = SHMEM_SUCCESS;
     Options options;
-    options.Parse(argc, argv);
+    if (options.Parse(argc, argv) != 0) {
+        std::cerr << "Invalid arguments\n";
+        return 1;
+    }
     int rankSize = options.rankSize;
     int rankId = options.rankId;
     std::string ipPort = options.ipPort;
@@ -262,14 +273,16 @@ int main(int argc, char **argv)
     ACL_CHECK(aclInit(nullptr));
     ACL_CHECK(aclrtSetDevice(deviceId));
     ACL_CHECK(aclrtCreateStream(&stream));
+    status = shmem_set_conf_store_tls(false, nullptr, 0);
     shmem_init_attr_t *attributes;
     status = shmem_set_attr(rankId, rankSize, gNpuMallocSpace, ipPort.c_str(), &attributes);
     status = shmem_init_attr(attributes);
     status = shmem_init_status();
+
     // Prepare FFTS address
-    uint64_t fftsAddr{0};
-    uint32_t fftsLen{0};
-    RT_CHECK(rtGetC2cCtrlAddr(&fftsAddr, &fftsLen));
+    // uint64_t fftsAddr{0};
+    // uint32_t fftsLen{0};
+    // ACL_CHECK(rtGetC2cCtrlAddr(&fftsAddr, &fftsLen));
 
     size_t aSize = static_cast<size_t>(m) * k * sizeof(int8_t);
     size_t bSize = static_cast<size_t>(k) * n * sizeof(int8_t);
@@ -283,42 +296,44 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtMalloc((void **)(&aDevice), aSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *aHost;
     ACL_CHECK(aclrtMallocHost((void **)(&aHost), aSize));
-    ReadFile("./output/a_gm.bin", aHost, aSize);
+    ReadFile(options.GetDataPath("a_gm.bin"), aHost, aSize);
     ACL_CHECK(aclrtMemcpy(aDevice, aSize, aHost, aSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint8_t *bDevice;
     ACL_CHECK(aclrtMalloc((void **)(&bDevice), bSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *bHost;
     ACL_CHECK(aclrtMallocHost((void **)(&bHost), bSize));
-    ReadFile("./output/b_gm.bin", bHost, bSize);
+    ReadFile(options.GetDataPath("b_gm.bin"), bHost, bSize);
     ACL_CHECK(aclrtMemcpy(bDevice, bSize, bHost, bSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint8_t *cDevice;
     ACL_CHECK(aclrtMalloc((void **)(&cDevice), cSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *cHost;
     ACL_CHECK(aclrtMallocHost((void **)(&cHost), cSize));
-    ReadFile("./output/c_gm.bin", cHost, cSize);
+    //ReadFile("./output/c_gm.bin", cHost, cSize);
+	ReadFile(options.GetDataPath("c_gm.bin"), cHost, cSize);
     ACL_CHECK(aclrtMemcpy(cDevice, cSize, cHost, cSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint8_t *dDevice;
     ACL_CHECK(aclrtMalloc((void **)(&dDevice), dSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *dHost;
     ACL_CHECK(aclrtMallocHost((void **)(&dHost), dSize));
-    ReadFile("./output/d_gm.bin", dHost, dSize);
+    //ReadFile("./output/d_gm.bin", dHost, dSize);
+	ReadFile(options.GetDataPath("d_gm.bin"), dHost, dSize);
     ACL_CHECK(aclrtMemcpy(dDevice, dSize, dHost, dSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint8_t *deviceScale;
     ACL_CHECK(aclrtMalloc((void **)(&deviceScale), scaleSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *scaleHost;
     ACL_CHECK(aclrtMallocHost((void **)(&scaleHost), scaleSize));
-    ReadFile("./output/scale_gm.bin", scaleHost, scaleSize);
+    ReadFile(options.GetDataPath("scale_gm.bin"), scaleHost, scaleSize);
     ACL_CHECK(aclrtMemcpy(deviceScale, scaleSize, scaleHost, scaleSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint8_t *devicePerTokenScale;
     ACL_CHECK(aclrtMalloc((void **)(&devicePerTokenScale), perTokenScaleSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *perTokenScaleHost;
     ACL_CHECK(aclrtMallocHost((void **)(&perTokenScaleHost), perTokenScaleSize));
-    ReadFile("./output/perTokenScale_gm.bin", perTokenScaleHost, perTokenScaleSize);
+    ReadFile(options.GetDataPath("perTokenScale_gm.bin"), perTokenScaleHost, perTokenScaleSize);
     ACL_CHECK(aclrtMemcpy(
         devicePerTokenScale, perTokenScaleSize, perTokenScaleHost, perTokenScaleSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
@@ -328,12 +343,12 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtSynchronizeStream(stream));
     for (int i = 0; i < 1; i++) {
         ShmemAllGatherMatmul<<<BLOCK_NUM, nullptr, stream>>>(
-            fftsAddr, aDevice, bDevice, cDevice, symmetricPtr, dDevice, deviceScale, devicePerTokenScale, m, n, k);
+            shmemx_get_ffts_config(), aDevice, bDevice, cDevice, symmetricPtr, dDevice, deviceScale, devicePerTokenScale, m, n, k);
     }
     ACL_CHECK(aclrtSynchronizeStream(stream));
     ACL_CHECK(aclrtMemcpy(dHost, dSize, dDevice, dSize, ACL_MEMCPY_DEVICE_TO_HOST));
     if (rankId == 0) {
-        WriteFile("./output/output.bin", dHost, dSize);
+        WriteFile(options.GetDataPath("output.bin"), dHost, dSize);
         std::printf("test finished\n");
     }
     shmem_free(symmPtr);

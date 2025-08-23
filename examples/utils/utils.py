@@ -15,6 +15,7 @@ class CommType(IntEnum):
 class DataType(IntEnum):
     FLOAT = 0
     FLOAT16 = 1
+    INT8 = 2
     BF16 = 27
 
     @classmethod
@@ -26,7 +27,16 @@ class DataType(IntEnum):
         return {
             DataType.FLOAT: torch.float,
             DataType.FLOAT16: torch.float16,
+            DataType.INT8: torch.int8,
             DataType.BF16: torch.bfloat16,
+        }[self]
+    @property
+    def numpy_type(self):
+        return {
+            DataType.FLOAT: np.float32,
+            DataType.FLOAT16: np.float16,
+            DataType.INT8: np.int8,
+            DataType.BF16: None,
         }[self]
 
 def tensor_to_file(tensor: torch.Tensor, file_name: str) -> None:
