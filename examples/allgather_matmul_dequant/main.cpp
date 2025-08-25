@@ -104,7 +104,7 @@ void ShmemAllGatherMatmul(uint64_t fftsAddr, GM_ADDR aDevice, GM_ADDR bDevice, G
     using TileRemoteCopy = CommEpilogue::Tile::TileRemoteCopy<ArchTag, RemoteSrcType, RemoteDstType, CopyDirect::Put>;
     using TileSchedulerForAllgather = Catlass::Epilogue::Tile::EpilogueIdentityTileSwizzle;
 
-    using CommBlockShape = Catlass::MatrixShape<64, UINT_MAX>;
+    using CommBlockShape = Catlass::MatrixShape<64, UINT_MAX / 2>;
     using CommCoreSplit = Catlass::MatrixShape<20, 1>;
 
     constexpr uint32_t UB_STAGES = 2;
