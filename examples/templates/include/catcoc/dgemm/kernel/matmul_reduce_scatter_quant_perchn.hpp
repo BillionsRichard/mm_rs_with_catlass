@@ -52,7 +52,7 @@ namespace Catcoc::DGemm::Kernel {
             GemmCoord problemShape;
             uint32_t rankIdx;
             uint32_t rankSize;
-            int32_t teamIdx;
+            // int32_t teamIdx;
 
             uint32_t commInterval;
 
@@ -75,7 +75,7 @@ namespace Catcoc::DGemm::Kernel {
             CATLASS_DEVICE
             Params(
                     GemmCoord const &problemShape_,
-                    uint32_t rank_, uint32_t rankSize_, int32_t teamIdx_,
+                    uint32_t rank_, uint32_t rankSize_,
                     GM_ADDR ptrA_, LayoutA const &layoutA_,
                     GM_ADDR ptrB_, LayoutB const &layoutB_,
                     GM_ADDR ptrBias_, GM_ADDR ptrScale_,
@@ -84,7 +84,7 @@ namespace Catcoc::DGemm::Kernel {
                     GM_ADDR ptrD_, LayoutD const &layoutD_,
                     uint32_t commInterval_
             ) : problemShape(problemShape_),
-                rankIdx(rank_), rankSize(rankSize_), teamIdx(teamIdx_),
+                rankIdx(rank_), rankSize(rankSize_),
                 ptrA(ptrA_), layoutA(layoutA_),
                 ptrB(ptrB_), layoutB(layoutB_),
                 ptrBias(ptrBias_), ptrScale(ptrScale_),
@@ -123,7 +123,7 @@ namespace Catcoc::DGemm::Kernel {
             uint32_t coreLoops = mmadScheduler.GetCoreLoops() * params.rankSize;
             uint32_t commLoops = CeilDiv(coreLoops, blockPerComm);
 
-            BlockMmad mmad(resource);
+            BlockMmad blockMmad(resource);
 
             // Represent the full gm
             AscendC::GlobalTensor<ElementA> gmA;
@@ -134,8 +134,8 @@ namespace Catcoc::DGemm::Kernel {
             gmBias.SetGlobalBuffer((__gm__ ElementBias *)params.ptrBias);
             AscendC::GlobalTensor<ElementScale> gmScale;
             gmScale.SetGlobalBuffer((__gm__ ElementScale *)params.ptrScale);
-            AscendC::GlobalTensor<ElementC> gmC;
-            gmC.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrSymmetric));
+            AscendC::GlobalTensor<ElementC> gmSymmetric;
+            gmSymmetric.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrSymmetric));
             AscendC::GlobalTensor<ElementC> gmD;
             gmD.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrD));
 
@@ -183,7 +183,7 @@ namespace Catcoc::DGemm::Kernel {
                     }
                     else {
                         blockOffsetStore = MatrixCoord{layoutCRow(Catlass::MakeCoord<int>(stageId, blockIdxInComm, 0)), 0};
-                        gmStore = gmC;
+                        gmStore = gmSymmetric;
                         layoutStore = layoutC;
                     }
 
@@ -194,7 +194,7 @@ namespace Catcoc::DGemm::Kernel {
                     int64_t gmOffsetScale = blockCoord.n() * L1TileShape::N;
 
                     // Compute block-scoped matrix multiply-add
-                    mmad(
+                    blockMmad(
                         gmA[offsetA], params.layoutA,
                         gmB[offsetB], params.layoutB,
                         gmStore[offsetStore], layoutStore,
@@ -226,27 +226,32 @@ namespace Catcoc::DGemm::Kernel {
 
             BlockEpilogueReduceScatter epilogueReduceScatter(resource, params.epilogueReduceScatter);
 
-            AscendC::GlobalTensor<ElementC> gmC;
-            gmC.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrSymmetric));
+            AscendC::GlobalTensor<ElementC> gmSymmetric;
+            gmSymmetric.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrSymmetric));
+            auto layoutSymmetric = Catlass::layout::RowMajor{
+                    WORKSPACE_STAGES * blockPerComm * L1TileShape::M, L1TileShape::N,
+                    L1TileShape::N
+            };
 
             AscendC::GlobalTensor<ElementD> gmD;
             gmD.SetGlobalBuffer(reinterpret_cast<__gm__ ElementD *>(params.ptrD));
 
             MatrixCoord commBlockShape = params.epilogueReduceScatter.BlockShape();
             MatrixCoord commCoreSplit = params.epilogueReduceScatter.CoreSplit();
-            BlockEpilogueScheduler commScheduler(params.rankIdx, params.rankSize, commBlockShape, commCoreSplit);
+            BlockEpilogueScheduler commScheduler(commBlockShape, commCoreSplit);
             for (uint32_t commIdx = 0; commIdx < commLoops; ++commIdx) {
                 uint32_t stageIdx = commIdx % WORKSPACE_STAGES;
                 uint32_t actualBlockInComm = Min(blockPerComm, coreLoops - commIdx * blockPerComm);
-                MatrixCoord actualCommShape = MatrixCoord{actualBlockInComm, 1} * blockShapeMN;
-                MatrixCoord actualCommShapeInRank = actualCommShape / Catlass::MakeCoord<uint32_t>(params.rankSize, 1);
+                auto actualCommShape =
+                        DistMatrixCoord{actualBlockInComm * blockShapeMN.row() / params.rankSize, blockShapeMN.column(), params.rankSize};
+                MatrixCoord loopsInRank = CeilDiv(MatrixCoord(actualCommShape.GetCoordInRank()), commBlockShape);
 
-                commScheduler.template SetProblemSize<BlockEpilogueReduceScatter::RemoteCopyMode, true>(actualCommShape);
+                commScheduler.UpdateProblem(actualCommShape, loopsInRank);
                 uint32_t commAicoreNum = commScheduler.GetRealCore();
                 uint32_t commCoreLoops = commScheduler.GetCoreLoop();
 
                 MatrixCoord stageOffset = MatrixCoord{stageIdx * blockPerComm, 0} * blockShapeMN;
-                MatrixCoord commOffsetInRank = MatrixCoord{commIdx * blockPerCommInRank, 0} * blockShapeMN;
+                uint32_t mmadStartLoopIdxInComm = commIdx * blockPerCommInRank;
 
                 Catlass::Arch::CrossCoreWaitFlag(flagAicFinishStore[stageIdx]);
 
@@ -255,33 +260,49 @@ namespace Catcoc::DGemm::Kernel {
 
                 AscendC::SetAtomicAdd<ElementD>();
                 AscendC::PipeBarrier<PIPE_ALL>();
-                epilogueReduceScatter.AllocEventID();
+                epilogueReduceScatter.InitBlockLoop();
                 if (aivIndex == 0 && aicoreIndex < commAicoreNum) {
                     for (uint32_t commLoopIdx = aicoreIndex; commLoopIdx < commCoreLoops; commLoopIdx += commAicoreNum) {
-                        MatrixCoord commBlockCoord = commScheduler.GetBlockIdx(commLoopIdx);
-                        MatrixCoord blockOffset = commScheduler.template GetBlockOffset<
-                                BlockEpilogueReduceScatter::RemoteCopyMode, BlockEpilogueReduceScatter::RemoteCopyDirect
-                        >(commBlockCoord);
-                        MatrixCoord actualCommBlockShape = commScheduler.template GetActualBlockShape<
-                                BlockEpilogueReduceScatter::RemoteCopyMode, BlockEpilogueReduceScatter::RemoteCopyDirect
-                        >(commBlockCoord);
-                        MatrixCoord blockOffsetInRank = blockOffset % actualCommShapeInRank;
+                        DistMatrixCoord commBlockCoord = commScheduler.GetBlockCoord(commLoopIdx);
+                        MatrixCoord blockOffset = commScheduler.GetBlockOffset(
+                            DistMatrixCoord{commBlockCoord.GetCoordInRank(), params.rankIdx});
+                        MatrixCoord blockOffsetInRank = commScheduler.GetBlockOffsetInRank(commBlockCoord.GetCoordInRank());
+                        MatrixCoord actualCommBlockShape = commScheduler.GetActualBlockShapeByOffset(blockOffsetInRank);
 
-                        uint32_t remoteRankIdx = commBlockCoord.column();
+                        uint32_t remoteRankIdx = commBlockCoord.rank();
                         if (remoteRankIdx == params.rankIdx) {
                             continue;
                         }
 
-                        auto offsetIn = stageOffset + blockOffset;
-                        auto offsetOut = commOffsetInRank + blockOffsetInRank;
+                        uint32_t mmadLoopIdx = mmadStartLoopIdxInComm + blockOffsetInRank.row() / blockShapeMN.row();
+                        GemmCoord mmadBlockCoordMNK = mmadScheduler.GetBlockCoord(mmadLoopIdx);
+                        MatrixCoord mmadBlockCoord = mmadBlockCoordMNK.GetCoordMN();
+                        MatrixCoord actualMmadBlockShape =
+                                mmadScheduler.GetActualBlockShape(mmadBlockCoordMNK).GetCoordMN();
 
-                        auto globalLoopIdx = offsetOut.row() / blockShapeMN.row();
+                        MatrixCoord offsetInMmadBlock = blockOffsetInRank % blockShapeMN;
+                        MatrixCoord residueInMmadBlock = actualMmadBlockShape -
+                                                         Min<uint32_t, 2>(actualMmadBlockShape, offsetInMmadBlock);
+                        actualCommBlockShape = Min<uint32_t, 2>(actualCommBlockShape, residueInMmadBlock);
 
-                        epilogueReduceScatter(blockShapeMN, offsetOut, offsetIn, actualCommBlockShape,
-                                      gmD, params.layoutD, globalLoopIdx, remoteRankIdx % params.rankSize, params.teamIdx);
+                        auto offsetSrc = stageOffset + blockOffset;
+                        MatrixCoord mmadBlockOffset = mmadBlockCoord * blockShapeMN;
+                        auto offsetDst = mmadBlockOffset + offsetInMmadBlock;
+
+                        auto gmBlockSrc = gmSymmetric[layoutSymmetric.GetOffset(offsetSrc)];
+                        auto layoutBlockSrc = layoutSymmetric.GetTileLayout(actualCommBlockShape);
+
+                        auto gmBlockDst = gmD[params.layoutD.GetOffset(offsetDst)];
+                        auto layoutBlockDst = params.layoutD.GetTileLayout(actualCommBlockShape);
+
+                        epilogueReduceScatter(
+                                gmBlockSrc, layoutBlockSrc,
+                                gmBlockDst, layoutBlockDst,
+                                actualCommBlockShape, remoteRankIdx % params.rankSize
+                        );
                     }
                 }
-                epilogueReduceScatter.ReleaseEventID();
+                epilogueReduceScatter.FinalizeBlockLoop();
                 AscendC::SetFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0);
                 AscendC::WaitFlag<AscendC::HardEvent::MTE3_S>(EVENT_ID0);
                 AscendC::SetAtomicNone();
