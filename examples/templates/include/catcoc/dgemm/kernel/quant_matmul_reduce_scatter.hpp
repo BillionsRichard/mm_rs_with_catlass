@@ -4,6 +4,7 @@
 
 // Include dependent headers
 #include "catcoc/catcoc.hpp"                     // Core header file for the catcoc library, may contain communication primitives, etc.
+#include "catcoc/gemm/block/block_mmad_pingpong_conditional_bias.hpp"
 #include "catlass/arch/resource.hpp"             // Definitions for hardware resource management in the catlass library
 #include "catlass/arch/cross_core_sync.hpp"      // Tools for inter-core synchronization in the catlass library, such as Flag
 #include "catlass/gemm_coord.hpp"                // Structures for representing GEMM (General Matrix Multiplication) related coordinates in the catlass library

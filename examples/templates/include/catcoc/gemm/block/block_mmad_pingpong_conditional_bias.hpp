@@ -14,7 +14,7 @@
 #include "catlass/catlass.hpp"
 #include "catlass/arch/resource.hpp"
 #include "catlass/coord.hpp"
-#include "catlass/gemm_coord.hpp
+#include "catlass/gemm_coord.hpp"
 #include "catlass/gemm/helper.hpp"
 #include "catlass/gemm/tile/tile_copy.hpp"
 #include "catlass/gemm/tile/tile_mmad.hpp"
@@ -185,7 +185,7 @@ public:
         auto layoutTileB = layoutB.GetTileLayout(MakeCoord(kActual, actualShape.n()));
         copyGmToL1B(l1BTensorList[l1ListId], gmB, layoutBInL1, layoutTileB);
         auto layoutTileBias = layout::VectorLayout(actualShape.n());
-        if (gmBias != nullptr){
+        if (gmBias.GetPhyAddr() != nullptr){
             copyGmToL1Bias(l1BiasTensor, gmBias, layoutBiasInL1, layoutTileBias);
         }
         AscendC::SetFlag<AscendC::HardEvent::MTE2_MTE1>(l1BEventList[l1ListId]);
@@ -286,7 +286,7 @@ public:
                         copyL1ToL0B(l0BTile, l1BTile, layoutBInL0, layoutBInL1);
 
                         // Load bias to l0 biastable
-                        if (gmBias != nullptr){
+                        if (gmBias.GetPhyAddr() != nullptr){
                             copyL1ToBT(l0BiasTensor, l1BiasTensor, layoutBiasInL0, layoutBiasInL1);
                         }
 
@@ -319,7 +319,7 @@ public:
                         }
                         // Perform calculation operations
                         if (initC) {
-                            if (gmBias){
+                            if (gmBias.GetPhyAddr() != nullptr){
                                 tileMmad(l0CTile, l0ATile, l0BTile, l0BiasTensor, mPartActual, nPartActual, kPartActual,
                                     initC, unitFlag);
                             }else{//no bias
