@@ -186,7 +186,7 @@ sequenceDiagram
 ### 8.1 编译
 
 ```bash
-cd examples/quant_matmul_reduce_scatter/scripts
+cd examples/matmul_reduce_scatter_quant/scripts
 bash build.sh
 ```
 

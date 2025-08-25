@@ -36,7 +36,7 @@
 #include "catcoc/comm_epilogue/tile/tile_remote_copy.hpp"
 #include "catcoc/gemm/dispatch_policy.hpp"
 #include "catcoc/detail/remote_copy_type.hpp"
-#include "catcoc/dgemm/kernel/quant_matmul_reduce_scatter.hpp"
+#include "catcoc/dgemm/kernel/matmul_reduce_scatter_dequant.hpp"
 
 static uint32_t gNpuNum = 8;
 static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 1024;
@@ -53,7 +53,7 @@ using LayoutC = Catlass::layout::RowMajor;
 using LayoutD = Catlass::layout::RowMajor;
 
 CATLASS_GLOBAL
-void ShmemQuantMatmulReduceScatter(
+void ShmemMatmulReduceScatterDequant(
     uint64_t fftsAddr,
     GM_ADDR x1, GM_ADDR x2, GM_ADDR scale_x1, GM_ADDR scale_x2, GM_ADDR bias,
     GM_ADDR c_accum, GM_ADDR d_out, GM_ADDR symmetricPtr,
@@ -200,7 +200,7 @@ void ShmemQuantMatmulReduceScatter(
 
 struct Options {
     static constexpr auto HELPER =
-       "Usage: quant_matmul_reduce_scatter rank_size rank_id ip_port m n k data_path [device_id_list]\n";
+       "Usage: matmul_reduce_scatter_quant rank_size rank_id ip_port m n k data_path [device_id_list]\n";
 
     int rankSize;
     int rankId;
@@ -354,7 +354,7 @@ int main(int argc, char **argv)
 
     ACL_CHECK(aclrtSynchronizeStream(stream));
     for (int i = 0; i < 1; i++) {
-        ShmemQuantMatmulReduceScatter<<<BLOCK_NUM, nullptr, stream>>>(
+        ShmemMatmulReduceScatterDequant<<<BLOCK_NUM, nullptr, stream>>>(
             shmemx_get_ffts_config(),
             x1Device, x2Device, scaleX1Device, scaleX2Device, biasDevice,
             cAccumDevice, dOutDevice, symmetricPtr, m, n, k);

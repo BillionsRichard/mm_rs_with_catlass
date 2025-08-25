@@ -7,7 +7,10 @@ export debug=0
 CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 PROJECT_ROOT=$( dirname $( dirname $(dirname "$SCRIPT_DIR")))
-UTILS_PATH=${PROJECT_ROOT}/examples/utils
+
+PUBLIC_UTILS_PATH=${PROJECT_ROOT}/examples/utils
+export PYTHONPATH=$PUBLIC_UTILS_PATH:$PYTHONPATH
+PRIVATE_UTILS_PATH=${PROJECT_ROOT}/examples/matmul_reduce_scatter_dequant/utils
 
 CSV_FILE="${SCRIPT_DIR}/test_shapes.csv"
 
@@ -18,10 +21,10 @@ if [ $RANK_SIZE -gt 8 ]; then
     exit 1
 fi
 
-cd ${PROJECT_ROOT}/examples/quant_matmul_reduce_scatter/
+cd ${PROJECT_ROOT}/examples/matmul_reduce_scatter_dequant/
 DATA_DIR=`realpath ./output`
 echo "DATA_DIR: $DATA_DIR"
-EXEC_BIN=${PROJECT_ROOT}/build/bin/quant_matmul_reduce_scatter
+EXEC_BIN=${PROJECT_ROOT}/build/bin/matmul_reduce_scatter_dequant
 
 source ${PROJECT_ROOT}/install/set_env.sh
 
@@ -30,7 +33,7 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r M K N; do
 
     #Generate golden data
     rm -rf ./output/*.bin
-    python3 ${UTILS_PATH}/gen_quant_data.py 2 1 ${RANK_SIZE} ${M} ${N} ${K} 0 0 ${DATA_DIR}
+    python3 ${PRIVATE_UTILS_PATH}/gen_quant_data.py 2 1 ${RANK_SIZE} ${M} ${N} ${K} 0 0 ${DATA_DIR}
 
     # Set necessary parameters
     IPPORT="tcp://127.0.0.1:8788"
@@ -44,7 +47,7 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r M K N; do
     wait
 
     # Verify output
-    python3 ${UTILS_PATH}/verify_result.py ${DATA_DIR}/output.bin ${DATA_DIR}/golden.bin 1 ${M} ${N} ${K}
+    python3 ${PUBLIC_UTILS_PATH}/verify_result.py ${DATA_DIR}/output.bin ${DATA_DIR}/golden.bin 1 ${M} ${N} ${K}
 done
 
 cd ${CURRENT_DIR}

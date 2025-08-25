@@ -1,6 +1,6 @@
 // Prevent multiple inclusions of the header file
-#ifndef CATCOC_DGEMM_KERNEL_QUANT_MATMUL_REDUCE_SCATTER_HPP
-#define CATCOC_DGEMM_KERNEL_QUANT_MATMUL_REDUCE_SCATTER_HPP
+#ifndef CATCOC_DGEMM_KERNEL_MATMUL_REDUCE_SCATTER_DEQUANT_HPP
+#define CATCOC_DGEMM_KERNEL_MATMUL_REDUCE_SCATTER_DEQUANT_HPP
 
 // Include dependent headers
 #include "catcoc/catcoc.hpp"                     // Core header file for the catcoc library, may contain communication primitives, etc.
@@ -385,4 +385,4 @@ private:
 
 } // namespace Catcoc::DGemm::Kernel
 
-#endif // CATCOC_DGEMM_KERNEL_QUANT_MATMUL_REDUCE_SCATTER_HPP
+#endif // CATCOC_DGEMM_KERNEL_MATMUL_REDUCE_SCATTER_DEQUANT_HPP
