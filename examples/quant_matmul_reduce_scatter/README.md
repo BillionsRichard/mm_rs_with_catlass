@@ -7,6 +7,9 @@
 
 它首先在每个计算单元（Rank）上独立执行INT8矩阵乘法，并在计算过程中**融合偏置加法**，直接得到`INT32_ACC = INT8_A x INT8_B + INT32_BIAS`的累加结果。随后，通过Reduce-Scatter操作对所有Rank的INT32结果进行求和，并将结果分片回传给各个Rank。最后，每个Rank对接收到的INT32分片执行反量化，得到最终的BFLOAT16输出。
 
+**注意**：由于偏置（Bias）在跨Rank求和之前被添加，当用于模拟需要先求和后加偏置的并行模式（如标准的行并行）时，调用者需要确保传入的偏置为零，或由调用者自行处理偏置被重复累加（`rank_size * bias`）的效果。
+
+
 ### 1.2 算子签名
 ```cpp
 void QuantizedMatmulReduceScatter(
@@ -68,10 +71,11 @@ graph TD
     x2_int8 = round(x2_fp32 / scale_x2)
 
     // 伪代码: NT8矩阵乘法融合加偏置（Per-Rank，on AIC）
-    accumulator_int32_per_rank = matmul_bias_add(x1_int8, x2_int8, bias)
+    在每个Rank i上: accumulator_int32_i = matmul_bias_add(x1_i, x2_i, bias)， add bias only on rank0
 
     // 伪代码：Reduce-Scatter（on AIV)
-    reduced_accumulator_int32 = reduce_sum(accumulator_int32_per_rank) across all ranks
+    // 该操作包含对所有Rank的累加器求和
+    reduced_accumulator_int32 = reduce_sum(accumulator_int32_i) across all ranks
 
     // 伪代码: 反量化
     // 注意：在分布式计算中，每个rank只处理A矩阵的一部分，
@@ -161,8 +165,8 @@ sequenceDiagram
     participant Rank1 as Rank 1
     
     Note over Rank0,Rank1: 阶段1：本地INT8计算 + 偏置加法 (AIC)
-    Rank0->>Rank0: Matmul+Bias: C0_int32 = (A0_int8 × B_int8) + bias
-    Rank1->>Rank1: Matmul+Bias: C1_int32 = (A1_int8 × B_int8) + bias
+    Rank0->>Rank0: Matmul+Bias: C0_int32 = (A0_int8 × B_int8)
+    Rank1->>Rank1: Matmul+Bias: C1_int32 = (A1_int8 × B_int8)
     
     Note over Rank0,Rank1: 阶段2：INT32 Reduce-Scatter (AIV)
     Rank0-->>Rank1: 交换和累加C0, C1的INT32结果
@@ -177,7 +181,7 @@ sequenceDiagram
 
 该量化算子通过将高成本的通信操作（Reduce-Scatter）在 `INT32` 数据上完成，避免了在 `BFLOAT16` 或 `FP32` 上进行通信，从而优化了性能。同时，通过精确处理分布式计算中的量化参数，确保了在多Rank环境下的计算精度。共享内存（Symmetric Memory）在此过程中扮演了关键的临时数据交换区的角色。
 
-## 8. 使用指南
+## 8. 测试指南
 
 ### 8.1 编译
 
@@ -208,12 +212,12 @@ M,K,N
 ### 8.4 数据文件
 
 在 `output/` 目录中生成以下数据文件：
-- `x1_gm.bin`: 量化输入矩阵A (int8)
-- `x2_gm.bin`: 量化输入矩阵B (int8)
-- `scale_x1_gm.bin`: 矩阵A的per-token量化缩放因子 (float32)
-- `scale_x2_gm.bin`: 矩阵B的per-channel量化缩放因子 (float32)
-- `bias_gm.bin`: 偏置向量 (int32)
-- `golden.bin`: 验证用的期望输出 (bfloat16)
+- `x1_gm_rank{i}.bin`: 第 i 个Rank的量化输入矩阵A (int8);       对应激活值：[sb, h/tp],  (m, k), 由于tp切分，各个 rank 输入不同；
+- `x2_gm_rank{i}.bin`: 第 i 个Rank的量化输入矩阵B (int8);       对应权重：  [h/tp, h]    (k, n)，由于tp切分，各个 rank 输入不同；
+- `scale_x1_gm.bin`: 矩阵A的per-token量化缩放因子 (float32)；   激活值量化参数:           [m,],  各个 rank 全量 token，所以相同； [0,1, 0.2, 0.3]
+- `scale_x2_gm.bin`: 矩阵B的per-channel量化缩放因子 (float32)： 权重量化参数：            [n,]   各个 rank 在输出channel 轴未切分，所以相同;
+- `bias_gm.bin`: 偏置向量 (int32)                              公式： out=(x1@x2+bias)∗scale 中的bias：[n], 由于各个rank 在输出channel未切分，所以相同, 算子调用方只在rank0传入bias，其他rank传入0值
+- `golden.bin`: 验证用的期望输出 (bfloat16): golden = (X1 @ X2 + b) * scale_x1 * scale_x2, X1, X2表示全量的值
 - `output.bin`: 算子的实际输出 (bfloat16)
 
 ### 8.5 验证
@@ -236,3 +240,14 @@ bash run.sh 0,1
 - SHMEM 环境已配置
 - PyTorch 支持（用于数据生成和验证）
 - 支持 bfloat16 数据类型的硬件环境
+
+## 9 使用场景及算子输入分析
+### 9.1 使用场景
+TP场景之行并行,比如 Attention之后的O矩阵运算
+
+### 9.2 输入分析
+- `激活值x1`： [sb, h/tp]   (m, k), 由于tp切分，各个 rank 输入不同；
+- `权重x2`：   [h/tp, h]    (k, n)，由于tp切分，各个 rank 输入不同；
+- x1 @ x2 => [sb, h] -> RS(tp) => [sb/tp, h]
+- `激活值量化参数`：scale_x1: (m)   各个 rank 全量 token，所以相同；
+- `权重量化参数`：  scale_x2: (n)   各个 rank 在 hidden 轴未切分，所以相同。
