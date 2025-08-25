@@ -34,6 +34,7 @@
 #include "catcoc/comm_epilogue/block/comm_block_epilogue.hpp"
 #include "catcoc/comm_epilogue/block/comm_block_swizzle.hpp"
 #include "catcoc/comm_epilogue/tile/tile_remote_copy.hpp"
+// #include "catcoc/gemm/dispatch_policy.hpp"
 #include "catcoc/detail/remote_copy_type.hpp"
 #include "catcoc/dgemm/kernel/quant_matmul_reduce_scatter.hpp"
 
@@ -301,14 +302,16 @@ int main(int argc, char **argv)
     uint8_t *x1Device, *x1Host;
     ACL_CHECK(aclrtMalloc((void **)(&x1Device), x1Size, ACL_MEM_MALLOC_HUGE_FIRST));
     ACL_CHECK(aclrtMallocHost((void **)(&x1Host), x1Size));
-    ReadFile(options.GetDataPath("x1_gm.bin"), x1Host, x1Size);
+    std::string x1_filename = "x1_gm_rank" + std::to_string(rankId) + ".bin";
+    ReadFile(options.GetDataPath(x1_filename), x1Host, x1Size);
     ACL_CHECK(aclrtMemcpy(x1Device, x1Size, x1Host, x1Size, ACL_MEMCPY_HOST_TO_DEVICE));
 
     // Allocate and copy x2
     uint8_t *x2Device, *x2Host;
     ACL_CHECK(aclrtMalloc((void **)(&x2Device), x2Size, ACL_MEM_MALLOC_HUGE_FIRST));
     ACL_CHECK(aclrtMallocHost((void **)(&x2Host), x2Size));
-    ReadFile(options.GetDataPath("x2_gm.bin"), x2Host, x2Size);
+    std::string x2_filename = "x2_gm_rank" + std::to_string(rankId) + ".bin";
+    ReadFile(options.GetDataPath(x2_filename), x2Host, x2Size);
     ACL_CHECK(aclrtMemcpy(x2Device, x2Size, x2Host, x2Size, ACL_MEMCPY_HOST_TO_DEVICE));
 
     // Allocate and copy scale_x1
@@ -327,10 +330,15 @@ int main(int argc, char **argv)
 
     // Allocate and copy bias
     uint8_t *biasDevice, *biasHost;
-    ACL_CHECK(aclrtMalloc((void **)(&biasDevice), biasSize, ACL_MEM_MALLOC_HUGE_FIRST));
-    ACL_CHECK(aclrtMallocHost((void **)(&biasHost), biasSize));
-    ReadFile(options.GetDataPath("bias_gm.bin"), biasHost, biasSize);
-    ACL_CHECK(aclrtMemcpy(biasDevice, biasSize, biasHost, biasSize, ACL_MEMCPY_HOST_TO_DEVICE));
+    if (rankId == 0) {
+        ACL_CHECK(aclrtMalloc((void **)(&biasDevice), biasSize, ACL_MEM_MALLOC_HUGE_FIRST));
+        ACL_CHECK(aclrtMallocHost((void **)(&biasHost), biasSize));
+        ReadFile(options.GetDataPath("bias_gm.bin"), biasHost, biasSize);
+        ACL_CHECK(aclrtMemcpy(biasDevice, biasSize, biasHost, biasSize, ACL_MEMCPY_HOST_TO_DEVICE));
+    } else {
+        biasDevice = nullptr;
+    }
+
 
     // Allocate intermediate and final output buffers
     uint8_t *cAccumDevice;
@@ -366,13 +374,15 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtFreeHost(x2Host));
     ACL_CHECK(aclrtFreeHost(scaleX1Host));
     ACL_CHECK(aclrtFreeHost(scaleX2Host));
-    ACL_CHECK(aclrtFreeHost(biasHost));
+    if (rankId == 0) {
+        ACL_CHECK(aclrtFreeHost(biasHost));
+        ACL_CHECK(aclrtFree(biasDevice));
+    }
     ACL_CHECK(aclrtFreeHost(dOutHost));
     ACL_CHECK(aclrtFree(x1Device));
     ACL_CHECK(aclrtFree(x2Device));
     ACL_CHECK(aclrtFree(scaleX1Device));
     ACL_CHECK(aclrtFree(scaleX2Device));
-    ACL_CHECK(aclrtFree(biasDevice));
     ACL_CHECK(aclrtFree(cAccumDevice));
     ACL_CHECK(aclrtFree(dOutDevice));
 

@@ -212,10 +212,18 @@ public:
                 // Execute matrix multiplication computation (fused with bias addition)
                 // Note: It is assumed here that the BlockMmad used always supports the bias addition interface.
                 // The host-side code is responsible for instantiating the correct version of BlockMmad.
-                blockMmad( gmA[offsetA], params.layoutA, 
-                           gmB[offsetB], params.layoutB, 
-                           gmStore[offsetStore], layoutStore, 
-                           gmBias[offsetBias], actualBlockShape );
+                if (gmBias.GetPhyAddr() != nullptr){
+                    blockMmad( gmA[offsetA], params.layoutA, 
+                        gmB[offsetB], params.layoutB, 
+                        gmStore[offsetStore], layoutStore, 
+                        gmBias[offsetBias], actualBlockShape );
+                } else {
+                    blockMmad( gmA[offsetA], params.layoutA, 
+                        gmB[offsetB], params.layoutB, 
+                        gmStore[offsetStore], layoutStore, 
+                        gmBias, actualBlockShape );
+                }
+
             }
             // Computation is complete, set a flag to notify AIV to start processing
             Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_FIX>(flagAicFinishStore[stageId]);
