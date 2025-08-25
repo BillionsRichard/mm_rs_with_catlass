@@ -14,8 +14,14 @@ namespace Catcoc::DGemm::Kernel {
 using Catlass::GemmCoord;
 using Catlass::MatrixCoord;
 
-template <class BlockMmad_, class BlockEpilogueAllGather_, class BlockSchedulerForAllgather_, class BlockEpilogue_,
-    class BlockSchedulerForDequant_, class BlockEpilogueScheduler_, uint32_t WORKSPACE_STAGES_>
+template <
+    class BlockMmad_,
+    class BlockEpilogueAllGather_,
+    class BlockSchedulerForAllgather_,
+    class BlockEpilogue_,
+    class BlockSchedulerForDequant_,
+    class BlockEpilogueScheduler_,
+    uint32_t WORKSPACE_STAGES_>
 class AllGatherDequantMatmul {
 public:
     using BlockMmad = BlockMmad_;
@@ -70,13 +76,25 @@ public:
         {}
 
         CATLASS_DEVICE
-        Params(GemmCoord const &problemShape_, uint32_t rank_, uint32_t rankSize_, GM_ADDR ptrA_,
-            LayoutA const &layoutA_, GM_ADDR ptrB_, LayoutB const &layoutB_, GM_ADDR ptrC_, LayoutC const &layoutC_,
-            GM_ADDR ptrSymmetric_, AllGatherParams const &allGatherParams_, DequantParams const &dequantParams_,
-            uint32_t commInterval_)
-            : problemShape(problemShape_), rankIdx(rank_), rankSize(rankSize_), ptrA(ptrA_), layoutA(layoutA_),
-              ptrB(ptrB_), layoutB(layoutB_), ptrC(ptrC_), layoutC(layoutC_), ptrSymmetric(ptrSymmetric_),
-              allGatherParams(allGatherParams_), dequantParams(dequantParams_), commInterval(commInterval_)
+        Params(
+            GemmCoord const &problemShape_,
+            uint32_t rank_, uint32_t rankSize_,
+            GM_ADDR ptrA_, LayoutA const &layoutA_,
+            GM_ADDR ptrB_, LayoutB const &layoutB_,
+            GM_ADDR ptrC_, LayoutC const &layoutC_,
+            GM_ADDR ptrSymmetric_,
+            AllGatherParams const &allGatherParams_,
+            DequantParams const &dequantParams_,
+            uint32_t commInterval_
+        ) : problemShape(problemShape_),
+            rankIdx(rank_), rankSize(rankSize_),
+            ptrA(ptrA_), layoutA(layoutA_),
+            ptrB(ptrB_), layoutB(layoutB_),
+            ptrC(ptrC_), layoutC(layoutC_),
+            ptrSymmetric(ptrSymmetric_),
+            allGatherParams(allGatherParams_),
+            dequantParams(dequantParams_),
+            commInterval(commInterval_)
         {}
     };
 
@@ -293,4 +311,4 @@ private:
 
 }  // namespace Catcoc::DGemm::Kernel
 
-#endif  // CATCOC_DGEMM_KERNEL_ALLGATHER_MATMUL_HPP
+#endif  // CATCOC_DGEMM_KERNEL_ALLGATHER_DEQUANT_MATMUL_HPP

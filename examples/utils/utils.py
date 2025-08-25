@@ -48,6 +48,15 @@ class DataType(IntEnum):
             DataType.BF16: None,
         }[self]
 
+    @property
+    def numpy_type(self):
+        return {
+            DataType.FLOAT: np.float32,
+            DataType.FLOAT16: np.float16,
+            DataType.INT8: np.int8,
+            DataType.BF16: None,
+        }[self]
+
 def tensor_to_file(tensor: torch.Tensor, file_name: str) -> None:
     if tensor.dtype == torch.bfloat16:
         tensor.view(torch.uint16).numpy().tofile(file_name)
