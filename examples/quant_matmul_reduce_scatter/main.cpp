@@ -34,7 +34,7 @@
 #include "catcoc/comm_epilogue/block/comm_block_epilogue.hpp"
 #include "catcoc/comm_epilogue/block/comm_block_swizzle.hpp"
 #include "catcoc/comm_epilogue/tile/tile_remote_copy.hpp"
-// #include "catcoc/gemm/dispatch_policy.hpp"
+#include "catcoc/gemm/dispatch_policy.hpp"
 #include "catcoc/detail/remote_copy_type.hpp"
 #include "catcoc/dgemm/kernel/quant_matmul_reduce_scatter.hpp"
 
@@ -89,7 +89,7 @@ void ShmemQuantMatmulReduceScatter(
 
     constexpr bool enableUnitFlag = true;
     // Use the dispatch policy that supports fused bias
-    using MmadDispatchPolicy = Catlass::Gemm::MmadAtlasA2PingpongBias<enableUnitFlag>;
+    using MmadDispatchPolicy = Catlass::Gemm::MmadAtlasA2PingpongCondBias<enableUnitFlag>;
     using L1TileShape = Catlass::GemmShape<128, 256, 256>;
     using L0TileShape = Catlass::GemmShape<128, 256, 64>;
     using BlockMmad = Catlass::Gemm::Block::BlockMmad<MmadDispatchPolicy,
