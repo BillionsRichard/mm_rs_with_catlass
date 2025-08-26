@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef CATLASS_GEMM_DISPATCH_POLICY_HPP
-#define CATLASS_GEMM_DISPATCH_POLICY_HPP
+#ifndef CATCOC_GEMM_DISPATCH_POLICY_HPP
+#define CATCOC_GEMM_DISPATCH_POLICY_HPP
 
 #include "catlass/catlass.hpp"
 #include "catlass/arch/arch.hpp"
@@ -27,4 +27,4 @@ struct MmadAtlasA2PingpongCondBias : public MmadAtlasA2  {
 
 
 
-#endif  // CATLASS_GEMM_DISPATCH_POLICY_HPP
+#endif  // CATCOC_GEMM_DISPATCH_POLICY_HPP
