@@ -4,6 +4,8 @@ import numpy as np
 
 from utils import tensor_to_file
 
+BIAS_LOW = -65536
+BIAS_HIGH = 65536
 WORKSPACE = os.getcwd()
 
 os.environ["WORKSPACE"] = WORKSPACE
@@ -55,12 +57,23 @@ def gen_golden_data():
     rankSize = args.rank_size
     M, N, K = args.m, args.n, args.k
 
+    debug = int(os.getenv("debug", 0)) == 1
+    
     a_gm = gen_random_data([M, K], dtype = torch.int8)
     b_gm = gen_random_data([K, N], dtype = torch.int8)
     scale_gm = torch.empty(size=[1,N], dtype=torch.float32).uniform_(0.004,0.005)
+
+    # use all same value as perTensorScale.
     perTokenScale_gm = torch.full(size=[M,1], fill_value=0.0045, dtype=torch.float32)
+    print(f'{perTokenScale_gm=}')
     c_gm = torch.zeros((M * rankSize, N), dtype= torch.int32)
     d_gm = torch.zeros((M * rankSize, N), dtype= torch.float32)
+    
+    if debug:
+        print(f'[warning]: in debug mode, use {torch.arange(1, N+1, dtype=torch.int32)} as bias input.')
+        bias_gm = torch.arange(1, N+1, dtype=torch.int32)
+    else:
+        bias_gm = torch.randint(low=BIAS_LOW, high=BIAS_HIGH+1, size=(N,), dtype=torch.int32)
     
     # a_gm = torch.ones_like(a_gm)
     # b_gm = torch.ones_like(b_gm)
@@ -69,6 +82,8 @@ def gen_golden_data():
 
     
     matrix_c = torch.matmul(a_gm.to(torch.float32), b_gm.to(torch.float32))
+    matrix_c += bias_gm.to(torch.float32)
+
     tensor_to_file(matrix_c, "./output/c_test.bin")
     golden = dequantize(matrix_c, scale_gm.view(1,N), perTokenScale_gm.view(M,1))
     
@@ -81,6 +96,8 @@ def gen_golden_data():
     tensor_to_file(a_gm, "./output/a_gm.bin")
     tensor_to_file(b_gm, "./output/b_gm.bin")
     tensor_to_file(c_gm, "./output/c_gm.bin")
+    tensor_to_file(bias_gm, "./output/bias_gm.bin")
+
     tensor_to_file(d_gm.to(torch.float16), "./output/d_gm.bin")
     tensor_to_file(scale_gm, "./output/scale_gm.bin")
     tensor_to_file(perTokenScale_gm, "./output/perTokenScale_gm.bin")

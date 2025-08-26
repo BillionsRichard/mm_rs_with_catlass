@@ -2,7 +2,7 @@
 #define CATCOC_DGEMM_KERNEL_ALLGATHER_DEQUANT_MATMUL_HPP
 
 #include "catcoc/catcoc.hpp"
-
+#include "catlass/gemm/block/block_mmad_pingpong_bias.hpp"
 // from catlass
 #include "catlass/arch/resource.hpp"
 #include "catlass/arch/cross_core_sync.hpp"
@@ -34,6 +34,9 @@ public:
     using ElementC = typename BlockMmad::ElementC;
     using LayoutC = typename BlockMmad::LayoutC;
 
+    using ElementBias = typename BlockMmad::ElementBias; // Get Bias type from BlockMmad
+    using LayoutBias = typename BlockMmad::LayoutBias;
+	
     using AllGather = BlockEpilogueAllGather_;
     using Dequant = BlockEpilogue_;
 
@@ -65,6 +68,8 @@ public:
         LayoutB layoutB;
         GM_ADDR ptrC;
         LayoutB layoutC;
+		GM_ADDR ptrBias; LayoutBias layoutBias; // Global memory address and layout of Bias
+		
         GM_ADDR ptrSymmetric;
         AllGatherParams allGatherParams;
         DequantParams dequantParams;
@@ -82,6 +87,7 @@ public:
             GM_ADDR ptrA_, LayoutA const &layoutA_,
             GM_ADDR ptrB_, LayoutB const &layoutB_,
             GM_ADDR ptrC_, LayoutC const &layoutC_,
+			 GM_ADDR ptrBias_, LayoutBias const &layoutBias_, 
             GM_ADDR ptrSymmetric_,
             AllGatherParams const &allGatherParams_,
             DequantParams const &dequantParams_,
@@ -91,6 +97,7 @@ public:
             ptrA(ptrA_), layoutA(layoutA_),
             ptrB(ptrB_), layoutB(layoutB_),
             ptrC(ptrC_), layoutC(layoutC_),
+			ptrBias(ptrBias_), layoutBias(layoutBias_), 
             ptrSymmetric(ptrSymmetric_),
             allGatherParams(allGatherParams_),
             dequantParams(dequantParams_),
@@ -132,6 +139,9 @@ public:
         AscendC::GlobalTensor<ElementC> gmC;
         gmC.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrC));
 
+        AscendC::GlobalTensor<ElementBias> gmBias; 
+        gmBias.SetGlobalBuffer(reinterpret_cast<__gm__ ElementBias *>(params.ptrBias));
+		
         auto layoutSymmetric = Catlass::layout::RowMajor(WORKSPACE_STAGES * params.rankSize * commSizeM,
             params.problemShape.k(),
             RoundUp<int64_t>(params.problemShape.k(), Catlass::BYTE_PER_FRACTAL / sizeof(ElementA)));
@@ -167,14 +177,38 @@ public:
                 auto gmBlockA = gmSymmetric[layoutSymmetric.GetOffset(offsetA)];
                 auto gmBlockB = gmB[params.layoutB.GetOffset(offsetB)];
                 auto gmBlockC = gmC[layoutC.GetOffset(offsetC)];
-
-                mmad(gmBlockA,
-                    layoutSymmetric,
-                    gmBlockB,
-                    params.layoutB,
-                    gmBlockC,
-                    layoutC,
-                    actualBlockShape.GetCoordMNK());
+				int64_t offsetBias = params.layoutBias.GetOffset(Catlass::MakeCoord(offsetB[1]));
+				
+                // mmad(gmBlockA,
+                //     layoutSymmetric,
+                //     gmBlockB,
+                //     params.layoutB,
+                //     gmBlockC,
+                //     layoutC,
+                //     actualBlockShape.GetCoordMNK());
+				if (gmBias.GetPhyAddr() != nullptr){
+                    // blockMmad( gmA[offsetA], params.layoutA, 
+                    //     gmB[offsetB], params.layoutB, 
+                    //     gmStore[offsetStore], layoutStore, 
+                    //     gmBias[offsetBias], actualBlockShape );
+                    mmad(gmBlockA,
+                        layoutSymmetric,
+                        gmBlockB,
+                        params.layoutB,
+                        gmBlockC,
+                        layoutC,
+                        gmBias[offsetBias],
+                        actualBlockShape.GetCoordMNK());
+                } else {
+                    mmad(gmBlockA,
+                        layoutSymmetric,
+                        gmBlockB,
+                        params.layoutB,
+                        gmBlockC,
+                        layoutC,
+                        gmBias,
+                        actualBlockShape.GetCoordMNK());
+                }
             }
             Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_FIX>(flagAicFinishStore[stageId]);
         }

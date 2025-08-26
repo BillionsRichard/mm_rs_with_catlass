@@ -9,6 +9,7 @@
 #include "catlass/arch/arch.hpp"
 #include "catlass/epilogue/block/block_epilogue.hpp"
 #include "catlass/epilogue/dispatch_policy.hpp"
+#include "catlass/gemm/dispatch_policy.hpp"
 #include "catlass/epilogue/tile/tile_broadcast_mul.hpp"
 #include "catlass/epilogue/tile/tile_broadcast_one_blk.hpp"
 #include "catlass/epilogue/tile/tile_copy.hpp"
@@ -61,8 +62,17 @@ using LayoutScale = Catlass::layout::VectorLayout;
 using LayoutPerTokenScale = Catlass::layout::VectorLayout;
 
 CATLASS_GLOBAL
-void ShmemAllGatherMatmul(uint64_t fftsAddr, GM_ADDR aDevice, GM_ADDR bDevice, GM_ADDR cDevice, GM_ADDR symmetricPtr,
-    GM_ADDR dDevice, GM_ADDR deviceScale, GM_ADDR devicePerTokenScale, uint32_t m, uint32_t n, uint32_t k)
+void ShmemAllGatherMatmul(
+    uint64_t fftsAddr, 
+    GM_ADDR aDevice, 
+    GM_ADDR bDevice, 
+    GM_ADDR cDevice, 
+    GM_ADDR bias, 
+    GM_ADDR symmetricPtr,
+    GM_ADDR dDevice, 
+    GM_ADDR deviceScale, 
+    GM_ADDR devicePerTokenScale, 
+    uint32_t m, uint32_t n, uint32_t k)
 {
     // Set FFTS address
     AscendC::SetSyncBaseAddr(fftsAddr);
@@ -82,18 +92,21 @@ void ShmemAllGatherMatmul(uint64_t fftsAddr, GM_ADDR aDevice, GM_ADDR bDevice, G
     LayoutC layoutC{m * rankSize, n};           // c = AG(A, rank_size) @ B -> {m*rank_sz, k} @ {k, n} 【+bias待实现】 = {m*rank_sz, n} ->int8 @ int8 ->int32
     LayoutD layoutD{m * rankSize, n};           // c->dequant(s1{m*rank_sz}, s2{n}, {m*rank_sz, n})-> half({m*rank_sz, n})
     LayoutScale layoutScale{n};                 // perChannleScale
+    Catlass::layout::VectorLayout layout_bias(n);
     LayoutPerTokenScale layoutPerTokenScale{m}; // perTokenScale(m)=> {m} ->AG(perTokenScale, rank_sz)-> {m * rank_sz}
 
+    using BiasType = Catlass::Gemm::GemmType<int32_t, Catlass::layout::VectorLayout>;
     // Block level, define BlockMmad
     constexpr bool enableUnitFlag = false;
-    using MmadDispatchPolicy = Catlass::Gemm::MmadAtlasA2Pingpong<enableUnitFlag>;
+    using MmadDispatchPolicy = Catlass::Gemm::MmadAtlasA2PingpongBias<enableUnitFlag>;
     using L1TileShape = Catlass::GemmShape<128, 256, 256>;
     using L0TileShape = Catlass::GemmShape<128, 256, 64>;
     using AType = Catlass::Gemm::GemmType<ElementA, LayoutA>;
     using BType = Catlass::Gemm::GemmType<ElementB, LayoutB>;
     using CType = Catlass::Gemm::GemmType<ElementC, LayoutC>;
     using BlockMmad =
-        Catlass::Gemm::Block::BlockMmad<MmadDispatchPolicy, L1TileShape, L0TileShape, AType, BType, CType>;
+        Catlass::Gemm::Block::BlockMmad<MmadDispatchPolicy, 
+                L1TileShape, L0TileShape, AType, BType, CType, BiasType>;
 
     using BlockSchedulerForAllgather = typename Catcoc::DGemm::Block::GemmBlockSwizzleAllGatherMesh<7, 1>;
     using CommBlockScheduler = CommEpilogue::Block::BlockCommSwizzle<0>;
@@ -183,6 +196,7 @@ void ShmemAllGatherMatmul(uint64_t fftsAddr, GM_ADDR aDevice, GM_ADDR bDevice, G
         layoutB,
         cDevice,
         layoutC,
+		bias, layout_bias, // Pass bias pointer directly
         symmetricPtr,
         allGatherParams,
         dequantParams,
@@ -287,7 +301,7 @@ int main(int argc, char **argv)
     size_t aSize = static_cast<size_t>(m) * k * sizeof(int8_t);
     size_t bSize = static_cast<size_t>(k) * n * sizeof(int8_t);
     size_t cSize = static_cast<size_t>(m) * rankSize * n * sizeof(int32_t);
-
+	size_t biasSize = static_cast<size_t>(n) * sizeof(int32_t);
     size_t scaleSize = static_cast<size_t>(n) * sizeof(ElementScale);
     size_t perTokenScaleSize = static_cast<size_t>(m) * sizeof(ElementPerTokenScale);
     size_t dSize = static_cast<size_t>(m) * rankSize * n * sizeof(half);
@@ -329,6 +343,17 @@ int main(int argc, char **argv)
     ReadFile(options.GetDataPath("scale_gm.bin"), scaleHost, scaleSize);
     ACL_CHECK(aclrtMemcpy(deviceScale, scaleSize, scaleHost, scaleSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
+    // Allocate and copy bias
+    uint8_t *biasDevice, *biasHost;
+    if (rankId == 0) {
+        ACL_CHECK(aclrtMalloc((void **)(&biasDevice), biasSize, ACL_MEM_MALLOC_HUGE_FIRST));
+        ACL_CHECK(aclrtMallocHost((void **)(&biasHost), biasSize));
+        ReadFile(options.GetDataPath("bias_gm.bin"), biasHost, biasSize);
+        ACL_CHECK(aclrtMemcpy(biasDevice, biasSize, biasHost, biasSize, ACL_MEMCPY_HOST_TO_DEVICE));
+    } else {
+        biasDevice = nullptr;
+    }
+
     uint8_t *devicePerTokenScale;
     ACL_CHECK(aclrtMalloc((void **)(&devicePerTokenScale), perTokenScaleSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *perTokenScaleHost;
@@ -343,7 +368,7 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtSynchronizeStream(stream));
     for (int i = 0; i < 1; i++) {
         ShmemAllGatherMatmul<<<BLOCK_NUM, nullptr, stream>>>(
-            shmemx_get_ffts_config(), aDevice, bDevice, cDevice, symmetricPtr, dDevice, deviceScale, devicePerTokenScale, m, n, k);
+            shmemx_get_ffts_config(), aDevice, bDevice, cDevice, biasDevice, symmetricPtr, dDevice, deviceScale, devicePerTokenScale, m, n, k);
     }
     ACL_CHECK(aclrtSynchronizeStream(stream));
     ACL_CHECK(aclrtMemcpy(dHost, dSize, dDevice, dSize, ACL_MEMCPY_DEVICE_TO_HOST));
