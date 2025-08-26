@@ -1,6 +1,6 @@
 // Prevent multiple inclusions of the header file
-#ifndef CATCOC_DGEMM_KERNEL_QUANT_MATMUL_REDUCE_SCATTER_HPP
-#define CATCOC_DGEMM_KERNEL_QUANT_MATMUL_REDUCE_SCATTER_HPP
+#ifndef CATCOC_DGEMM_KERNEL_MATMUL_REDUCE_SCATTER_DEQUANT_HPP
+#define CATCOC_DGEMM_KERNEL_MATMUL_REDUCE_SCATTER_DEQUANT_HPP
 
 // Include dependent headers
 #include "catcoc/catcoc.hpp"                     // Core header file for the catcoc library, may contain communication primitives, etc.
@@ -8,6 +8,7 @@
 #include "catlass/arch/cross_core_sync.hpp"      // Tools for inter-core synchronization in the catlass library, such as Flag
 #include "catlass/gemm_coord.hpp"                // Structures for representing GEMM (General Matrix Multiplication) related coordinates in the catlass library
 #include "catlass/matrix_coord.hpp"              // Structures for representing matrix coordinates in the catlass library
+#include "catcoc/gemm/block/block_mmad_pingpong_conditional_bias.hpp"
 
 namespace Catcoc::DGemm::Kernel {
 
@@ -155,7 +156,7 @@ public:
         // Define the layout of the workspace for storing cross-card computation results
         auto layoutC = Catlass::layout::RowMajor{ WORKSPACE_STAGES * blockPerComm * L1TileShape::M, L1TileShape::N, L1TileShape::N };
         auto layoutCRowLogicShape = Catlass::MakeCoord<int>(WORKSPACE_STAGES, blockPerComm, L1TileShape::M);
-        auto layoutCRow = layout::AffineRankN<3>::Packed(layoutCRowLogicShape);
+        auto layoutCRow = Catcoc::AffineRankN<3>::Packed(layoutCRowLogicShape);
 
         // --- Main loop: execute computation in a pipelined manner ---
         for (uint32_t commIdx = 0; commIdx < commLoops; ++commIdx) {
@@ -384,4 +385,4 @@ private:
 
 } // namespace Catcoc::DGemm::Kernel
 
-#endif // CATCOC_DGEMM_KERNEL_QUANT_MATMUL_REDUCE_SCATTER_HPP
+#endif // CATCOC_DGEMM_KERNEL_MATMUL_REDUCE_SCATTER_DEQUANT_HPP
