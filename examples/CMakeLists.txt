@@ -57,7 +57,7 @@ foreach(EXAMPLE
     matmul_allreduce
     matmul_reduce_scatter
     # matmul_reduce_scatter_quant_perchn
-    matmul_reduce_scatter_dequant
+    # matmul_reduce_scatter_dequant
     dynamic_tiling
 )
     add_subdirectory(${EXAMPLE})

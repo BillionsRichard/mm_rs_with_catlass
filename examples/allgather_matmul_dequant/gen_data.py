@@ -58,7 +58,7 @@ def gen_golden_data():
     a_gm = gen_random_data([M, K], dtype = torch.int8)
     b_gm = gen_random_data([K, N], dtype = torch.int8)
     scale_gm = torch.empty(size=[1,N], dtype=torch.float32).uniform_(0.004,0.005)
-    perTokenScale_gm = torch.empty(size=[M,1], dtype=torch.float32).uniform_(0.004,0.005)
+    perTokenScale_gm = torch.full(size=[M,1], fill_value=0.0045, dtype=torch.float32)
     c_gm = torch.zeros((M * rankSize, N), dtype= torch.int32)
     d_gm = torch.zeros((M * rankSize, N), dtype= torch.float32)
     
