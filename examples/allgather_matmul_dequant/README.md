@@ -3,14 +3,13 @@
 ## 1. 算子概述
 
 ### 1.1 功能描述
-AllGather矩阵乘法反量化算子（AllGatherDequantMatmul）是一个支持INT8量化的分布式矩阵乘法算子，结合AllGather通信模式，用于高效的大规模分布式深度学习训练。
+AllGather矩阵乘法反量化算子 (AllGatherDequantMatmul) 是一个分布式矩阵乘法算子，其核心流程是先对激活矩阵A进行AllGather通信，再执行矩阵乘法和反量化。
 
-**基本流程如下：**
-1.  **通信 (AIV):** 首先，通过AllGather操作将各个计算单元（Rank）的INT8输入矩阵`A`在后台(AIV)进行收集。数据被写入一个共享内存工作区（Symmetric Workspace）。
-2.  **计算 (AIC):** 计算核心(AIC)等待AllGather操作准备好数据后，从共享内存工作区中读取完整的、拼接后的大矩阵`A`，并与本地的INT8矩阵`B`执行一次大规模的矩阵乘法，得到`INT32`的中间结果`C`。即 `C_int32 = AllGathered_A_int8 x B_int8`。
-3.  **后处理 (AIV):** 最后，AIV核心对`INT32`的中间结果`C`执行反量化操作，并转换为最终的`FP16`输出。
+该算子支持对输入进行量化，其中：
+- **激活矩阵A**: 支持 **per-tensor** 量化（整个矩阵使用一个缩放因子）。
+- **权重矩阵B**: 支持 **per-channel** 量化（矩阵的每一列使用一个独立的缩放因子）。
 
-该算子通过将通信（AllGather）和计算（Matmul）流水线化，以及在低精度（INT8）数据上进行通信，实现了高效的分布式计算。
+在调用算子前，Host侧需要将A的per-tensor scale和B的per-channel scale预先计算并融合成一个**fused_scale**向量。Kernel只需要接收这个融合后的scale向量即可完成反量化。
 
 ### 1.2 算子签名
 ```cpp
@@ -21,8 +20,7 @@ void AllGatherDequantMatmul(
     GM_ADDR cDevice,           // 中间结果矩阵: [M*rankSize, N], int32
     GM_ADDR symmetricPtr,      // 用于Rank间通信的共享内存工作空间 (workspace)
     GM_ADDR dDevice,           // 输出矩阵: [M*rankSize, N], fp16
-    GM_ADDR deviceScale,       // per-channel 量化缩放因子: [N], float32
-    GM_ADDR devicePerTokenScale, // per-token 量化缩放因子: [M], float32
+    GM_ADDR fused_scale,       // 融合后的量化缩放因子: [N], float32
     uint32_t m, 
     uint32_t n, 
     uint32_t k
@@ -32,13 +30,12 @@ void AllGatherDequantMatmul(
 ### 1.3 输入输出规格
 | 参数 | 形状 | 数据类型 | 描述 |
 |------|------|----------|------|
-| aDevice | [M, K] | int8 | 量化后的输入矩阵A |
-| bDevice | [K, N] | int8 | 量化后的输入矩阵B |
+| aDevice | [M, K] | int8 | 量化后的输入矩阵A (每个Rank一份) |
+| bDevice | [K, N] | int8 | 量化后的输入矩阵B (所有Rank共享) |
 | cDevice | [M*rankSize, N] | int32 | Matmul的int32输出 / Dequantize的输入 |
 | dDevice | [M*rankSize, N] | fp16 | 最终输出矩阵 |
-| deviceScale | [N] | float32 | B矩阵的per-channel量化缩放因子 |
-| devicePerTokenScale | [M] | float32 | A矩阵的per-token量化缩放因子 |
-| symmetricPtr | - | GM_ADDR | AllGather通信的工作空间，用于存储完整的A矩阵 |
+| fused_scale | [N] | float32 | 由A的per-tensor scale和B的per-channel scale在Host侧预先融合计算得出的scale向量 |
+| symmetricPtr | - | GM_ADDR | 用于AllGather通信的共享内存工作区 |
 
 ## 2. 量化算法设计
 
@@ -50,47 +47,52 @@ graph TD
         B[int8 B]
     end
 
+    subgraph "Host Side"
+        a_scale[A's per-tensor scale]
+        b_scale[B's per-channel scale]
+        a_scale --> Fuse{Fuse Scales}
+        b_scale --> Fuse
+        Fuse --> fused_scale[Fused Scale Vector]
+    end
+
     subgraph "Step 1: AllGather on A (AIV)"
-        style A_i fill:#f9f,stroke:#333,stroke-width:2px
         A_i -->|All Ranks| Comm{AllGather}
-        Comm --> A_full["Complete A_full<br/>(in Symmetric Memory)"]
+        Comm --> A_full[Complete A_full]
     end
 
     subgraph "Step 2: Matmul (AIC)"
-        style A_full fill:#ccf,stroke:#333,stroke-width:2px
-        style B fill:#f9f,stroke:#333,stroke-width:2px
         A_full --> Matmul{INT8 Matmul}
         B --> Matmul
         Matmul --> C_int32[int32 Result]
     end
 
     subgraph "Step 3: Dequantize (AIV)"
-        style C_int32 fill:#ccf,stroke:#333,stroke-width:2px
         C_int32 --> Dequant{Dequantize}
-        scale[float32 scale] --> Dequant
-        perTokenScale[float32 perTokenScale] --> Dequant
+        fused_scale --> Dequant
         Dequant --> D_fp16[fp16 Output]
     end
 ```
 
 ### 2.2 量化与反量化公式
 ```c++
-    // 伪代码: 量化 (Host侧准备)
-    a_int8_per_rank = round(a_fp32_per_rank / perTokenScale)
-    b_int8 = round(b_fp32 / scale)
+    // --- Host Side ---
+    // 伪代码: 量化
+    a_int8 = round(a_fp32 / a_scale_scalar)
+    b_int8 = round(b_fp32 / b_scale_vector)
 
-    // --- Kernel ---
-    // 伪代码：1. AllGather (on AIV)
-    // 将各Rank的 a_int8_per_rank 收集到 symmetric_workspace
-    complete_a_int8 = allgather(a_int8_per_rank) across all ranks
+    // 伪代码: 融合Scale
+    fused_scale_vector = a_scale_scalar * b_scale_vector
 
-    // 伪代码: 2. 矩阵乘法 (on AIC)
-    // 使用收集到的完整A矩阵与本地B矩阵进行计算
+    // --- Kernel Side ---
+    // 伪代码：1. AllGather
+    complete_a_int8 = allgather(a_int8_per_rank)
+
+    // 伪代码: 2. 矩阵乘法
     result_int32 = matmul(complete_a_int8, b_int8)
 
-    // 伪代码: 3. 反量化 (on AIV)
-    // 注意：scale的维度是[N], perTokenScale的维度是[M*rankSize]
-    result_fp32 = result_int32 * perTokenScale_all_ranks * scale
+    // 伪代码: 3. 反量化
+    // fused_scale_vector被广播到C的每一行
+    result_fp32 = result_int32 * fused_scale_vector
     output_fp16 = cast_to_fp16(result_fp32)
 ```
 
@@ -111,7 +113,7 @@ graph TD
 ## 4. 内存布局设计
 
 ### 4.1 全局内存 (Global Memory)
-- **输入布局**: `aDevice`, `bDevice`, `deviceScale`, `devicePerTokenScale` 均存储在GM中。
+- **输入布局**: `aDevice`, `bDevice`, `fused_scale` 均存储在GM中。
 - **中间结果布局**: 每个Rank计算出的 `INT32` 累加器结果存储在各自的GM空间中，形状为 `[M*rankSize, N]`。
 - **输出布局**: 最终的 `FP16` 输出也存储在GM中，形状为 `[M*rankSize, N]`。
 
@@ -130,12 +132,12 @@ graph TD
 ## 5. 通信模式适配
 
 ### 5.1 AIV/AIC流水线工作模式
-算子的核心是AIV和AIC之间的流水线（Pipeline）作业。
+算子的核心是AIV和AIC之间的流水线（Pipeline）作业，实现了通信和计算的重叠。
 1.  **AIV (通信先行):** AIV核首先启动，执行 `AllGather` 操作，将第一个数据块从所有Rank收集到共享工作区（Symmetric Workspace）的stage 0缓冲区。
-2.  **AIV通知AIC:** 当stage 0的数据准备好后，AIV通过flag机制通知AIC可以开始计算。同时，AIV开始将第二个数据块收集到stage 1缓冲区。
+2.  **AIV通知AIC:** 当stage 0的数据准备好后，AIV通过flag机制通知AIC可以开始计算。同时，AIV可以开始将下一个数据块收集到stage 1缓冲区。
 3.  **AIC (计算):** AIC核被唤醒，从共享工作区的stage 0缓冲区读取完整的矩阵`A`数据块，并与本地矩阵`B`进行矩阵乘法。
-4.  **循环执行:** AIC在计算stage 0时，AIV在准备stage 1的数据。当AIC完成stage 0的计算后，它会等待AIV准备好stage 1的数据。这个过程循环往复，实现了通信和计算的高度重叠。
-5.  **AIV (最终处理):** 在所有计算完成后，AIV负责对AIC产生的`INT32`结果进行最后的回写和反量化。
+4.  **循环执行:** AIC在计算stage 0时，AIV在准备stage 1的数据。这个过程循环往复，直到所有数据块处理完毕。
+5.  **AIV (最终处理):** 在所有计算完成后，AIV负责对AIC产生的`INT32`结果进行最后的反量化。
 
 ### 5.2 流程图
 ```mermaid
@@ -154,15 +156,6 @@ sequenceDiagram
         AIV->>Symmetric Memory: AllGather(A_{i+1}) into stage 1
     end
     
-    AIV->>AIC: Signal (flag) data ready
-    
-    par
-        AIC->>Symmetric Memory: Read complete A from stage 1
-        AIC->>AIC: Matmul(A_complete, B) -> C_int32
-    and
-        AIV->>Symmetric Memory: AllGather(A_{i+2}) into stage 0
-    end
-
     Note over AIV, AIC: Loop until all blocks are processed
 
     AIC-->>AIV: Signal Matmul complete
@@ -187,18 +180,21 @@ sequenceDiagram
 ### 8.1 编译
 
 ```bash
-cd examples/allgather_matmul_dequant/scripts
-bash build.sh
+# 切换到项目根目录
+cd /path/to/project/root
+
+# 运行总编译脚本，携带-examples选项
+bash scripts/build.sh -examples
 ```
 
 ### 8.2 运行
 
 ```bash
 # 在2个设备上运行（设备0和1）
-bash run.sh 0,1
+bash examples/allgather_matmul_dequant/scripts/run.sh 0,1
 
 # 在4个设备上运行（设备1, 3, 5, 7）
-bash run.sh 1,3,5,7
+bash examples/allgather_matmul_dequant/scripts/run.sh 1,3,5,7
 ```
 
 ### 8.3 测试形状
@@ -214,30 +210,16 @@ M,K,N
 ### 8.4 数据文件
 
 在 `output/` 目录中生成以下数据文件：
-- `x1_gm.bin`: 量化输入矩阵A (int8)
-- `x2_gm.bin`: 量化输入矩阵B (int8)
-- `c_gm.bin`: 中间累加结果矩阵 (int32)
-- `d_gm.bin`: 输出矩阵 (fp16)
-- `scale_x1_gm.bin`: 矩阵A的per-token量化缩放因子 (float32)
-- `scale_x2_gm.bin`: 矩阵B的per-channel量化缩放因子 (float32)
+- `a_gm_rank_{i}.bin`: 每个Rank的量化输入矩阵A (int8)
+- `b_gm.bin`: 量化输入矩阵B (int8)
+- `scale_gm.bin`: 融合后的量化缩放因子 (float32)
 - `golden.bin`: 验证用的期望输出 (fp16)
 - `output.bin`: 算子的实际输出 (fp16)
+- `c_gm.bin`, `d_gm.bin`: 算子执行所需的临时空矩阵
 
 ### 8.5 验证
 
 脚本会自动验证输出结果与黄金参考的差异，使用现有的 `verify_result.py` 进行精度验证。该验证脚本支持 fp16 数据类型的精度检查。
-
-#### 8.5.1 校验逻辑说明 (Note on Verification Logic)
-当前的验证方案使用了一种**弱校验逻辑**。
-
-当前的测试脚本 (`run.sh` 和 `gen_data.py`) 通过在每个Rank上加载**完全相同**的输入矩阵 `A` (`a_gm.bin`) 来进行测试。在这种 `A0=A1=...` 的特殊情况下，根据分块矩阵乘法原理 `[[A0],[A1]]@B = [[A0@B],[A1@B]]`，`Matmul(AllGather(A), B)` 的计算结果恰好等同于 `Concat(Matmul(A0, B))`。因此，当前基于`gen_data.py`生成的`golden.bin`的校验能够通过。
-
-然而，此算子的设计目标是支持各Rank上`A_i`**不相同**的通用场景。当前的校验逻辑并未覆盖这种通用场景。
-
-**如需实现严格校验**，需要修改数据生成和加载流程：
-1.  修改 `gen_data.py`，使其能为每个Rank `i` 生成唯一的输入文件 `a_gm_rank_{i}.bin`。
-2.  主程序需要能够根据当前`rankId`加载对应的 `a_gm_rank_{i}.bin`。
-3.  生成`golden.bin`的逻辑需要修改为：将所有`a_gm_rank_{i}.bin`的数据拼接成一个完整的`A`矩阵，再与`B`矩阵相乘并反量化，以产生与算子行为完全一致的期望结果。
 
 ### 8.6 调试模式
 

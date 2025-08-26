@@ -8,6 +8,9 @@
 #include "catlass/arch/cross_core_sync.hpp"
 #include "catlass/gemm_coord.hpp"
 #include "catlass/matrix_coord.hpp"
+#include "catlass/epilogue/block/block_epilogue.hpp"
+#include "catlass/epilogue/tile/tile_broadcast_mul.hpp"
+#include "catlass/epilogue/tile/tile_copy.hpp"
 
 namespace Catcoc::DGemm::Kernel {
 
@@ -33,8 +36,6 @@ public:
 
     using ElementScale = typename Dequant::ElementScale;
     using LayoutScale = typename Dequant::LayoutScale;
-    using ElementPerTokenScale = typename Dequant::ElementPerTokenScale;
-    using LayoutPerTokenScale = typename Dequant::LayoutPerTokenScale;
     using ElementD = typename Dequant::ElementD;
     using LayoutD = typename Dequant::LayoutD;
 
@@ -85,7 +86,7 @@ public:
     AllGatherDequantMatmul()
     {
         for (uint32_t i = 0; i < WORKSPACE_STAGES; ++i) {
-            flagAicFinishStore[i] = Catlass::Arch::CrossCoreFlag(i);    // 将id设置为0,1... (WORKSPACE_STAGES-1)
+            flagAicFinishStore[i] = Catlass::Arch::CrossCoreFlag(i);
             flagAivFinishCompute[i] = Catlass::Arch::CrossCoreFlag(i);
         }
         flagAicFinish = Catlass::Arch::CrossCoreFlag(WORKSPACE_STAGES);
@@ -106,7 +107,6 @@ public:
 
         BlockMmad mmad(resource);
 
-        // Represent the full gm
         AscendC::GlobalTensor<ElementA> gmSymmetric;
         gmSymmetric.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(params.ptrSymmetric));
         AscendC::GlobalTensor<ElementB> gmB;
@@ -163,7 +163,6 @@ public:
         AscendC::PipeBarrier<PIPE_ALL>();
 
         Catlass::Arch::CrossCoreBarrier<0, PIPE_FIX>();
-        // 0x2->模式2：子块间的同步，对一个组中的所有子块设置flagId。
         Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_FIX>(flagAicFinish);
     }
 
@@ -173,7 +172,6 @@ public:
         uint32_t aicoreIdx = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum();
         uint32_t subcoreIdx = AscendC::GetSubBlockIdx();
 
-        MatrixCoord blockShapeMK = MatrixCoord{L1TileShape::M, params.problemShape.k()};
         uint32_t commSizeM = params.commInterval * L1TileShape::M;
         uint32_t commLoops = CeilDiv(params.problemShape.m(), commSizeM);
 
@@ -207,7 +205,6 @@ public:
             MatrixCoord commSrcOffset{commIdx * commSizeM, 0};
             MatrixCoord commDstOffset{layoutSymmetricRow(Catlass::MakeCoord<int>(stageId, params.rankIdx, 0)), 0};
 
-            // wait aic
             if (commIdx >= WORKSPACE_STAGES) {
                 Catlass::Arch::CrossCoreWaitFlag(flagAicFinishStore[stageId]);
             }
@@ -220,31 +217,18 @@ public:
                     DistMatrixCoord commBlockCoord = commScheduler.GetBlockCoord(commLoopIdx);
                     MatrixCoord blockOffsetInRank = commScheduler.GetBlockOffsetInRank(commBlockCoord.GetCoordInRank());
                     MatrixCoord actualCommBlockShape = commScheduler.GetActualBlockShapeByOffset(blockOffsetInRank);
-
                     uint32_t remoteRankIdx = commBlockCoord.rank();
-
                     auto offsetSrc = commSrcOffset + blockOffsetInRank;
                     auto offsetDst = commDstOffset + blockOffsetInRank;
-
                     auto gmBlockSrc = gmA[params.layoutA.GetOffset(offsetSrc)];
                     auto layoutBlockSrc = params.layoutA.GetTileLayout(actualCommBlockShape);
-
                     auto gmBlockDst = gmSymmetric[layoutSymmetric.GetOffset(offsetDst)];
                     auto layoutBlockDst = layoutSymmetric.GetTileLayout(actualCommBlockShape);
-
-                    allGather(gmBlockSrc,
-                        layoutBlockSrc,
-                        gmBlockDst,
-                        layoutBlockDst,
-                        actualCommBlockShape,
-                        remoteRankIdx % params.rankSize);
+                    allGather(gmBlockSrc, layoutBlockSrc, gmBlockDst, layoutBlockDst, actualCommBlockShape, remoteRankIdx % params.rankSize);
                 }
             }
             allGather.FinalizeBlockLoop();
-            // AllGather is completed, waiting until tasks on all devices are complete.
             shmemx_barrier_all_vec();
-
-            // set aic
             Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_MTE3>(flagAivFinishCompute[stageId]);
         }
 
@@ -255,36 +239,24 @@ public:
         gmC.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrC));
         auto layoutC = params.layoutC;
 
-        Dequant dequant(resource);
-        for (uint32_t deviceIdx = 0; deviceIdx < params.rankSize; ++deviceIdx) {
-            BlockSchedulerForDequant blockSchedulerForDequant(params.problemShape, L1TileShape::ToCoordMN());
-            typename Dequant::Params paramsForDequant{params.dequantParams.ptrScale,
-                params.dequantParams.layoutScale,
-                params.dequantParams.ptrPerTokenScale,
-                params.dequantParams.layoutPerTokenScale,
-                params.dequantParams.ptrD + deviceIdx * params.problemShape.m() * params.problemShape.n(),
-                params.dequantParams.layoutD};
-            dequant.UpdateParams(paramsForDequant);
-            uint32_t coreIdx = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum();
-            uint32_t coreNum = AscendC::GetBlockNum();
-            uint32_t coreLoops = blockSchedulerForDequant.GetCoreLoops();
-            GemmCoord blockShapeMNK = L1TileShape::ToCoord();
-            for (uint32_t loopIdx = coreIdx; loopIdx < coreLoops; loopIdx += coreNum) {
-                GemmCoord blockCoordMNK = blockSchedulerForDequant.GetBlockCoord(loopIdx);
-                GemmCoord actualBlockShapeMNK = blockSchedulerForDequant.GetActualBlockShape(blockCoordMNK);
-                // MatrixCoord offsetC{blockCoordMNK.m() * L1TileShape::M, blockCoordMNK.n() * L1TileShape::N};
-                MatrixCoord offsetC{blockCoordMNK.m() * L1TileShape::M, blockCoordMNK.n() * L1TileShape::N};
-                int64_t gmOffsetC =
-                    layoutC.GetOffset(offsetC) + deviceIdx * params.problemShape.m() * params.problemShape.n();
-                auto gmBlockC = gmC[gmOffsetC];
-                auto layoutBlockC = layoutC.GetTileLayout(actualBlockShapeMNK.GetCoordMN());
-                dequant(blockShapeMNK, blockCoordMNK, actualBlockShapeMNK, gmBlockC, layoutBlockC);
-            }
+        Dequant dequant(resource, params.dequantParams);
+        BlockSchedulerForDequant blockSchedulerForDequant(GemmCoord(params.problemShape.m() * params.rankSize, params.problemShape.n(), params.problemShape.k()), L1TileShape::ToCoordMN());
+        uint32_t coreIdx = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum();
+        uint32_t coreNum = AscendC::GetBlockNum();
+        uint32_t coreLoops = blockSchedulerForDequant.GetCoreLoops();
+        GemmCoord blockShapeMNK = L1TileShape::ToCoord();
+        for (uint32_t loopIdx = coreIdx; loopIdx < coreLoops; loopIdx += coreNum) {
+            GemmCoord blockCoordMNK = blockSchedulerForDequant.GetBlockCoord(loopIdx);
+            GemmCoord actualBlockShapeMNK = blockSchedulerForDequant.GetActualBlockShape(blockCoordMNK);
+            MatrixCoord offsetC{blockCoordMNK.m() * L1TileShape::M, blockCoordMNK.n() * L1TileShape::N};
+            int64_t gmOffsetC = layoutC.GetOffset(offsetC);
+            auto gmBlockC = gmC[gmOffsetC];
+            auto layoutBlockC = layoutC.GetTileLayout(actualBlockShapeMNK.GetCoordMN());
+            dequant(blockShapeMNK, blockCoordMNK, actualBlockShapeMNK, gmBlockC, layoutBlockC);
         }
     }
 
 private:
-    // ID used for inter-core synchronization
     Catlass::Arch::CrossCoreFlag flagAicFinishStore[WORKSPACE_STAGES];
     Catlass::Arch::CrossCoreFlag flagAivFinishCompute[WORKSPACE_STAGES];
     Catlass::Arch::CrossCoreFlag flagAicFinish;
@@ -293,4 +265,4 @@ private:
 
 }  // namespace Catcoc::DGemm::Kernel
 
-#endif  // CATCOC_DGEMM_KERNEL_ALLGATHER_MATMUL_HPP
+#endif  // CATCOC_DGEMM_KERNEL_ALLGATHER_DEQUANT_MATMUL_HPP

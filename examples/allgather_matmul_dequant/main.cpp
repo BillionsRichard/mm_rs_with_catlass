@@ -52,141 +52,91 @@ using ElementB = int8_t;
 using ElementC = int32_t;
 using ElementD = half;
 using ElementScale = float;
-using ElementPerTokenScale = float;
 using LayoutA = Catlass::layout::RowMajor;
 using LayoutB = Catlass::layout::RowMajor;
 using LayoutC = Catlass::layout::RowMajor;
 using LayoutD = Catlass::layout::RowMajor;
 using LayoutScale = Catlass::layout::VectorLayout;
-using LayoutPerTokenScale = Catlass::layout::VectorLayout;
 
 CATLASS_GLOBAL
 void ShmemAllGatherMatmul(uint64_t fftsAddr, GM_ADDR aDevice, GM_ADDR bDevice, GM_ADDR cDevice, GM_ADDR symmetricPtr,
-    GM_ADDR dDevice, GM_ADDR deviceScale, GM_ADDR devicePerTokenScale, uint32_t m, uint32_t n, uint32_t k)
+    GM_ADDR dDevice, GM_ADDR fused_scale, uint32_t m, uint32_t n, uint32_t k)
 {
     // Set FFTS address
     AscendC::SetSyncBaseAddr(fftsAddr);
 
-    // Define ArchTag
     using ArchTag = Catlass::Arch::AtlasA2;
-
     Catlass::GemmCoord problemShape{m, n, k};
-
-    // Prepare comm address
     uint32_t rank = shmem_my_pe();
     uint32_t rankSize = shmem_n_pes();
 
-    // Block level, Define the layout of each input matrix
-    LayoutA layoutA{m, k};                      //->AG(rank_sz)-> {m*rank_sz, k}
-    LayoutB layoutB{k, n};                      // weight
-    LayoutC layoutC{m * rankSize, n};           // c = AG(A, rank_size) @ B -> {m*rank_sz, k} @ {k, n} 【+bias待实现】 = {m*rank_sz, n} ->int8 @ int8 ->int32
-    LayoutD layoutD{m * rankSize, n};           // c->dequant(s1{m*rank_sz}, s2{n}, {m*rank_sz, n})-> half({m*rank_sz, n})
-    LayoutScale layoutScale{n};                 // perChannleScale
-    LayoutPerTokenScale layoutPerTokenScale{m}; // perTokenScale(m)=> {m} ->AG(perTokenScale, rank_sz)-> {m * rank_sz}
+    // Define layouts
+    LayoutA layoutA{m, k};
+    LayoutB layoutB{k, n};
+    LayoutC layoutC{m * rankSize, n};
+    LayoutD layoutD{m * rankSize, n};
+    LayoutScale layoutScale{n};
 
-    // Block level, define BlockMmad
-    constexpr bool enableUnitFlag = false;
-    using MmadDispatchPolicy = Catlass::Gemm::MmadAtlasA2Pingpong<enableUnitFlag>;
+    // Define GEMM
+    using MmadDispatchPolicy = Catlass::Gemm::MmadAtlasA2Pingpong<false>;
     using L1TileShape = Catlass::GemmShape<128, 256, 256>;
     using L0TileShape = Catlass::GemmShape<128, 256, 64>;
     using AType = Catlass::Gemm::GemmType<ElementA, LayoutA>;
     using BType = Catlass::Gemm::GemmType<ElementB, LayoutB>;
     using CType = Catlass::Gemm::GemmType<ElementC, LayoutC>;
-    using BlockMmad =
-        Catlass::Gemm::Block::BlockMmad<MmadDispatchPolicy, L1TileShape, L0TileShape, AType, BType, CType>;
+    using BlockMmad = Catlass::Gemm::Block::BlockMmad<MmadDispatchPolicy, L1TileShape, L0TileShape, AType, BType, CType>;
 
+    // Define Communication (AllGather for Matrix A)
     using BlockSchedulerForAllgather = typename Catcoc::DGemm::Block::GemmBlockSwizzleAllGatherMesh<7, 1>;
     using CommBlockScheduler = CommEpilogue::Block::BlockCommSwizzle<0>;
-
     using RemoteSrcType = AType;
     using RemoteDstType = AType;
     using CopyDirect = Catcoc::detail::CopyDirect;
     using TileRemoteCopy = CommEpilogue::Tile::TileRemoteCopy<ArchTag, RemoteSrcType, RemoteDstType, CopyDirect::Put>;
     using TileSchedulerForAllgather = Catlass::Epilogue::Tile::EpilogueIdentityTileSwizzle;
-
     using CommBlockShape = Catlass::MatrixShape<64, UINT_MAX>;
     using CommCoreSplit = Catlass::MatrixShape<20, 1>;
-
     constexpr uint32_t UB_STAGES = 2;
     using AllGatherTileShape = Catlass::MatrixShape<32, 256>;
     using AllGatherDispatch = CommEpilogue::EpilogueAtlasA2CommRemoteCopy<UB_STAGES, Catcoc::detail::CopyMode::Gather>;
     using BlockEpilogueAllGather = CommEpilogue::Block::CommBlockEpilogue<AllGatherDispatch,
-        RemoteSrcType,
-        RemoteDstType,
-        CommCoreSplit,
-        CommBlockShape,
-        AllGatherTileShape,
-        TileRemoteCopy,
-        TileSchedulerForAllgather>;
+        RemoteSrcType, RemoteDstType, CommCoreSplit, CommBlockShape, AllGatherTileShape, TileRemoteCopy, TileSchedulerForAllgather>;
 
-    constexpr uint32_t ubStages = 2;
-    using EpilogueDispatchPolicy = Catlass::Epilogue::EpilogueAtlasA2PerTokenDequant<ubStages>;
+    // Define Dequantization Epilogue (Simplified)
+    using EpilogueDispatchPolicy = Catlass::Epilogue::EpilogueAtlasA2Dequant;
     using ScaleType = Catlass::Gemm::GemmType<ElementScale, LayoutScale>;
-    using PerTokenScaleType = Catlass::Gemm::GemmType<ElementPerTokenScale, LayoutPerTokenScale>;
     using DType = Catlass::Gemm::GemmType<ElementD, LayoutD>;
-
-    using RowBroadcastMulType = Catlass::Gemm::GemmType<float, Catlass::layout::RowMajor>;
-    using BroadcastOneBlkType = Catlass::Gemm::GemmType<float, Catlass::layout::RowMajor>;
-    using OneBlkColumnBroadcastMulType = Catlass::Gemm::GemmType<float, Catlass::layout::RowMajor>;
-
+    using BroadcastMulType = Catlass::Gemm::GemmType<float, Catlass::layout::RowMajor>;
     using EpilogueTileShape = Catlass::MatrixShape<32, 256>;
-    using TileRowBroadcastMul =
-        Catlass::Epilogue::Tile::TileRowBroadcastMul<ArchTag, RowBroadcastMulType, EpilogueTileShape>;
-    using TileBroadcastOneBlk =
-        Catlass::Epilogue::Tile::TileBroadcastOneBlk<ArchTag, BroadcastOneBlkType, EpilogueTileShape::ROW>;
-    using TileOneBlkColumnBroadcastMul =
-        Catlass::Epilogue::Tile::TileOneBlkColumnBroadcastMul<ArchTag, OneBlkColumnBroadcastMulType, EpilogueTileShape>;
-    using TileCopy = Catlass::Epilogue::Tile::TileCopy<ArchTag, CType, ScaleType, PerTokenScaleType, DType>;
+    using TileBroadcastMul = Catlass::Epilogue::Tile::TileRowBroadcastMul<ArchTag, BroadcastMulType, EpilogueTileShape>;
+    using TileCopy = Catlass::Epilogue::Tile::TileCopy<ArchTag, CType, ScaleType, DType>;
     using TileSchedulerForDequant = Catlass::Epilogue::Tile::EpilogueHorizontalTileSwizzle;
 
     using BlockEpilogueDequant = Catlass::Epilogue::Block::BlockEpilogue<EpilogueDispatchPolicy,
-        CType,
-        ScaleType,
-        PerTokenScaleType,//{m,}
-        DType,
-        TileRowBroadcastMul,
-        TileBroadcastOneBlk,
-        TileOneBlkColumnBroadcastMul,
-        TileCopy,
-        TileSchedulerForDequant>;
+        CType, ScaleType, DType, TileBroadcastMul, TileCopy, TileSchedulerForDequant>;
 
+    // Define Schedulers
     using BlockSchedulerForDequant = typename Catlass::Gemm::Block::GemmIdentityBlockSwizzle<3, 0>;
 
+    // Define Kernel
     constexpr uint32_t WORKSPACE_STAGES = 2;
     constexpr uint32_t COMM_INTERVAL = 3;
     using AllGatherMatmulKernel = DGemm::Kernel::AllGatherDequantMatmul<BlockMmad,
-        BlockEpilogueAllGather,
-        BlockSchedulerForAllgather,
-        BlockEpilogueDequant,
-        BlockSchedulerForDequant,
-        CommBlockScheduler,
-        WORKSPACE_STAGES>;
+        BlockEpilogueAllGather, BlockSchedulerForAllgather, BlockEpilogueDequant,
+        BlockSchedulerForDequant, CommBlockScheduler, WORKSPACE_STAGES>;
 
+    // Prepare parameters
     typename BlockEpilogueAllGather::Params allGatherParams{};
     typename BlockEpilogueDequant::Params dequantParams{
-        reinterpret_cast<__gm__ ElementScale *>(deviceScale),
+        reinterpret_cast<__gm__ ElementScale *>(fused_scale),
         layoutScale,
-        reinterpret_cast<__gm__ ElementPerTokenScale *>(devicePerTokenScale),
-        layoutPerTokenScale,
         reinterpret_cast<__gm__ ElementD *>(dDevice),
         layoutD,
     };
 
-    // Prepare params
     typename AllGatherMatmulKernel::Params params{
-        problemShape,
-        rank,
-        rankSize,
-        aDevice,
-        layoutA,
-        bDevice,
-        layoutB,
-        cDevice,
-        layoutC,
-        symmetricPtr,
-        allGatherParams,
-        dequantParams,
-        COMM_INTERVAL
+        problemShape, rank, rankSize, aDevice, layoutA, bDevice, layoutB,
+        cDevice, layoutC, symmetricPtr, allGatherParams, dequantParams, COMM_INTERVAL
     };
 
     // Call kernel
@@ -253,7 +203,6 @@ struct Options {
 
 int main(int argc, char **argv)
 {
-    int status = SHMEM_SUCCESS;
     Options options;
     if (options.Parse(argc, argv) != 0) {
         std::cerr << "Invalid arguments\n";
@@ -261,115 +210,76 @@ int main(int argc, char **argv)
     }
     int rankSize = options.rankSize;
     int rankId = options.rankId;
-    std::string ipPort = options.ipPort;
     uint32_t m = options.m;
     uint32_t n = options.n;
     uint32_t k = options.k;
-    int32_t deviceId = options.deviceIdList[rankId];
-
-    std::cout << "[TEST] input rank_size: " << rankSize << " rank_id:" << rankId << " input_ip: " << ipPort << "\n";
 
     aclrtStream stream = nullptr;
     ACL_CHECK(aclInit(nullptr));
-    ACL_CHECK(aclrtSetDevice(deviceId));
+    ACL_CHECK(aclrtSetDevice(options.deviceIdList[rankId]));
     ACL_CHECK(aclrtCreateStream(&stream));
-    status = shmem_set_conf_store_tls(false, nullptr, 0);
     shmem_init_attr_t *attributes;
-    status = shmem_set_attr(rankId, rankSize, gNpuMallocSpace, ipPort.c_str(), &attributes);
-    status = shmem_init_attr(attributes);
-    status = shmem_init_status();
-
-    // Prepare FFTS address
-    // uint64_t fftsAddr{0};
-    // uint32_t fftsLen{0};
-    // ACL_CHECK(rtGetC2cCtrlAddr(&fftsAddr, &fftsLen));
+    shmem_set_attr(rankId, rankSize, gNpuMallocSpace, options.ipPort.c_str(), &attributes);
+    shmem_init_attr(attributes);
+    shmem_init_status();
 
     size_t aSize = static_cast<size_t>(m) * k * sizeof(int8_t);
     size_t bSize = static_cast<size_t>(k) * n * sizeof(int8_t);
     size_t cSize = static_cast<size_t>(m) * rankSize * n * sizeof(int32_t);
-
     size_t scaleSize = static_cast<size_t>(n) * sizeof(ElementScale);
-    size_t perTokenScaleSize = static_cast<size_t>(m) * sizeof(ElementPerTokenScale);
     size_t dSize = static_cast<size_t>(m) * rankSize * n * sizeof(half);
 
-    uint8_t *aDevice;
+    uint8_t *aDevice, *bDevice, *cDevice, *dDevice, *fusedScaleDevice;
+    uint8_t *aHost, *bHost, *fusedScaleHost;
+
+    std::string aFileName = "a_gm_rank_" + std::to_string(rankId) + ".bin";
     ACL_CHECK(aclrtMalloc((void **)(&aDevice), aSize, ACL_MEM_MALLOC_HUGE_FIRST));
-    uint8_t *aHost;
     ACL_CHECK(aclrtMallocHost((void **)(&aHost), aSize));
-    ReadFile(options.GetDataPath("a_gm.bin"), aHost, aSize);
+    ReadFile(options.GetDataPath(aFileName), aHost, aSize);
     ACL_CHECK(aclrtMemcpy(aDevice, aSize, aHost, aSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
-    uint8_t *bDevice;
     ACL_CHECK(aclrtMalloc((void **)(&bDevice), bSize, ACL_MEM_MALLOC_HUGE_FIRST));
-    uint8_t *bHost;
     ACL_CHECK(aclrtMallocHost((void **)(&bHost), bSize));
     ReadFile(options.GetDataPath("b_gm.bin"), bHost, bSize);
     ACL_CHECK(aclrtMemcpy(bDevice, bSize, bHost, bSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
-    uint8_t *cDevice;
     ACL_CHECK(aclrtMalloc((void **)(&cDevice), cSize, ACL_MEM_MALLOC_HUGE_FIRST));
-    uint8_t *cHost;
-    ACL_CHECK(aclrtMallocHost((void **)(&cHost), cSize));
-    //ReadFile("./output/c_gm.bin", cHost, cSize);
-	ReadFile(options.GetDataPath("c_gm.bin"), cHost, cSize);
-    ACL_CHECK(aclrtMemcpy(cDevice, cSize, cHost, cSize, ACL_MEMCPY_HOST_TO_DEVICE));
-
-    uint8_t *dDevice;
     ACL_CHECK(aclrtMalloc((void **)(&dDevice), dSize, ACL_MEM_MALLOC_HUGE_FIRST));
-    uint8_t *dHost;
-    ACL_CHECK(aclrtMallocHost((void **)(&dHost), dSize));
-    //ReadFile("./output/d_gm.bin", dHost, dSize);
-	ReadFile(options.GetDataPath("d_gm.bin"), dHost, dSize);
-    ACL_CHECK(aclrtMemcpy(dDevice, dSize, dHost, dSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
-    uint8_t *deviceScale;
-    ACL_CHECK(aclrtMalloc((void **)(&deviceScale), scaleSize, ACL_MEM_MALLOC_HUGE_FIRST));
-    uint8_t *scaleHost;
-    ACL_CHECK(aclrtMallocHost((void **)(&scaleHost), scaleSize));
-    ReadFile(options.GetDataPath("scale_gm.bin"), scaleHost, scaleSize);
-    ACL_CHECK(aclrtMemcpy(deviceScale, scaleSize, scaleHost, scaleSize, ACL_MEMCPY_HOST_TO_DEVICE));
-
-    uint8_t *devicePerTokenScale;
-    ACL_CHECK(aclrtMalloc((void **)(&devicePerTokenScale), perTokenScaleSize, ACL_MEM_MALLOC_HUGE_FIRST));
-    uint8_t *perTokenScaleHost;
-    ACL_CHECK(aclrtMallocHost((void **)(&perTokenScaleHost), perTokenScaleSize));
-    ReadFile(options.GetDataPath("perTokenScale_gm.bin"), perTokenScaleHost, perTokenScaleSize);
-    ACL_CHECK(aclrtMemcpy(
-        devicePerTokenScale, perTokenScaleSize, perTokenScaleHost, perTokenScaleSize, ACL_MEMCPY_HOST_TO_DEVICE));
+    ACL_CHECK(aclrtMalloc((void **)(&fusedScaleDevice), scaleSize, ACL_MEM_MALLOC_HUGE_FIRST));
+    ACL_CHECK(aclrtMallocHost((void **)(&fusedScaleHost), scaleSize));
+    ReadFile(options.GetDataPath("scale_gm.bin"), fusedScaleHost, scaleSize);
+    ACL_CHECK(aclrtMemcpy(fusedScaleDevice, scaleSize, fusedScaleHost, scaleSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     void *symmPtr = shmem_malloc((204 * 1024 * 1024) * sizeof(__fp16));
-    uint8_t *symmetricPtr = (uint8_t *)symmPtr;
 
     ACL_CHECK(aclrtSynchronizeStream(stream));
-    for (int i = 0; i < 1; i++) {
-        ShmemAllGatherMatmul<<<BLOCK_NUM, nullptr, stream>>>(
-            shmemx_get_ffts_config(), aDevice, bDevice, cDevice, symmetricPtr, dDevice, deviceScale, devicePerTokenScale, m, n, k);
-    }
+    ShmemAllGatherMatmul<<<BLOCK_NUM, nullptr, stream>>>(
+        shmemx_get_ffts_config(), aDevice, bDevice, cDevice, (uint8_t *)symmPtr, dDevice, fusedScaleDevice, m, n, k);
     ACL_CHECK(aclrtSynchronizeStream(stream));
-    ACL_CHECK(aclrtMemcpy(dHost, dSize, dDevice, dSize, ACL_MEMCPY_DEVICE_TO_HOST));
+
     if (rankId == 0) {
+        uint8_t *dHost;
+        ACL_CHECK(aclrtMallocHost((void **)(&dHost), dSize));
+        ACL_CHECK(aclrtMemcpy(dHost, dSize, dDevice, dSize, ACL_MEMCPY_DEVICE_TO_HOST));
         WriteFile(options.GetDataPath("output.bin"), dHost, dSize);
+        ACL_CHECK(aclrtFreeHost(dHost));
         std::printf("test finished\n");
     }
-    shmem_free(symmPtr);
 
+    shmem_free(symmPtr);
     ACL_CHECK(aclrtFreeHost(aHost));
     ACL_CHECK(aclrtFreeHost(bHost));
-    ACL_CHECK(aclrtFreeHost(cHost));
-    ACL_CHECK(aclrtFreeHost(dHost));
-    ACL_CHECK(aclrtFreeHost(scaleHost));
-    ACL_CHECK(aclrtFreeHost(perTokenScaleHost));
+    ACL_CHECK(aclrtFreeHost(fusedScaleHost));
     ACL_CHECK(aclrtFree(aDevice));
     ACL_CHECK(aclrtFree(bDevice));
     ACL_CHECK(aclrtFree(cDevice));
     ACL_CHECK(aclrtFree(dDevice));
-    ACL_CHECK(aclrtFree(devicePerTokenScale));
-    ACL_CHECK(aclrtFree(deviceScale));
+    ACL_CHECK(aclrtFree(fusedScaleDevice));
 
-    std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
-    status = shmem_finalize();
+    shmem_finalize();
     ACL_CHECK(aclrtDestroyStream(stream));
-    ACL_CHECK(aclrtResetDevice(deviceId));
+    ACL_CHECK(aclrtResetDevice(options.deviceIdList[rankId]));
     ACL_CHECK(aclFinalize());
     return 0;
 }
