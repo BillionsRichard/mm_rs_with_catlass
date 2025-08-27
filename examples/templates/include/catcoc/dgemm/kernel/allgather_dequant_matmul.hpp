@@ -175,40 +175,21 @@ public:
                 MatrixCoord offsetC = commOffsetC + blockOffset.GetCoordMN();
 
                 auto gmBlockA = gmSymmetric[layoutSymmetric.GetOffset(offsetA)];
-                auto gmBlockB = gmB[params.layoutB.GetOffset(offsetB)];
+                auto tmpOffsetB = params.layoutB.GetOffset(offsetB);
+                auto gmBlockB = gmB[tmpOffsetB];
                 auto gmBlockC = gmC[layoutC.GetOffset(offsetC)];
-				int64_t offsetBias = params.layoutBias.GetOffset(Catlass::MakeCoord(offsetB[1]));
-				
-                // mmad(gmBlockA,
-                //     layoutSymmetric,
-                //     gmBlockB,
-                //     params.layoutB,
-                //     gmBlockC,
-                //     layoutC,
-                //     actualBlockShape.GetCoordMNK());
-				if (gmBias.GetPhyAddr() != nullptr){
-                    // blockMmad( gmA[offsetA], params.layoutA, 
-                    //     gmB[offsetB], params.layoutB, 
-                    //     gmStore[offsetStore], layoutStore, 
-                    //     gmBias[offsetBias], actualBlockShape );
-                    mmad(gmBlockA,
-                        layoutSymmetric,
-                        gmBlockB,
-                        params.layoutB,
-                        gmBlockC,
-                        layoutC,
-                        gmBias[offsetBias],
-                        actualBlockShape.GetCoordMNK());
-                } else {
-                    mmad(gmBlockA,
-                        layoutSymmetric,
-                        gmBlockB,
-                        params.layoutB,
-                        gmBlockC,
-                        layoutC,
-                        gmBias,
-                        actualBlockShape.GetCoordMNK());
-                }
+
+                int64_t offsetBias = params.layoutBias.GetOffset(Catlass::MakeCoord(offsetB[1]));
+				// cce::printf("bias offset: %d, offsetA[0]=%d, offsetA[1]=%d, offsetB[0]=%d, offsetB[1]=%d, offsetB.column=%d\n", 
+                //              offsetBias, offsetA[0], offsetA[1], offsetB[0], offsetB[1], offsetB.column());
+                mmad(gmBlockA,
+                    layoutSymmetric,
+                    gmBlockB,
+                    params.layoutB,
+                    gmBlockC,
+                    layoutC,
+                    gmBias[offsetBias],
+                    actualBlockShape.GetCoordMNK());
             }
             Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_FIX>(flagAicFinishStore[stageId]);
         }

@@ -89,7 +89,7 @@ void ShmemAllGatherMatmul(
     // Block level, Define the layout of each input matrix
     LayoutA layoutA{m, k};                      //->AG(rank_sz)-> {m*rank_sz, k}
     LayoutB layoutB{k, n};                      // weight
-    LayoutC layoutC{m * rankSize, n};           // c = AG(A, rank_size) @ B -> {m*rank_sz, k} @ {k, n} 【+bias待实现】 = {m*rank_sz, n} ->int8 @ int8 ->int32
+    LayoutC layoutC{m * rankSize, n};           // c = AG(A, rank_size) @ B -> {m*rank_sz, k} @ {k, n} 【+bias】 = {m*rank_sz, n} ->int8 @ int8 ->int32
     LayoutD layoutD{m * rankSize, n};           // c->dequant(s1{m*rank_sz}, s2{n}, {m*rank_sz, n})-> half({m*rank_sz, n})
     LayoutScale layoutScale{n};                 // perChannleScale
     Catlass::layout::VectorLayout layout_bias(n);
@@ -310,30 +310,29 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtMalloc((void **)(&aDevice), aSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *aHost;
     ACL_CHECK(aclrtMallocHost((void **)(&aHost), aSize));
-    ReadFile(options.GetDataPath("a_gm.bin"), aHost, aSize);
+    std::string a_filename = "a_gm_rank" + std::to_string(rankId) + ".bin";
+    ReadFile(options.GetDataPath(a_filename), aHost, aSize);
     ACL_CHECK(aclrtMemcpy(aDevice, aSize, aHost, aSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint8_t *bDevice;
     ACL_CHECK(aclrtMalloc((void **)(&bDevice), bSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *bHost;
     ACL_CHECK(aclrtMallocHost((void **)(&bHost), bSize));
-    ReadFile(options.GetDataPath("b_gm.bin"), bHost, bSize);
+    std::string b_filename = "b_gm_rank" + std::to_string(rankId) + ".bin";
+    ReadFile(options.GetDataPath(b_filename), bHost, bSize);
     ACL_CHECK(aclrtMemcpy(bDevice, bSize, bHost, bSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint8_t *cDevice;
     ACL_CHECK(aclrtMalloc((void **)(&cDevice), cSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *cHost;
     ACL_CHECK(aclrtMallocHost((void **)(&cHost), cSize));
-    //ReadFile("./output/c_gm.bin", cHost, cSize);
-	ReadFile(options.GetDataPath("c_gm.bin"), cHost, cSize);
     ACL_CHECK(aclrtMemcpy(cDevice, cSize, cHost, cSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint8_t *dDevice;
     ACL_CHECK(aclrtMalloc((void **)(&dDevice), dSize, ACL_MEM_MALLOC_HUGE_FIRST));
     uint8_t *dHost;
     ACL_CHECK(aclrtMallocHost((void **)(&dHost), dSize));
-    //ReadFile("./output/d_gm.bin", dHost, dSize);
-	ReadFile(options.GetDataPath("d_gm.bin"), dHost, dSize);
+	// ReadFile(options.GetDataPath("d_gm.bin"), dHost, dSize);
     ACL_CHECK(aclrtMemcpy(dDevice, dSize, dHost, dSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     uint8_t *deviceScale;
@@ -345,14 +344,11 @@ int main(int argc, char **argv)
 
     // Allocate and copy bias
     uint8_t *biasDevice, *biasHost;
-    if (rankId == 0) {
-        ACL_CHECK(aclrtMalloc((void **)(&biasDevice), biasSize, ACL_MEM_MALLOC_HUGE_FIRST));
-        ACL_CHECK(aclrtMallocHost((void **)(&biasHost), biasSize));
-        ReadFile(options.GetDataPath("bias_gm.bin"), biasHost, biasSize);
-        ACL_CHECK(aclrtMemcpy(biasDevice, biasSize, biasHost, biasSize, ACL_MEMCPY_HOST_TO_DEVICE));
-    } else {
-        biasDevice = nullptr;
-    }
+    ACL_CHECK(aclrtMalloc((void **)(&biasDevice), biasSize, ACL_MEM_MALLOC_HUGE_FIRST));
+    ACL_CHECK(aclrtMallocHost((void **)(&biasHost), biasSize));
+    ReadFile(options.GetDataPath("bias_gm.bin"), biasHost, biasSize);
+    ACL_CHECK(aclrtMemcpy(biasDevice, biasSize, biasHost, biasSize, ACL_MEMCPY_HOST_TO_DEVICE));
+
 
     uint8_t *devicePerTokenScale;
     ACL_CHECK(aclrtMalloc((void **)(&devicePerTokenScale), perTokenScaleSize, ACL_MEM_MALLOC_HUGE_FIRST));
@@ -366,16 +362,18 @@ int main(int argc, char **argv)
     uint8_t *symmetricPtr = (uint8_t *)symmPtr;
 
     ACL_CHECK(aclrtSynchronizeStream(stream));
+    auto ffts_cfg = shmemx_get_ffts_config();
     for (int i = 0; i < 1; i++) {
         ShmemAllGatherMatmul<<<BLOCK_NUM, nullptr, stream>>>(
-            shmemx_get_ffts_config(), aDevice, bDevice, cDevice, biasDevice, symmetricPtr, dDevice, deviceScale, devicePerTokenScale, m, n, k);
+            ffts_cfg, aDevice, bDevice, cDevice, biasDevice, symmetricPtr, dDevice, deviceScale, devicePerTokenScale, m, n, k);
     }
     ACL_CHECK(aclrtSynchronizeStream(stream));
     ACL_CHECK(aclrtMemcpy(dHost, dSize, dDevice, dSize, ACL_MEMCPY_DEVICE_TO_HOST));
-    if (rankId == 0) {
-        WriteFile(options.GetDataPath("output.bin"), dHost, dSize);
-        std::printf("test finished\n");
-    }
+
+    // all rank write into the same file.
+    std::string output_filename = "output_rank" + std::to_string(rankId) + ".bin";
+    WriteFile(options.GetDataPath(output_filename), dHost, dSize);
+    std::printf("test finished\n");
     shmem_free(symmPtr);
 
     ACL_CHECK(aclrtFreeHost(aHost));

@@ -43,7 +43,10 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r M K N; do
     wait
 
     # Verify output
-    python3 ${GEN_DATA_VERIFY}/verify_result.py ${DATA_DIR}/output.bin ${DATA_DIR}/golden.bin 1 ${M} ${N} ${K}
+    for (( idx =0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
+        # ${EXEC_BIN} "$RANK_SIZE" "$idx" "$IPPORT" "$M" "$N" "$K" ${DATA_DIR} "$1" &
+        python3 ${GEN_DATA_VERIFY}/verify_result.py ${DATA_DIR}/output_rank${idx}.bin ${DATA_DIR}/golden_rank${idx}.bin 1 ${M} ${N} ${K}
+    done
 done
 
 cd ${CURRENT_DIR}
