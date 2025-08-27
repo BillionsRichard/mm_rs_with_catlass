@@ -45,9 +45,10 @@ def gen_golden_data():
         per_channel_scale_gm = torch.full(size=[1, N], fill_value=0.1, dtype=torch.float32)
 
     # use all same value as perTensorScale.
-    per_tensor_scale = 0.1
+    per_tensor_scale = torch.rand(1).item()
     perTokenScale_gm = torch.full(size=[M,1], fill_value=per_tensor_scale, dtype=torch.float32)
     print(f'{per_tensor_scale=}')
+    print(f'{per_channel_scale_gm=}')
     d_gm = torch.zeros((M * rankSize, N), dtype= torch.float32)
     
     if debug:
