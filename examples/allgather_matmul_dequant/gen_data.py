@@ -21,8 +21,13 @@ def gen_random_data(size, dtype, debug=False):
         print(f"Invalid dtype: {dtype}.")
         exit(1)
         
-def dequantize(golden, scale_gm, perTokenScale_gm):
-    golden = golden.to(torch.float32) * (perTokenScale_gm * scale_gm)
+def dequantize(golden, scale_gm, perTokenScale_gm, pertensor_scale=False):
+    if not pertensor_scale:
+        golden = golden.to(torch.float32) * (perTokenScale_gm * scale_gm)
+    else:
+        scale_gm *= perTokenScale_gm[0]
+        golden = golden.to(torch.float32) * scale_gm
+
     return golden
 
            
@@ -41,20 +46,23 @@ def gen_golden_data():
     
     if not debug:
         per_channel_scale_gm = torch.empty(size=[1,N], dtype=torch.float32).uniform_(0.004,0.005)
+        per_tensor_scale = torch.rand(1).item()
     else:
+        per_tensor_scale = 0.1
         per_channel_scale_gm = torch.full(size=[1, N], fill_value=0.1, dtype=torch.float32)
 
     # use all same value as perTensorScale.
-    per_tensor_scale = torch.rand(1).item()
-    perTokenScale_gm = torch.full(size=[M,1], fill_value=per_tensor_scale, dtype=torch.float32)
+    per_token_scale_gm = torch.full(size=[M,1], fill_value=per_tensor_scale, dtype=torch.float32)
+    fused_scale_gm = per_channel_scale_gm * per_tensor_scale
     print(f'{per_tensor_scale=}')
     print(f'{per_channel_scale_gm=}')
+    print(f'{fused_scale_gm=}')
     d_gm = torch.zeros((M * rankSize, N), dtype= torch.float32)
     
     if debug:
         # print(f'[warning]: in debug mode, use {torch.arange(1, N+1, dtype=torch.int32)} as bias input.')
-        bias_gm = torch.arange(1, N+1, dtype=torch.int32)
-        # bias_gm = torch.ones(size=(N,), dtype=torch.int32)
+        # bias_gm = torch.arange(1, N+1, dtype=torch.int32)
+        bias_gm = torch.zeros(size=(N,), dtype=torch.int32)
     else:
         bias_gm = torch.randint(low=BIAS_LOW, high=BIAS_HIGH+1, size=(N,), dtype=torch.int32)
     
@@ -80,15 +88,15 @@ def gen_golden_data():
         # Calculate this rank's contribution to the matmul sum
         accumulator_rank = torch.matmul(allgathered_a.to(torch.float32), b_gm_rank.to(torch.float32))
         accumulator_rank +=  bias_gm.to(torch.float32)
-        rank_golden = dequantize(accumulator_rank, per_channel_scale_gm.view(1,N), perTokenScale_gm=per_tensor_scale)
+        rank_golden = dequantize(accumulator_rank, per_channel_scale_gm.view(1,N), perTokenScale_gm=per_token_scale_gm, pertensor_scale=True)
         tensor_to_file(rank_golden, f"./output/golden_rank{i}.bin")
         print(f"Generated golden for rank {i}:")
         print(f"  golden_rank{i}.bin: shape={rank_golden.shape}")
 
 
     tensor_to_file(d_gm.to(torch.float16), "./output/d_gm.bin")
-    tensor_to_file(per_channel_scale_gm, "./output/scale_gm.bin")
-    tensor_to_file(perTokenScale_gm, "./output/perTokenScale_gm.bin")
+    tensor_to_file(fused_scale_gm, "./output/scale_gm.bin")
+    # tensor_to_file(perTokenScale_gm, "./output/perTokenScale_gm.bin")
     
 
         
