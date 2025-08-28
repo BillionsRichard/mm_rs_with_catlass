@@ -46,6 +46,14 @@ struct EpilogueAtlasA2CommLocalCopy {
     static constexpr uint32_t UB_STAGES = UB_STAGES;
     static constexpr bool IsDynamic = IsDynamic_;
 };
+
+// For AtlasA2, per tensor dequant
+template <uint32_t UB_STAGES_>
+struct EpilogueAtlasA2PerTensorDequant {
+    using ArchTag = Catlass::Arch::AtlasA2;
+    static constexpr uint32_t UB_STAGES = UB_STAGES_;
+};
+
 }  // namespace Catcoc::CommEpilogue
 
 #endif  // CATCOC_EPILOGUE_DISPATCH_POLICY_HPP
