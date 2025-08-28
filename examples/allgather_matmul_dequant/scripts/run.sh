@@ -2,7 +2,7 @@
 # eg. bash run.sh 0,1      # 在 0/1 卡上运行，rank size = 2
 # eg. bash run.sh 1,3,5,7  # 在 1/3/5/6 卡上运行，rank size = 4
 export SMEM_CONF_STORE_TLS_ENABLE=0
-export debug=1
+export debug=0
 
 CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)

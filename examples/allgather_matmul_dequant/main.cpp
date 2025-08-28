@@ -8,7 +8,7 @@
 #include "catlass/catlass.hpp"
 #include "catlass/arch/arch.hpp"
 #include "catlass/epilogue/block/block_epilogue.hpp"
-#include "catlass/epilogue/dispatch_policy.hpp"
+#include "catlass/epilogue/dispatch_policy.hpp" ///--->include in
 #include "catlass/gemm/dispatch_policy.hpp"
 #include "catlass/epilogue/tile/tile_broadcast_mul.hpp"
 #include "catlass/epilogue/tile/tile_broadcast_one_blk.hpp"
@@ -37,7 +37,8 @@
 #include "catcoc/comm_epilogue/tile/tile_remote_copy.hpp"
 #include "catcoc/detail/remote_copy_type.hpp"
 #include "catcoc/dgemm/block/block_swizzle_allgather.hpp"
-#include "catcoc/dgemm/kernel/allgather_dequant_matmul.hpp"
+#include "catcoc/dgemm/kernel/allgather_matmul_dequant.hpp"
+#include "catcoc/comm_epilogue/block/comm_block_epilogue_per_tensor_dequant.hpp"
 
 static uint32_t gNpuNum = 8;
 static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 1024;
@@ -53,13 +54,13 @@ using ElementB = int8_t;
 using ElementC = int32_t;
 using ElementD = half;
 using ElementScale = float;
-// using ElementPerTokenScale = float;
+
 using LayoutA = Catlass::layout::RowMajor;
 using LayoutB = Catlass::layout::RowMajor;
 using LayoutC = Catlass::layout::RowMajor;
 using LayoutD = Catlass::layout::RowMajor;
 using LayoutScale = Catlass::layout::VectorLayout;
-// using LayoutPerTokenScale = Catlass::layout::VectorLayout;
+
 
 CATLASS_GLOBAL
 void ShmemAllGatherMatmul(
@@ -133,9 +134,9 @@ void ShmemAllGatherMatmul(
         TileSchedulerForAllgather>;
 
     constexpr uint32_t ubStages = 2;
-    using EpilogueDispatchPolicy = Catlass::Epilogue::EpilogueAtlasA2PerTensorDequant<ubStages>;
+    using EpilogueDispatchPolicy = Catcoc::CommEpilogue::EpilogueAtlasA2PerTensorDequant<ubStages>;
     using ScaleType = Catlass::Gemm::GemmType<ElementScale, LayoutScale>;
-    // using PerTokenScaleType = Catlass::Gemm::GemmType<ElementPerTokenScale, LayoutPerTokenScale>;
+
     using DType = Catlass::Gemm::GemmType<ElementD, LayoutD>;
 
     using RowBroadcastMulType = Catlass::Gemm::GemmType<float, Catlass::layout::RowMajor>;
@@ -349,14 +350,6 @@ int main(int argc, char **argv)
     ReadFile(options.GetDataPath("bias_gm.bin"), biasHost, biasSize);
     ACL_CHECK(aclrtMemcpy(biasDevice, biasSize, biasHost, biasSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
-
-    // uint8_t *devicePerTokenScale;
-    // ACL_CHECK(aclrtMalloc((void **)(&devicePerTokenScale), perTokenScaleSize, ACL_MEM_MALLOC_HUGE_FIRST));
-    // uint8_t *perTokenScaleHost;
-    // ACL_CHECK(aclrtMallocHost((void **)(&perTokenScaleHost), perTokenScaleSize));
-    // ReadFile(options.GetDataPath("perTokenScale_gm.bin"), perTokenScaleHost, perTokenScaleSize);
-    // ACL_CHECK(aclrtMemcpy(
-    //     devicePerTokenScale, perTokenScaleSize, perTokenScaleHost, perTokenScaleSize, ACL_MEMCPY_HOST_TO_DEVICE));
 
     void *symmPtr = shmem_malloc((204 * 1024 * 1024) * sizeof(__fp16));
     uint8_t *symmetricPtr = (uint8_t *)symmPtr;
