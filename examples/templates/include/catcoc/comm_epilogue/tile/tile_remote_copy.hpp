@@ -57,7 +57,8 @@ struct TileRemoteCopy<ArchTag, SrcType_, DstType_, detail::CopyDirect::Get> {
         MatrixCoord const &copyShape,
         AscendC::LocalTensor<ElementSrc> const &tmpUb,
         uint32_t copyEventId,
-        uint32_t peerIdx
+        uint32_t peerIdx,
+        int32_t teamIdx
     )
     {
         non_contiguous_copy_param copyParams;
@@ -65,7 +66,13 @@ struct TileRemoteCopy<ArchTag, SrcType_, DstType_, detail::CopyDirect::Get> {
         copyParams.length = copyShape.column();
         copyParams.src_ld = srcLayout.stride(0);
         copyParams.dst_ld = dstLayout.stride(0);
+        if (teamIdx != SHMEM_TEAM_WORLD) {
+            uint32_t globalIdx = shmem_team_translate_pe(teamIdx, peerIdx, SHMEM_TEAM_WORLD);
+            shmem_mte_get_mem_nbi(dstTensor, srcTensor, tmpUb, copyParams, globalIdx, copyEventId);
+        }
+        else {
             shmem_mte_get_mem_nbi(dstTensor, srcTensor, tmpUb, copyParams, peerIdx, copyEventId);
+        }
     }
 };
 
@@ -91,7 +98,8 @@ struct TileRemoteCopy<ArchTag, SrcType_, DstType_, detail::CopyDirect::Put> {
         MatrixCoord const &copyShape,
         AscendC::LocalTensor<ElementSrc> const &tmpUb,
         uint32_t copyEventId,
-        uint32_t peerIdx
+        uint32_t peerIdx,
+        int32_t teamIdx
     )
     {
         non_contiguous_copy_param copyParams;
@@ -99,7 +107,13 @@ struct TileRemoteCopy<ArchTag, SrcType_, DstType_, detail::CopyDirect::Put> {
         copyParams.length = copyShape.column();
         copyParams.src_ld = srcLayout.stride(0);
         copyParams.dst_ld = dstLayout.stride(0);
+        if (teamIdx != SHMEM_TEAM_WORLD) {
+            uint32_t globalIdx = shmem_team_translate_pe(teamIdx, peerIdx, SHMEM_TEAM_WORLD);
+            shmem_mte_put_mem_nbi(dstTensor, srcTensor, tmpUb, copyParams, globalIdx, copyEventId);
+        }
+        else {
             shmem_mte_put_mem_nbi(dstTensor, srcTensor, tmpUb, copyParams, peerIdx, copyEventId);
+        }
     }
 };
 

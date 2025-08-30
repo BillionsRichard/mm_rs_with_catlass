@@ -65,7 +65,7 @@ CATLASS_GLOBAL
 void ShmemAllGatherMatmulWithGatherResult(
     uint64_t fftsAddr,
     GM_ADDR gmA, GM_ADDR gmB, GM_ADDR gmC, GM_ADDR gmGatherA, GM_ADDR gmSymmetric,
-    uint32_t m, uint32_t n, uint32_t k
+    uint32_t m, uint32_t n, uint32_t k, shmem_team_t teamIdx = 0
 )
 {
     // Set FFTS address
@@ -75,8 +75,8 @@ void ShmemAllGatherMatmulWithGatherResult(
     using ArchTag = Catlass::Arch::AtlasA2;
 
     // Prepare comm address
-    uint32_t rank = shmem_my_pe();
-    uint32_t rankSize = shmem_n_pes();
+    uint32_t rank = shmem_team_my_pe(teamIdx);
+    uint32_t rankSize = shmem_team_n_pes(teamIdx);
 
     Catlass::GemmCoord problemShape{m, n, k};
     LayoutA layoutA{m, k};
@@ -152,7 +152,7 @@ void ShmemAllGatherMatmulWithGatherResult(
     // Prepare params
     typename AllGatherMatmulWithGatherResultKernel::Params params{
         problemShape,
-        rank, rankSize,
+        rank, rankSize, teamIdx,
         gmA, layoutA,
         gmB, layoutB,
         gmSymmetric,

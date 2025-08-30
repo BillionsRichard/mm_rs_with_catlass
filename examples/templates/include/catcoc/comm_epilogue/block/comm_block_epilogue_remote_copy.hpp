@@ -145,7 +145,7 @@ public:
     void operator() (
         AscendC::GlobalTensor<ElementSrc> const& gmSrc, LayoutSrc const &layoutSrc,
         AscendC::GlobalTensor<ElementDst> const& gmDst, LayoutDst const &layoutDst,
-        MatrixCoord const &actualCommBlockShape, uint32_t rankIdx
+        MatrixCoord const &actualCommBlockShape, uint32_t rankIdx, int32_t const &teamIdx
     )
     {
         if (actualCommBlockShape.row() == 0) {
@@ -176,7 +176,8 @@ public:
                 actualTileShape,
                 ubSList[ubListId],
                 copyEventIdList[ubListId],
-                rankIdx
+                rankIdx,
+                teamIdx
             );
             AscendC::SetFlag<AscendC::HardEvent::MTE3_MTE2>(copyEventIdList[ubListId]);
             ubListId = (ubListId + 1 < UB_STAGES) ? (ubListId + 1) : 0;

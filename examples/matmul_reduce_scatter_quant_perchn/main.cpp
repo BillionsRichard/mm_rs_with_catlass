@@ -134,7 +134,7 @@ void ShmemMatmulReduceScatterQuantPerchn(
     // Prepare params
     typename MatmulReduceScatterKernel::Params params{
         problemShape,
-        rankIdx, rankSize,
+        rankIdx, rankSize, teamIdx,
         gmA, layoutA,
         gmB, layoutB,
         bias, scale,

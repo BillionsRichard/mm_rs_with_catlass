@@ -72,8 +72,8 @@ void ShmemAllGatherMatmul(
     GM_ADDR symmetricPtr,
     GM_ADDR dDevice, 
     GM_ADDR deviceScale, 
-    // GM_ADDR devicePerTokenScale, 
-    uint32_t m, uint32_t n, uint32_t k)
+    // GM_ADDR devicePerTokenScale,
+    uint32_t m, uint32_t n, uint32_t k, shmem_team_t teamIdx = 0)
 {
     // Set FFTS address
     AscendC::SetSyncBaseAddr(fftsAddr);
@@ -84,8 +84,8 @@ void ShmemAllGatherMatmul(
     Catlass::GemmCoord problemShape{m, n, k};
 
     // Prepare comm address
-    uint32_t rank = shmem_my_pe();
-    uint32_t rankSize = shmem_n_pes();
+    uint32_t rank = shmem_team_my_pe(teamIdx);
+    uint32_t rankSize = shmem_team_n_pes(teamIdx);
 
     // Block level, Define the layout of each input matrix
     LayoutA layoutA{m, k};                      //->AG(rank_sz)-> {m*rank_sz, k}
@@ -190,7 +190,7 @@ void ShmemAllGatherMatmul(
     typename AllGatherMatmulKernel::Params params{
         problemShape,
         rank,
-        rankSize,
+        rankSize, teamIdx,
         aDevice,
         layoutA,
         bDevice,

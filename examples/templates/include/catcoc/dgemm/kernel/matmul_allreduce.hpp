@@ -55,6 +55,7 @@ public:
 
         uint32_t rankIdx;
         uint32_t rankSize;
+        int32_t teamIdx;
 
         GM_ADDR ptrA;
         LayoutA layoutA;
@@ -76,7 +77,7 @@ public:
         CATLASS_DEVICE
         Params(
             GemmCoord const &problemShape_,
-            uint32_t rank_, uint32_t rankSize_,
+            uint32_t rank_, uint32_t rankSize_, int32_t teamIdx_,
             uint32_t commInterval_,
             GM_ADDR ptrA_, LayoutA const &layoutA_,
             GM_ADDR ptrB_, LayoutB const &layoutB_,
@@ -85,7 +86,7 @@ public:
             ReduceScatterParams const &reduceScatterParams_,
             AllGatherParams const &allGatherParams_
         ) : problemShape(problemShape_),
-            rankIdx(rank_), rankSize(rankSize_),
+            rankIdx(rank_), rankSize(rankSize_), teamIdx(teamIdx_),
             commInterval(commInterval_),
             ptrA(ptrA_), layoutA(layoutA_),
             ptrB(ptrB_), layoutB(layoutB_),
@@ -279,7 +280,8 @@ public:
                     reduceScatter(
                         gmBlockSrc, layoutBlockSrc,
                         gmBlockDst, layoutBlockDst,
-                        actualCommBlockShape, remoteRankIdx % params.rankSize
+                        actualCommBlockShape, remoteRankIdx % params.rankSize,
+                        params.teamIdx
                     );
                 }
             }
@@ -328,7 +330,8 @@ public:
                     allGather(
                         gmBlockSrc, layoutBlockSrc,
                         gmBlockDst, layoutBlockDst,
-                        actualCommBlockShape, remoteRankIdx % params.rankSize
+                        actualCommBlockShape, remoteRankIdx % params.rankSize,
+                        params.teamIdx
                     );
                 }
             }

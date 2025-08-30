@@ -63,6 +63,7 @@ public:
         GemmCoord problemShape;
         uint32_t rankIdx;
         uint32_t rankSize;
+        int32_t teamIdx;
         GM_ADDR ptrA;
         LayoutA layoutA;
         GM_ADDR ptrB;
@@ -84,7 +85,7 @@ public:
         CATLASS_DEVICE
         Params(
             GemmCoord const &problemShape_,
-            uint32_t rank_, uint32_t rankSize_,
+            uint32_t rank_, uint32_t rankSize_, int32_t teamIdx_,
             GM_ADDR ptrA_, LayoutA const &layoutA_,
             GM_ADDR ptrB_, LayoutB const &layoutB_,
             GM_ADDR ptrC_, LayoutC const &layoutC_,
@@ -94,7 +95,7 @@ public:
             DequantParams const &dequantParams_,
             uint32_t commInterval_
         ) : problemShape(problemShape_),
-            rankIdx(rank_), rankSize(rankSize_),
+            rankIdx(rank_), rankSize(rankSize_), teamIdx(teamIdx_),
             ptrA(ptrA_), layoutA(layoutA_),
             ptrB(ptrB_), layoutB(layoutB_),
             ptrC(ptrC_), layoutC(layoutC_),
@@ -271,7 +272,8 @@ public:
                         gmBlockDst,
                         layoutBlockDst,
                         actualCommBlockShape,
-                        remoteRankIdx % params.rankSize);
+                        remoteRankIdx % params.rankSize,
+                        params.teamIdx);
                 }
             }
             allGather.FinalizeBlockLoop();

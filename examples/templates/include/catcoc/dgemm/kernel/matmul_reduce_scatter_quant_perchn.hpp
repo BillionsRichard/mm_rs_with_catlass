@@ -52,7 +52,7 @@ namespace Catcoc::DGemm::Kernel {
             GemmCoord problemShape;
             uint32_t rankIdx;
             uint32_t rankSize;
-            // int32_t teamIdx;
+            int32_t teamIdx;
 
             uint32_t commInterval;
 
@@ -75,7 +75,7 @@ namespace Catcoc::DGemm::Kernel {
             CATLASS_DEVICE
             Params(
                     GemmCoord const &problemShape_,
-                    uint32_t rank_, uint32_t rankSize_,
+                    uint32_t rank_, uint32_t rankSize_, int32_t teamIdx_,
                     GM_ADDR ptrA_, LayoutA const &layoutA_,
                     GM_ADDR ptrB_, LayoutB const &layoutB_,
                     GM_ADDR ptrBias_, GM_ADDR ptrScale_,
@@ -84,7 +84,7 @@ namespace Catcoc::DGemm::Kernel {
                     GM_ADDR ptrD_, LayoutD const &layoutD_,
                     uint32_t commInterval_
             ) : problemShape(problemShape_),
-                rankIdx(rank_), rankSize(rankSize_),
+                rankIdx(rank_), rankSize(rankSize_), teamIdx(teamIdx_),
                 ptrA(ptrA_), layoutA(layoutA_),
                 ptrB(ptrB_), layoutB(layoutB_),
                 ptrBias(ptrBias_), ptrScale(ptrScale_),
@@ -298,7 +298,8 @@ namespace Catcoc::DGemm::Kernel {
                         epilogueReduceScatter(
                                 gmBlockSrc, layoutBlockSrc,
                                 gmBlockDst, layoutBlockDst,
-                                actualCommBlockShape, remoteRankIdx % params.rankSize
+                                actualCommBlockShape, remoteRankIdx % params.rankSize,
+                                params.teamIdx
                         );
                     }
                 }

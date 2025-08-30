@@ -25,6 +25,6 @@ struct MmadAtlasA2PingpongCondBias : public MmadAtlasA2  {
     static constexpr bool ENABLE_UNIT_FLAG = ENABLE_UNIT_FLAG_;
 };
 
-
+}
 
 #endif  // CATCOC_GEMM_DISPATCH_POLICY_HPP
