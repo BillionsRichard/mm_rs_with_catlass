@@ -1,60 +1,51 @@
-# Allgather + Matmul + Alltoall 融合算子设计文档
+# Allgather + Matmul with Fused-Scatter 融合算子设计文档
 
 ## 1. 算子功能描述
 
-本算子旨在将 `Allgather`、`Matmul` 和 `Alltoall` 三个操作融合在单个核函数中，以减少核函数启动开销和中间数据传输，从而优化大模型推理性能。
+本算子旨在将 `Allgather` 和 `Matmul` 操作融合，并在 `Matmul` 的计算过程中，**将通信操作（Scatter）融合进计算的结尾阶段（Epilogue）**，从而最大限度地减少核函数启动开销和DDR读写，优化大模型推理性能。
 
-算子的主要应用场景是分布式矩阵乘法，其中输入矩阵（激活值）首先需要在多个计算设备间进行汇集，然后与本地持有的权重矩阵分片进行矩阵乘法，最后将结果通过 `Alltoall` 操作分发回各个设备。
+算子的核心思想是解决一个混合并行（数据并行+张量并行）下的矩阵乘法问题。其主要流程为：
+1.  通过 `Allgather` 将所有计算设备（Rank）上不同的输入激活 `A_i` 汇集起来。
+2.  每个设备上的计算核心（AIC）使用汇集后的全量激活 `A_gathered` 与其本地持有的部分权重 `B_i` 进行矩阵乘法。
+3.  在矩阵乘法计算的同时，根据结果数据块的最终归属地，将其直接写入到目标设备可以访问的共享内存（Symmetric Memory）区域中。
+4.  最后，每个设备上的向量核心（AIV）从共享内存中读取所有其他设备为它准备好的数据，进行转置后处理，得到最终输出。
 
 ## 2. 设计细节
 
-### 2.1. 通信模式
+### 2.1. 利用对称内存（Symmetric Memory）的通信机制
 
-- **Allgather**: 在 `[rankSize]` 个设备间对输入张量进行 `Allgather` 操作。
-- **Alltoall**: 在相同的 `[rankSize]` 个设备间对矩阵乘法后的结果进行 `Alltoall` 操作。
-- 两个通信操作使用相同的HCCL通信域。
+本算子的所有跨Rank通信均通过**对称内存**完成。对称内存是一块由 `shmem_malloc` 在所有Rank上分配的大小和地址均相同的特殊内存区域。任何一个Rank都可以通过SHMEM提供的通信接口（如`shmem_put`/`shmem_get`）直接读写其他Rank的对称内存，这为高效的核函数内（In-Kernel）通信提供了基础。
+
+- **Allgather阶段**: AIV核利用对称内存作为公告板，所有Rank将自己的输入`A`写入该内存，从而实现数据汇集。
+- **Matmul-Scatter阶段**: AIC核在计算出结果后，利用对称内存作为高速通道，直接将数据“投递”给目标Rank，避免了写回本地DDR再由AIV搬运的开销。
 
 ### 2.2. 数据流与Shape变换
 
 假设 `rankSize` 是通信组中的设备数量，`M, K, N` 是逻辑上的矩阵维度。
 
 1.  **输入 (Input)**:
-    *   每个 rank `i` 拥有**独特**的输入激活张量 `A_i`，Shape 为 `[M, K]`。
-    *   每个 rank `i` 持有**独特**的部分权重张量 `B_i`，Shape 为 `[K, N/rankSize]`。
+    *   每个 rank `i` 拥有**独特**的输入激活张量 `A_i`，Shape: `[M, K]`。
+    *   每个 rank `i` 持有**独特**的部分权重张量 `B_i`，Shape: `[K, N/rankSize]`。
 
-2.  **Allgather**:
-    *   对所有 ranks 的输入张量 `A_i` 进行 `Allgather` 操作。
-    *   数据 Shape 变换: `[M, K]` (per rank) -> `[rankSize, M, K]` (on each rank)。
-    *   `Allgather` 的结果是所有 `A_i` 的集合，存储在每个 rank 的本地内存中。
+2.  **阶段一: Allgather (AIV Core)**:
+    *   **操作**: 所有Rank的AIV核协同，将各自的 `A_i` 写入对称内存工作区。
+    *   **结果**: 在对称内存中形成一个完整的 `A_gathered` 张量，逻辑Shape: `[rankSize, M, K]`。
 
-3.  **Matmul (Batched GEMM)**:
-    *   在每个 rank 上，执行批处理矩阵乘法。
-    *   运算描述: `[rankSize, M, K] @ [K, N/rankSize]`。
-        *   这里需要注意的是，权重矩阵 `B` (`[K, N/rankSize]`) 会被广播（broadcast）以匹配批处理维度 `rankSize`。
-    *   输出 Shape: `[rankSize, M, N/rankSize]`。
-    *   本次设计不包含偏置（bias）和量化（dequantization）功能。
+3.  **阶段二: Matmul with Fused Scatter (AIC Core)**:
+    *   **操作**: 每个Rank `i`的AIC核从对称内存中读取完整的 `A_gathered`，并与自己的权重分片 `B_i` 相乘。
+    *   **融合通信**: 对于计算出的每一个数据块，例如 `A_j @ B_i`（`A_gathered`的第`j`片与`B_i`的乘积），AIC核判断出其最终归属地应为Rank `j`。
+    *   **直接写入**: AIC核通过SHMEM接口，将 `A_j @ B_i` 的计算结果直接写入对称内存中为Rank `j`预留的接收区域。
+    *   **结果**: 当所有AIC核计算完成后，对称内存中Rank `j`的接收区域已经包含了来自所有其他Rank `i`计算的 `(A_j @ B_0, A_j @ B_1, ...)` 的结果。
 
-4.  **转置 (Transpose)**:
-    *   对 Matmul 的结果进行转置，交换最后两个维度。
-    *   数据 Shape 变换: `[rankSize, M, N/rankSize]` -> `[rankSize, N/rankSize, M]`。
-    *   这一步是为了让数据布局满足 `Alltoall` 的要求。
+4.  **阶段三: Final Transpose & Copy (AIV Core)**:
+    *   **操作**: 每个Rank `j`的AIV核从自己的接收区域读取所有数据块，其逻辑Shape为 `[rankSize, M, N/rankSize]`，但数据内容已经是 `(A_j@B_0, A_j@B_1, ...)`。
+    *   **视图变换与转置**:
+        *   数据被重新解释（view）为 `[M, N]`。
+        *   （根据需要）执行转置操作，得到最终的 `[M, N]` 格式。
+    *   **写回**: 将最终结果从工作区拷贝回全局内存（Global Memory）的输出指针 `C`。
 
-5.  **Alltoall**:
-    *   对转置后的张量进行 `Alltoall` 操作。
-    *   每个 rank 将 `[rankSize, N/rankSize, M]` 的数据沿着第一个轴（`rankSize` 轴）切分成 `rankSize` 块，每块的 Shape 为 `[N/rankSize, M]`。
-    *   第 `i` 个 rank 将第 `j` 块数据发送给第 `j` 个 rank。
-    *   数据 Shape 变换: `[rankSize, N/rankSize, M]` -> `[rankSize, N/rankSize, M]`。
-        *   虽然 Shape 保持不变，但张量内部的数据已经根据 rank 进行了重新分布。
-
-6.  **视图变换与转置 (View & Transpose)**:
-    *   `Alltoall` 的输出可以被重新解释（view）为一个更大的张量。
-    *   数据 Shape 变换: `[rankSize, N/rankSize, M]` -> `[N, M]`。
-    *   最后，为了得到最终的输出形式，再进行一次转置。
-    *   数据 Shape 变换: `[N, M]` -> `[M, N]`。
-
-7.  **最终输出 (Final Output)**:
-    *   每个 rank 得到完整的最终结果矩阵的一部分。
-    *   最终输出张量 `C` 的 Shape 为 `[M, N]`。
+5.  **最终输出 (Final Output)**:
+    *   每个 rank `j` 得到完整的最终结果矩阵的一部分，Shape: `[M, N]`。
 
 ### 2.3. Host侧接口设计
 
@@ -72,25 +63,35 @@ void allgather_matmul_alltoall(
 );
 ```
 
-### 2.4. Device侧核函数实现要点
+## 2.4. 计算通信协作流程 (Mermaid)
+```mermaid
+graph TD
+    subgraph Phase 1: Allgather [AIV]
+        A1[GMEM: Local A_i] --> B1(SMEM: A_gathered)
+    end
 
-- **内存管理**: 需要精确计算 `Allgather` 和 `Alltoall` 操作所需的共享内存（Shared Memory）或临时全局内存（Global Memory）大小。
-- **批处理GEMM**: 利用 `cutlas` 或自定义的 `GEMM` kernel 实现批处理矩阵乘法。
-- **数据重排布**: `Transpose` 和 `View` 操作需要在核函数内部通过高效的内存拷贝和索引计算来实现。
-- **同步**: 在通信和计算步骤之间需要适当的同步（e.g., `__syncthreads()`）来保证数据依赖的正确性。
+    subgraph Phase 2: Matmul-Scatter [AIC]
+        B1 --> C1{Matmul with B_local}
+        C1 --> D1(SMEM: Scattered Results for each Rank)
+    end
+    
+    subgraph Phase 3: Final Assembly [AIV]
+        D1 --> E1[Read Own Rank's Slice]
+        E1 --> F1((GMEM: Final Output C))
+    end
+```
 
-## 3. 验证方案
-
-- **Host侧验证**:
-    1.  **数据生成**:
-        *   在每个 rank `i` 上，生成其独特的输入激活 `A_i` (shape `[M, K]`) 和权重 `B_i` (shape `[K, N/rankSize]`)。
-    2.  **Golden结果计算 (在Rank 0上集中计算)**:
-        *   **构造全局矩阵**:
-            *   Rank 0 收集所有 rank 的 `A_i`，并沿 M 维度拼接成一个大的 `A_full` 矩阵，shape 为 `[rankSize * M, K]`。
-            *   Rank 0 收集所有 rank 的 `B_i`，并沿 N 维度拼接成一个大的 `B_full` 矩阵，shape 为 `[K, N]`。
-        *   **计算Golden C**: 执行 `C_golden = A_full @ B_full`，得到基准结果，shape 为 `[rankSize * M, N]`。
-    3.  **执行算子**:
-        *   所有 rank 调用融合算子核函数，得到各自的输出分片 `C_npu_i`，shape 为 `[M, N]`。
-    4.  **结果校验**:
-        *   将 `C_golden` 矩阵按行切分成 `rankSize` 块，每块 `C_golden_i` 的 shape 为 `[M, N]`。
-        *   在每个 rank `i` 上，比较其算子输出 `C_npu_i` 和对应的 `C_golden_i`，确保误差在允许范围内。
+# 3. 验证方案
+Host侧验证:
+数据生成:
+在每个 rank i 上，生成其独特的输入激活 A_i (shape [M, K]) 和权重 B_i (shape [K, N/rankSize])。
+Golden结果计算 (精确模拟):
+为了正确验证，需要在Host侧精确模拟算子的计算流，而不是进行简单的拼接后矩阵乘法。
+模拟Allgather: A_gathered = stack(A_0, A_1, ...)。
+模拟Batched Matmul: 对于每个Rank i，计算 C_partial_i = A_gathered @ B_i。
+模拟Alltoall/Scatter: 重新组织 C_partial 结果。对于每个目标Rank j，收集所有 C_partial_i 中的第 j 片，即 (C_partial_0[j], C_partial_1[j], ...)。
+模拟Final Transpose: 对收集到的数据进行最终的转置和塑形，得到每个Rank j的最终Golden结果 C_golden_j。
+执行算子:
+所有 rank 调用融合算子核函数，得到各自的输出 C_npu_i。
+结果校验:
+在每个 rank i 上，比较其算子输出 C_npu_i 和对应的 C_golden_i，确保误差在允许范围内。
