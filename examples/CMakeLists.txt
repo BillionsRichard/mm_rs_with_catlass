@@ -53,6 +53,7 @@ foreach(EXAMPLE
     allgather
     allgather_matmul
     allgather_matmul_dequant
+    allgather_matmul_alltoall
     allgather_matmul_with_gather_result
     matmul_allreduce
     matmul_reduce_scatter
