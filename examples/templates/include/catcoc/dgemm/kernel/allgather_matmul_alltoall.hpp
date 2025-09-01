@@ -12,21 +12,16 @@
 
 namespace Catcoc::DGemm::Kernel {
 
-// Use type aliases to simplify code
 using Catlass::MatrixCoord;
 using Catlass::GemmCoord;
 
-//
-// AllGatherMatmulAlltoall is a kernel implementation of a fused operator.
-// It fuses AllGather, Matmul, and Alltoall operations.
-//
+// Based on the new design (Matmul with Fused Scatter)
 template <
     class BlockMmad_,
     class BlockEpilogueAllGather_,
+    class BlockEpilogueScatter_, // New epilogue for the scatter operation
     class BlockSchedulerForMatmul_,
-    class BlockEpilogueAlltoall_,
-    class CommScheduler_,
-    uint32_t WORKSPACE_STAGES_
+    class CommScheduler_
 >
 class AllGatherMatmulAlltoall {
 public:
@@ -38,34 +33,32 @@ public:
     using LayoutA = typename BlockMmad::LayoutA;
     using ElementB = typename BlockMmad::ElementB;
     using LayoutB = typename BlockMmad::LayoutB;
-    using ElementC = typename BlockMmad::ElementC; // Matmul result type
-    using LayoutC = typename BlockMmad::LayoutC; // Final output layout
+    using ElementC = typename BlockMmad::ElementC;
+    using LayoutC = typename BlockMmad::LayoutC;
 
     using AllGather = BlockEpilogueAllGather_;
     using AllGatherParams = typename AllGather::Params;
-    using Alltoall = BlockEpilogueAlltoall_;
-    using AlltoallParams = typename Alltoall::Params;
+
+    using Scatter = BlockEpilogueScatter_;
+    using ScatterParams = typename Scatter::Params;
 
     using BlockSchedulerForMatmul = BlockSchedulerForMatmul_;
     using CommScheduler = CommScheduler_;
-    static constexpr uint32_t WORKSPACE_STAGES = WORKSPACE_STAGES_;
+    static constexpr uint32_t WORKSPACE_STAGES = 2;
 
-    //
-    // Params struct: used to pass all the necessary parameters for the operator from the host side
-    //
     struct Params {
-        GemmCoord problemShape; // Logical problem shape (M, N, K)
+        GemmCoord problemShape;
         uint32_t rankIdx;
         uint32_t rankSize;
         int32_t teamIdx;
 
         GM_ADDR ptrA; LayoutA layoutA;
         GM_ADDR ptrB; LayoutB layoutB;
-        GM_ADDR ptrC; LayoutC layoutC; // Final output
-        GM_ADDR ptrSymmetric;          // Workspace for communication
+        GM_ADDR ptrC; LayoutC layoutC;
+        GM_ADDR ptrSymmetric;
 
         AllGatherParams allGatherParams;
-        AlltoallParams alltoallParams;
+        ScatterParams scatterParams;
 
         uint32_t commInterval;
 
@@ -78,7 +71,7 @@ public:
             GM_ADDR ptrC_, LayoutC const &layoutC_,
             GM_ADDR ptrSymmetric_,
             AllGatherParams const &allGatherParams_,
-            AlltoallParams const &alltoallParams_,
+            ScatterParams const &scatterParams_,
             uint32_t commInterval_
         ) : problemShape(problemShape_),
             rankIdx(rank_), rankSize(rankSize_), teamIdx(teamIdx_),
@@ -87,232 +80,255 @@ public:
             ptrC(ptrC_), layoutC(layoutC_),
             ptrSymmetric(ptrSymmetric_),
             allGatherParams(allGatherParams_),
-            alltoallParams(alltoallParams_),
+            scatterParams(scatterParams_),
             commInterval(commInterval_) {}
     };
 
-    //
-    // Kernel constructor: initializes Flags for inter-core synchronization
-    //
+    struct Workspace {
+        ElementA* ptr_ag_out;
+        ElementC* ptr_scatter_out;
+
+        uint32_t ag_out_size_per_stage;
+        // Size of the buffer for one (dest_rank, src_rank) pair
+        uint32_t scatter_chunk_size_per_stage;
+
+        CATLASS_DEVICE
+        Workspace(Params const& params) {
+            uint32_t K = params.problemShape.k();
+            uint32_t N = params.problemShape.n();
+            uint32_t N_per_rank = N / params.rankSize;
+            uint32_t commSizeM = params.commInterval * L1TileShape::M;
+
+            ag_out_size_per_stage = params.rankSize * commSizeM * K;
+            scatter_chunk_size_per_stage = commSizeM * N_per_rank;
+
+            uint8_t* smem_base_ptr = reinterpret_cast<uint8_t*>(params.ptrSymmetric);
+            ptr_ag_out = reinterpret_cast<ElementA*>(smem_base_ptr);
+
+            uint32_t scatter_out_offset = WORKSPACE_STAGES * ag_out_size_per_stage * sizeof(ElementA);
+            ptr_scatter_out = reinterpret_cast<ElementC*>(smem_base_ptr + scatter_out_offset);
+        }
+
+        CATLASS_DEVICE ElementA* GetAgOut(uint32_t stageId) {
+            return ptr_ag_out + stageId * ag_out_size_per_stage;
+        }
+
+        // Gets the pointer to the buffer for (dest_rank, src_rank)
+        CATLASS_DEVICE ElementC* GetScatterChunk(uint32_t stageId, uint32_t dest_rank, uint32_t src_rank, uint32_t rankSize) {
+            uint32_t stage_offset = stageId * (rankSize * rankSize * scatter_chunk_size_per_stage);
+            uint32_t dest_rank_offset = dest_rank * (rankSize * scatter_chunk_size_per_stage);
+            uint32_t src_rank_offset = src_rank * scatter_chunk_size_per_stage;
+            return ptr_scatter_out + stage_offset + dest_rank_offset + src_rank_offset;
+        }
+    };
+
     CATLASS_DEVICE AllGatherMatmulAlltoall() {
         for (uint32_t i = 0; i < WORKSPACE_STAGES; ++i) {
-            flagAicFinishMma[i] = Catlass::Arch::CrossCoreFlag(i);
             flagAivFinishAllGather[i] = Catlass::Arch::CrossCoreFlag(i);
-            flagAivFinishAlltoall[i] = Catlass::Arch::CrossCoreFlag(i);
+            flagAicFinishMatmulScatter[i] = Catlass::Arch::CrossCoreFlag(i);
         }
+        flagAivFinish = Catlass::Arch::CrossCoreFlag(WORKSPACE_STAGES);
     }
 
-    //
-    // Kernel execution entry point
-    //
     template <int32_t CORE_TYPE = g_coreType>
     CATLASS_DEVICE void operator()(Params &params);
 
-    //
-    // Kernel implementation for AIC (AI Core): responsible for Matmul
-    //
     template <>
     CATLASS_DEVICE void operator()<AscendC::AIC>(Params &params) {
-        // Problem dimensions
+        Workspace workspace(params);
         uint32_t M = params.problemShape.m();
-        uint32_t N = params.problemShape.n();
         uint32_t K = params.problemShape.k();
+        uint32_t N = params.problemShape.n();
         uint32_t N_per_rank = N / params.rankSize;
+        uint32_t my_rank_i = params.rankIdx;
 
-        // Core setup
-        uint32_t aicoreIndex = AscendC::GetBlockIdx();
-        uint32_t aicoreNum = AscendC::GetBlockNum();
+        uint32_t commSizeM = params.commInterval * L1TileShape::M;
+        uint32_t commLoops = CeilDiv(M, commSizeM);
 
-        // Global memory tensor for B
-        AscendC::GlobalTensor<ElementB> gmB;
-        gmB.SetGlobalBuffer(reinterpret_cast<__gm__ ElementB *>(params.ptrB));
+        for (uint32_t commIdx = 0; commIdx < commLoops; ++commIdx) {
+            uint32_t stageId = commIdx % WORKSPACE_STAGES;
+            uint32_t actualCommSizeM = Min(commSizeM, M - commIdx * commSizeM);
 
-        // Symmetric memory workspace setup (must match AIV)
-        uint8_t* smem_base_ptr = reinterpret_cast<uint8_t*>(params.ptrSymmetric);
-        AscendC::GlobalTensor<ElementA> smem_allgather_out;
-        smem_allgather_out.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(smem_base_ptr));
-        auto layout_smem_ag_out = Catlass::layout::RowMajor{M * params.rankSize, K};
+            Catlass::Arch::CrossCoreWaitFlag(flagAivFinishAllGather[stageId]);
 
-        uint32_t matmul_out_offset = M * K * params.rankSize * sizeof(ElementA);
-        AscendC::GlobalTensor<ElementC> smem_matmul_out;
-        smem_matmul_out.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(smem_base_ptr + matmul_out_offset));
-        auto layout_smem_mm_out = Catlass::layout::RowMajor{M * params.rankSize, N_per_rank};
+            for (uint32_t dest_rank_j = 0; dest_rank_j < params.rankSize; ++dest_rank_j) {
+                ElementA* ptr_A_j = workspace.GetAgOut(stageId) + dest_rank_j * actualCommSizeM * K;
+                auto layout_A_j = Catlass::layout::RowMajor(actualCommSizeM, K);
+                AscendC::GlobalTensor<ElementA> smem_a_j;
+                smem_a_j.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(ptr_A_j));
 
-        // --- Main Loop Logic ---
-        // Wait for AllGather to be finished by AIV
-        Catlass::Arch::CrossCoreWaitFlag(flagAivFinishAllGather[0]);
+                AscendC::GlobalTensor<ElementB> gmB;
+                gmB.SetGlobalBuffer(reinterpret_cast<__gm__ ElementB *>(params.ptrB));
 
-        // Batched Matmul
-        BlockMmad blockMmad(resource);
-        GemmCoord problem_shape_matmul = {M * params.rankSize, N_per_rank, K};
-        GemmCoord block_shape_matmul = L1TileShape::ToCoord();
-        BlockSchedulerForMatmul matmul_scheduler(problem_shape_matmul, block_shape_matmul.GetCoordMN());
-        uint32_t matmul_loops = matmul_scheduler.GetCoreLoops();
+                ElementC* ptr_scatter_dest = workspace.GetScatterChunk(stageId, dest_rank_j, my_rank_i, params.rankSize);
+                auto layout_scatter_dest = Catlass::layout::RowMajor(actualCommSizeM, N_per_rank);
+                AscendC::GlobalTensor<ElementC> smem_scatter_dest;
+                smem_scatter_dest.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(ptr_scatter_dest));
 
-        for (uint32_t i = aicoreIndex; i < matmul_loops; i += aicoreNum) {
-            GemmCoord block_coord = matmul_scheduler.GetBlockCoord(i);
-            GemmCoord actual_block_shape = matmul_scheduler.GetActualBlockShape(block_coord);
-            GemmCoord offset_coord = block_coord * block_shape_matmul;
+                BlockMmad blockMmad(resource);
+                GemmCoord problem_shape_ji = {actualCommSizeM, N_per_rank, K};
+                BlockSchedulerForMatmul scheduler(problem_shape_ji, L1TileShape::ToCoordMN());
 
-            // Source A is from the all-gathered buffer in symmetric memory
-            int64_t offsetA = layout_smem_ag_out.GetOffset(offset_coord.GetCoordMK());
-            // Source B is from the local weight matrix in global memory
-            int64_t offsetB = params.layoutB.GetOffset(offset_coord.GetCoordKN());
-            // Destination C is the matmul output buffer in symmetric memory
-            int64_t offsetC = layout_smem_mm_out.GetOffset(offset_coord.GetCoordMN());
+                uint32_t aicoreIdx = AscendC::GetBlockIdx();
+                uint32_t aicoreNum = AscendC::GetBlockNum();
+                uint32_t matmul_loops = scheduler.GetCoreLoops();
 
-            blockMmad(
-                smem_allgather_out[offsetA], layout_smem_ag_out,
-                gmB[offsetB], params.layoutB,
-                smem_matmul_out[offsetC], layout_smem_mm_out,
-                actual_block_shape
-            );
+                for (uint32_t i = aicoreIdx; i < matmul_loops; i += aicoreNum) {
+                    GemmCoord block_coord = scheduler.GetBlockCoord(i);
+                    GemmCoord actual_block_shape = scheduler.GetActualBlockShape(block_coord);
+                    GemmCoord offset_coord = block_coord * L1TileShape::ToCoord();
+
+                    int64_t offsetA = layout_A_j.GetOffset(offset_coord.GetCoordMK());
+                    int64_t offsetB = params.layoutB.GetOffset(offset_coord.GetCoordKN());
+                    int64_t offsetC = layout_scatter_dest.GetOffset(offset_coord.GetCoordMN());
+
+                    blockMmad(
+                        smem_a_j[offsetA], layout_A_j,
+                        gmB[offsetB], params.layoutB,
+                        smem_scatter_dest[offsetC], layout_scatter_dest,
+                        actual_block_shape
+                    );
+                }
+            }
+
+            Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_FIX>(flagAicFinishMatmulScatter[stageId]);
         }
 
-        // Signal AIV that Matmul is complete
-        Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_FIX>(flagAicFinishMma[0]);
-
-        AscendC::PipeBarrier<PIPE_ALL>();
+        Catlass::Arch::CrossCoreBarrier<0, PIPE_FIX>();
+        Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_FIX>(flagAivFinish);
     }
 
-    //
-    // Kernel implementation for AIV (AI Vector): responsible for communication and data movement
-    //
     template <>
     CATLASS_DEVICE void operator()<AscendC::AIV>(Params &params) {
-        // Problem dimensions
+        Workspace workspace(params);
         uint32_t M = params.problemShape.m();
-        uint32_t N = params.problemShape.n();
         uint32_t K = params.problemShape.k();
+        uint32_t N = params.problemShape.n();
         uint32_t N_per_rank = N / params.rankSize;
 
-        // Core and scheduler setup
-        uint32_t aivIndex = AscendC::GetSubBlockIdx();
-        uint32_t aicoreNum = AscendC::GetBlockNum();
-        uint32_t aicoreIndex = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum();
+        uint32_t commSizeM = params.commInterval * L1TileShape::M;
+        uint32_t commLoops = CeilDiv(M, commSizeM);
 
-        // Global memory tensors
-        AscendC::GlobalTensor<ElementA> gmA;
-        gmA.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(params.ptrA));
-        AscendC::GlobalTensor<ElementC> gmC;
-        gmC.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrC));
+        for (uint32_t commIdx = 0; commIdx < commLoops; ++commIdx) {
+            uint32_t stageId = commIdx % WORKSPACE_STAGES;
 
-        // Symmetric memory workspace setup
-        AscendC::GlobalTensor<ElementA> smem_allgather_out;
-        smem_allgather_out.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(params.ptrSymmetric));
-        auto layout_smem_ag_out = Catlass::layout::RowMajor{M * params.rankSize, K};
+            if (commIdx >= WORKSPACE_STAGES) {
+                Catlass::Arch::CrossCoreWaitFlag(flagAicFinishMatmulScatter[stageId]);
+            }
 
-        // The rest of the workspace is for matmul_out, transpose_out, alltoall_out
-        // We need to manage offsets carefully.
-        uint8_t* smem_base_ptr = reinterpret_cast<uint8_t*>(params.ptrSymmetric);
-        uint32_t matmul_out_offset = M * K * params.rankSize * sizeof(ElementA);
-        AscendC::GlobalTensor<ElementC> smem_matmul_out;
-        smem_matmul_out.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(smem_base_ptr + matmul_out_offset));
-        auto layout_smem_mm_out = Catlass::layout::RowMajor{M * params.rankSize, N_per_rank};
+            shmemx_barrier_all_vec();
 
-        // --- Main Loop Logic ---
-        // For now, we assume a simple, non-pipelined execution for clarity.
-        // A full implementation would use the WORKSPACE_STAGES for pipelining.
+            // --- 1. AllGather ---
+            {
+                AllGather allGather(resource, params.allGatherParams);
+                uint32_t actualCommSizeM = Min(commSizeM, M - commIdx * commSizeM);
+                auto actualCommShape = DistMatrixCoord(actualCommSizeM, K, params.rankSize);
+                MatrixCoord commBlockShape = params.allGatherParams.BlockShape();
+                MatrixCoord commCoreSplit = params.allGatherParams.CoreSplit();
+                CommScheduler commScheduler(commBlockShape, commCoreSplit);
+                MatrixCoord loopsInRank = CeilDiv(MatrixCoord(actualCommShape.GetCoordInRank()), commBlockShape);
+                commScheduler.UpdateProblem(actualCommShape, loopsInRank);
+                auto commAicoreNum = commScheduler.GetRealCore();
+                auto commCoreLoops = commScheduler.GetCoreLoop();
+                MatrixCoord commSrcOffset{commIdx * commSizeM, 0};
 
-        // 1. AllGather
-        // The AIV cores collectively perform AllGather on matrix A.
-        AllGather allgather_op(resource, params.allGatherParams);
+                AscendC::GlobalTensor<ElementA> gmSymmetric;
+                gmSymmetric.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(workspace.GetAgOut(stageId)));
+                auto layoutSymmetric = Catlass::layout::RowMajor(params.rankSize * actualCommSizeM, K);
 
-        // All AIV cores must participate in the AllGather.
-        // We can use a simple loop over the M dimension, where each core handles a slice.
-        // This is a simplified view; a real implementation uses a scheduler.
-        MatrixCoord allgather_problem_shape = {M, K};
-        typename AllGather::EpilogueTileSwizzle allgather_swizzle(allgather_problem_shape, AllGather::TileShape::ToCoord());
-        uint32_t allgather_loops = allgather_swizzle.GetLoops();
+                allGather.InitBlockLoop();
+                uint32_t aicoreIdx = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum();
+                uint32_t subcoreIdx = AscendC::GetSubBlockIdx();
+                if (subcoreIdx == 0 && aicoreIdx < commAicoreNum) {
+                    for (uint32_t loopIdx = aicoreIdx; loopIdx < commCoreLoops; loopIdx += commAicoreNum) {
+                        DistMatrixCoord commBlockCoord = commScheduler.GetBlockCoord(loopIdx);
+                        MatrixCoord blockOffsetInRank = commScheduler.GetBlockOffsetInRank(commBlockCoord.GetCoordInRank());
+                        MatrixCoord actualCommBlockShape = commScheduler.GetActualBlockShapeByOffset(blockOffsetInRank);
+                        uint32_t remoteRankIdx = commBlockCoord.rank();
+                        auto offsetSrc = commSrcOffset + blockOffsetInRank;
+                        MatrixCoord commDstOffset{remoteRankIdx * actualCommSizeM, 0};
+                        auto offsetDst = commDstOffset + blockOffsetInRank;
+                        AscendC::GlobalTensor<ElementA> gmA;
+                        gmA.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(params.ptrA));
+                        auto gmBlockSrc = gmA[params.layoutA.GetOffset(offsetSrc)];
+                        auto layoutBlockSrc = params.layoutA.GetTileLayout(actualCommBlockShape);
+                        auto gmBlockDst = gmSymmetric[layoutSymmetric.GetOffset(offsetDst)];
+                        auto layoutBlockDst = layoutSymmetric.GetTileLayout(actualCommBlockShape);
+                        allGather(gmBlockSrc, layoutBlockSrc, gmBlockDst, layoutBlockDst, actualCommBlockShape, remoteRankIdx, params.teamIdx);
+                    }
+                }
+                allGather.FinalizeBlockLoop();
+            }
 
-        for(uint32_t i = aicoreIndex; i < allgather_loops; i += aicoreNum) {
-             auto tileCoord = allgather_swizzle.GetTileCoord(i);
-             auto actualTileShape = allgather_swizzle.GetActualTileShape(tileCoord);
-             auto ag_offset = tileCoord * AllGather::TileShape::ToCoord();
+            shmemx_barrier_all_vec();
+            Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_MTE3>(flagAivFinishAllGather[stageId]);
 
-             // The source is the local slice of A
-             auto gmBlockSrc = gmA[params.layoutA.GetOffset(ag_offset)];
-             auto layoutBlockSrc = params.layoutA.GetTileLayout(actualTileShape);
+            // --- Wait for AIC Matmul-Scatter ---
+            Catlass::Arch::CrossCoreWaitFlag(flagAicFinishMatmulScatter[stageId]);
+            shmemx_barrier_all_vec();
 
-             // The destination is the symmetric memory buffer
-             auto gmBlockDst = smem_allgather_out[layout_smem_ag_out.GetOffset(ag_offset)];
-             auto layoutBlockDst = layout_smem_ag_out.GetTileLayout(actualTileShape);
+            // --- Final Assembly ---
+            {
+                uint32_t N = params.problemShape.n();
+                uint32_t N_per_rank = N / params.rankSize;
+                uint32_t my_rank_j = params.rankIdx;
 
-             allgather_op(gmBlockSrc, layoutBlockSrc, gmBlockDst, layoutBlockDst, actualTileShape, params.rankIdx, params.teamIdx);
-        }
+                // The source is the scatter buffer area designated for my rank.
+                // The AICs have already assembled the result for this chunk here.
+                uint32_t scatter_offset = my_rank_j * (actualCommSizeM * N);
+                ElementC* src_ptr = workspace.GetScatterOut(stageId) + scatter_offset;
+                auto layout_src = Catlass::layout::RowMajor(actualCommSizeM, N);
 
-        // Synchronize all ranks and cores after AllGather
-        shmemx_barrier_all_vec();
-        Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_MTE3>(flagAivFinishAllGather[0]);
+                // The destination is the final output tensor in global memory,
+                // offset by the current chunk's starting row.
+                AscendC::GlobalTensor<ElementC> gmC;
+                gmC.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrC));
+                MatrixCoord dst_chunk_offset = {commIdx * commSizeM, 0};
 
-        // 2. Wait for Matmul (from AIC)
-        Catlass::Arch::CrossCoreWaitFlag(flagAicFinishMma[0]);
-        shmemx_barrier_all_vec(); // Ensure all ranks have finished matmul before transpose
+                // Perform a simple tiled copy.
+                // A more optimized version would use a dedicated Copy epilogue.
+                uint32_t copy_tile_M = 64;
+                uint32_t copy_tile_N = 64;
+                uint32_t aicoreNum = AscendC::GetBlockNum();
+                uint32_t num_tiles_m = CeilDiv(actualCommSizeM, copy_tile_M);
+                uint32_t num_tiles_n = CeilDiv(N, copy_tile_N);
+                uint32_t total_tiles = num_tiles_m * num_tiles_n;
 
-        // 3. Transpose the matmul output
-        // Shape in: [rankSize, M, N/rankSize], Shape out: [rankSize, N/rankSize, M]
-        uint32_t transpose_out_offset = matmul_out_offset + M * N * sizeof(ElementC);
-        AscendC::GlobalTensor<ElementC> smem_transpose_out;
-        smem_transpose_out.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(smem_base_ptr + transpose_out_offset));
-        
-        // This is a simplified transpose, a real implementation would be more optimized.
-        // We iterate through the source tensor and copy elements to the destination with swapped indices.
-        for (uint32_t r = 0; r < params.rankSize; ++r) {
-            for (uint32_t m_idx = aicoreIndex; m_idx < M; m_idx += aicoreNum) {
-                for (uint32_t n_idx = 0; n_idx < N_per_rank; ++n_idx) {
-                    // src_idx is for [r, m_idx, n_idx] in a [rankSize*M, N_per_rank] layout
-                    int64_t src_idx = (r * M + m_idx) * N_per_rank + n_idx;
-                    // dst_idx is for [r, n_idx, m_idx] in a [rankSize*N_per_rank, M] layout
-                    int64_t dst_idx = (r * N_per_rank + n_idx) * M + m_idx;
-                    smem_transpose_out[dst_idx] = smem_matmul_out[src_idx];
+                for (uint32_t tile_idx = aicoreIdx; tile_idx < total_tiles; tile_idx += aicoreNum) {
+                    uint32_t m_tile = tile_idx / num_tiles_n;
+                    uint32_t n_tile = tile_idx % num_tiles_n;
+
+                    MatrixCoord tile_offset = {m_tile * copy_tile_M, n_tile * copy_tile_N};
+                    uint32_t actual_tile_m = Min(copy_tile_M, actualCommSizeM - tile_offset.row());
+                    uint32_t actual_tile_n = Min(copy_tile_N, N - tile_offset.column());
+
+                    for (uint32_t m = 0; m < actual_tile_m; ++m) {
+                        for (uint32_t n = 0; n < actual_tile_n; ++n) {
+                            MatrixCoord local_coord = {m, n};
+                            MatrixCoord src_coord = tile_offset + local_coord;
+                            MatrixCoord dst_coord = dst_chunk_offset + src_coord;
+
+                            gmC[params.layoutC.GetOffset(dst_coord)] = src_ptr[layout_src.GetOffset(src_coord)];
+                        }
+                    }
                 }
             }
         }
-        shmemx_barrier_all_vec();
 
-        // 4. Alltoall
-        uint32_t alltoall_out_offset = transpose_out_offset + M * N * sizeof(ElementC);
-        AscendC::GlobalTensor<ElementC> smem_alltoall_out;
-        smem_alltoall_out.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(smem_base_ptr + alltoall_out_offset));
-
-        Alltoall alltoall_op(resource, params.alltoallParams);
-        // The data is already in [rankSize, N_per_rank, M] layout in smem_transpose_out.
-        // Alltoall will exchange the first two dimensions.
-        // Simplified loop, a real one would use a scheduler.
-        for (uint32_t i = aicoreIndex; i < (N_per_rank * M); i += aicoreNum) {
-            alltoall_op.Exchange(
-                smem_transpose_out[i], // src
-                smem_alltoall_out[i],  // dst
-                params.rankIdx,
-                params.teamIdx
-            );
-        }
-        shmemx_barrier_all_vec();
-        Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_MTE3>(flagAivFinishAlltoall[0]);
-        
-        // 5. Final copy to C
-        // The output of alltoall is in [rankSize, N_per_rank, M], which can be viewed as [N, M]
-        // We need to transpose it to [M, N] for the final output C.
-        auto layout_alltoall_out = Catlass::layout::RowMajor{N, M};
-        for (uint32_t n_idx = aicoreIndex; n_idx < N; n_idx += aicoreNum) {
-            for (uint32_t m_idx = 0; m_idx < M; ++m_idx) {
-                int64_t src_idx = n_idx * M + m_idx;
-                int64_t dst_idx = m_idx * N + n_idx;
-                gmC[dst_idx] = smem_alltoall_out[src_idx];
-            }
-        }
+        Catlass::Arch::CrossCoreWaitFlag(flagAivFinish);
+        Catlass::Arch::CrossCoreBarrier<0, PIPE_MTE3>();
 
         AscendC::PipeBarrier<PIPE_ALL>();
     }
 
 private:
     // --- Member Variables ---
-    Catlass::Arch::CrossCoreFlag flagAicFinishMma[WORKSPACE_STAGES];
     Catlass::Arch::CrossCoreFlag flagAivFinishAllGather[WORKSPACE_STAGES];
-    Catlass::Arch::CrossCoreFlag flagAivFinishAlltoall[WORKSPACE_STAGES];
+    Catlass::Arch::CrossCoreFlag flagAicFinishMatmulScatter[WORKSPACE_STAGES];
+    Catlass::Arch::CrossCoreFlag flagAivFinish;
     Catlass::Arch::Resource<ArchTag> resource;
 };
 
 } // namespace Catcoc::DGemm::Kernel
 
-#endif // CATCOC_DGEMM_KERNEL_MATMUL_REDUCE_SCATTER_DEQUANT_HPP
+#endif // CATCOC_DGEMM_KERNEL_ALLGATHER_MATMUL_ALLTOALL_HPP
