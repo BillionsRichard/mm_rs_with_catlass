@@ -2,7 +2,7 @@
 
 ## 1. 算子功能描述
 
-本算子旨在将 `Allgather`、`Matmul` 和 `Alltoall` 三个操作融合在单个HCCL核函数中，以减少核函数启动开销和中间数据传输，从而优化大模型训练场景下的性能。
+本算子旨在将 `Allgather`、`Matmul` 和 `Alltoall` 三个操作融合在单个核函数中，以减少核函数启动开销和中间数据传输，从而优化大模型推理性能。
 
 算子的主要应用场景是分布式矩阵乘法，其中输入矩阵（激活值）首先需要在多个计算设备间进行汇集，然后与本地持有的权重矩阵分片进行矩阵乘法，最后将结果通过 `Alltoall` 操作分发回各个设备。
 
@@ -90,7 +90,7 @@ void allgather_matmul_alltoall(
             *   Rank 0 收集所有 rank 的 `B_i`，并沿 N 维度拼接成一个大的 `B_full` 矩阵，shape 为 `[K, N]`。
         *   **计算Golden C**: 执行 `C_golden = A_full @ B_full`，得到基准结果，shape 为 `[rankSize * M, N]`。
     3.  **执行算子**:
-        *   所有 rank 调用融合算子核函数，得到各自的输出分片 `C_gpu_i`，shape 为 `[M, N]`。
+        *   所有 rank 调用融合算子核函数，得到各自的输出分片 `C_npu_i`，shape 为 `[M, N]`。
     4.  **结果校验**:
         *   将 `C_golden` 矩阵按行切分成 `rankSize` 块，每块 `C_golden_i` 的 shape 为 `[M, N]`。
-        *   在每个 rank `i` 上，比较其算子输出 `C_gpu_i` 和对应的 `C_golden_i`，确保误差在允许范围内。
+        *   在每个 rank `i` 上，比较其算子输出 `C_npu_i` 和对应的 `C_golden_i`，确保误差在允许范围内。
