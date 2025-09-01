@@ -1,86 +1,52 @@
 #!/bin/bash
-# Description: One-click script for allgather_matmul_alltoall operator
-#
-# Usage:
-# bash run.sh 0,1      # Run on devices 0 and 1 (rank size = 2)
-# bash run.sh 0,1,2,3  # Run on devices 0,1,2,3 (rank size = 4)
+# eg. bash run.sh 0,1      # 在 0/1 卡上运行，rank size = 2
+# eg. bash run.sh 1,3,5,7  # 在 1/3/5/6 卡上运行，rank size = 4
+export SMEM_CONF_STORE_TLS_ENABLE=0
+export debug=0
 
-set -e
-
-# 1. Environment Setup
 CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-PROJECT_ROOT=$(dirname $(dirname $(dirname "$SCRIPT_DIR")))
-OPERATOR_DIR=$(dirname "$SCRIPT_DIR")
-EXEC_BIN_NAME="allgather_matmul_alltoall"
-EXEC_BIN="${PROJECT_ROOT}/build/bin/${EXEC_BIN_NAME}"
+PROJECT_ROOT=$( dirname $( dirname $(dirname "$SCRIPT_DIR")))
+# UTILS_PATH=${PROJECT_ROOT}/examples/utils
+CSV_FILE="${SCRIPT_DIR}/test_shapes.csv"
+GEN_DATA_VERIFY=`realpath ${PROJECT_ROOT}/examples/allgather_matmul_alltoall`
+echo "GEN_DATA_VERIFY: ${GEN_DATA_VERIFY}"
 
-# Check if executable exists
-if [ ! -f "$EXEC_BIN" ]; then
-    echo "Executable ${EXEC_BIN} not found. Please build the project first."
-    exit 1
-fi
+DATA_DIR=${GEN_DATA_VERIFY}/output
 
-# Data and output directory
-DATA_DIR="${OPERATOR_DIR}/data"
-mkdir -p "${DATA_DIR}"
-rm -rf "${DATA_DIR}"/*
-
-# 2. Parse Arguments
-DEVICE_ID_STRING="$1"
-if [ -z "$DEVICE_ID_STRING" ]; then
-    echo "Usage: bash run.sh <device_id_list>"
-    echo "Example: bash run.sh 0,1,2,3"
-    exit 1
-fi
-
-IFS=',' read -ra DEVICE_ID_LIST <<< "$DEVICE_ID_STRING"
+IFS=',' read -ra DEVICE_ID_LIST <<< "$1"
 RANK_SIZE=${#DEVICE_ID_LIST[@]}
+if [ $RANK_SIZE -gt 8 ]; then
+    echo "Rank size is illegal"
+    exit 1
+fi
+cd ${PROJECT_ROOT}/examples/allgather_matmul_alltoall/
+EXEC_BIN=${PROJECT_ROOT}/build/bin/allgather_matmul_alltoall
 
-# 3. Test Case Configuration
-# For simplicity, test shapes are defined here. A CSV file can be used for multiple shapes.
-M=128
-N=256
-K=64
+mkdir -p output
+tail -n +2 "$CSV_FILE" | while IFS=',' read -r M K N; do
+    echo "Processing test case: M=${M}, K=${K}, N=${N}"
 
-echo "--- Test Case ---"
-echo "RANK_SIZE: ${RANK_SIZE}"
-echo "DEVICE_IDS: ${DEVICE_ID_STRING}"
-echo "M: ${M}, N: ${N}, K: ${K}"
-echo "-----------------"
+    # Generate golden data
+    rm -rf output/*.bin
+    python3 ${GEN_DATA_VERIFY}/gen_data.py ${RANK_SIZE} ${M} ${N} ${K}
 
-# 4. Generate Data and Golden Reference
-echo "[STEP 1] Generating input data and golden reference..."
-python3 "${OPERATOR_DIR}/gen_data.py" "${RANK_SIZE}" "${M}" "${N}" "${K}" "${DATA_DIR}"
-echo "Data generation complete."
+    # Set necessary parameters
+    IPPORT="tcp://127.0.0.1:27088"
 
-# 5. Run the Operator
-echo -e "\n[STEP 2] Running the ${EXEC_BIN_NAME} operator for ${RANK_SIZE} ranks..."
-IPPORT="tcp://127.0.0.1:28888" # Use a unique port
+    # Start Process
+    for (( idx =0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
+        ${EXEC_BIN} "$RANK_SIZE" "$idx" "$IPPORT" "$M" "$N" "$K" ${DATA_DIR} "$1" &
+    done
 
-pids=()
-for (( i=0; i<${RANK_SIZE}; i++ )); do
-    RANK_ID=$i
-    echo "  Starting rank ${RANK_ID} on device ${DEVICE_ID_LIST[$i]}..."
-    # The main executable takes: rank_size, rank_id, ipport, m, n, k, data_path, device_id_list
-    ${EXEC_BIN} "${RANK_SIZE}" "${RANK_ID}" "${IPPORT}" "${M}" "${N}" "${K}" "${DATA_DIR}" "${DEVICE_ID_STRING}" &
-    pids+=($!)
+    # Wait until all process exit
+    wait
+
+    # Verify output
+    for (( idx =0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
+        # ${EXEC_BIN} "$RANK_SIZE" "$idx" "$IPPORT" "$M" "$N" "$K" ${DATA_DIR} "$1" &
+        python3 ${GEN_DATA_VERIFY}/verify_result.py ${DATA_DIR}/output_rank${idx}.bin ${DATA_DIR}/golden_rank${idx}.bin 1 ${M} ${N} ${K}
+    done
 done
 
-# Wait for all background processes to finish
-wait "${pids[@]}"
-echo "All ranks have finished execution."
-
-# 6. Verify Results
-echo -e "\n[STEP 3] Verifying results..."
-python3 "${OPERATOR_DIR}/verify_result.py" "${RANK_SIZE}" "${M}" "${N}" "${K}" "${DATA_DIR}"
-
-if [ $? -eq 0 ]; then
-    echo -e "\nVerification PASSED"
-else
-    echo -e "\nVerification FAILED"
-    exit 1
-fi
-
-cd "${CURRENT_DIR}"
-exit 0
+cd ${CURRENT_DIR}

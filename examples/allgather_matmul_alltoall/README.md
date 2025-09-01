@@ -75,7 +75,7 @@ void allgather_matmul_alltoall(
 ### 2.4. Device侧核函数实现要点
 
 - **内存管理**: 需要精确计算 `Allgather` 和 `Alltoall` 操作所需的共享内存（Shared Memory）或临时全局内存（Global Memory）大小。
-- **批处理GEMM**: 利用 `cublas` 或自定义的 `GEMM` kernel 实现批处理矩阵乘法。
+- **批处理GEMM**: 利用 `cutlas` 或自定义的 `GEMM` kernel 实现批处理矩阵乘法。
 - **数据重排布**: `Transpose` 和 `View` 操作需要在核函数内部通过高效的内存拷贝和索引计算来实现。
 - **同步**: 在通信和计算步骤之间需要适当的同步（e.g., `__syncthreads()`）来保证数据依赖的正确性。
 
