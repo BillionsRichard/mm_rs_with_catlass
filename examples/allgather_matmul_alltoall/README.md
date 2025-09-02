@@ -81,17 +81,18 @@ graph TD
     end
 ```
 
-# 3. 验证方案
-Host侧验证:
-数据生成:
-在每个 rank i 上，生成其独特的输入激活 A_i (shape [M, K]) 和权重 B_i (shape [K, N/rankSize])。
-Golden结果计算 (精确模拟):
-为了正确验证，需要在Host侧精确模拟算子的计算流，而不是进行简单的拼接后矩阵乘法。
-模拟Allgather: A_gathered = stack(A_0, A_1, ...)。
-模拟Batched Matmul: 对于每个Rank i，计算 C_partial_i = A_gathered @ B_i。
-模拟Alltoall/Scatter: 重新组织 C_partial 结果。对于每个目标Rank j，收集所有 C_partial_i 中的第 j 片，即 (C_partial_0[j], C_partial_1[j], ...)。
-模拟Final Transpose: 对收集到的数据进行最终的转置和塑形，得到每个Rank j的最终Golden结果 C_golden_j。
-执行算子:
-所有 rank 调用融合算子核函数，得到各自的输出 C_npu_i。
-结果校验:
-在每个 rank i 上，比较其算子输出 C_npu_i 和对应的 C_golden_i，确保误差在允许范围内。
+## 3. 验证方案
+
+- **Host侧验证**:
+  - **数据生成**:
+    - 在每个 rank `i` 上，生成其独特的输入激活 `A_i` (shape `[M, K]`) 和权重 `B_i` (shape `[K, N/rankSize]`)。
+  - **Golden结果计算 (精确模拟)**:
+    - 为了正确验证，需要**在Host侧精确模拟算子的计算流**，而不是进行简单的拼接后矩阵乘法。
+    - **模拟Allgather**: `A_gathered = stack(A_0, A_1, ...)`。
+    - **模拟Batched Matmul**: 对于每个Rank `i`，计算 `C_partial_i = A_gathered @ B_i`。
+    - **模拟Alltoall/Scatter**: 重新组织 `C_partial` 结果。对于每个目标Rank `j`，收集所有 `C_partial_i` 中的第 `j` 片，即 `(C_partial_0[j], C_partial_1[j], ...)`。
+    - **模拟Final Transpose**: 对收集到的数据进行最终的转置和塑形，得到每个Rank `j`的最终Golden结果 `C_golden_j`。
+  - **执行算子**:
+    - 所有 rank 调用融合算子核函数，得到各自的输出 `C_npu_i`。
+  - **结果校验**:
+    - 在每个 rank `i` 上，比较其算子输出 `C_npu_i` 和对应的 `C_golden_i`，确保误差在允许范围内。
