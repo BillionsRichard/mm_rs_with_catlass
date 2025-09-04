@@ -9,6 +9,7 @@
 #include "catlass/arch/cross_core_sync.hpp"
 #include "catlass/gemm_coord.hpp"
 #include "catlass/matrix_coord.hpp"
+#include "catlass/gemm/block/block_swizzle.hpp"
 
 namespace Catcoc::DGemm::Kernel {
 
@@ -79,8 +80,8 @@ public:
     };
 
     struct Workspace {
-        ElementA* ptr_ag_out;
-        ElementC* ptr_scatter_out;
+        GM_ADDR ptr_ag_out;
+        GM_ADDR ptr_scatter_out;
         
         uint32_t ag_out_size_per_stage;
         // Size of the buffer for one (dest_rank, src_rank) pair
@@ -96,23 +97,22 @@ public:
             ag_out_size_per_stage = params.rankSize * commSizeM * K;
             scatter_chunk_size_per_stage = commSizeM * N_per_rank;
 
-            uint8_t* smem_base_ptr = reinterpret_cast<uint8_t*>(params.ptrSymmetric);
-            ptr_ag_out = reinterpret_cast<ElementA*>(smem_base_ptr);
+            ptr_ag_out = params.ptrSymmetric;
             
             uint32_t scatter_out_offset = WORKSPACE_STAGES * ag_out_size_per_stage * sizeof(ElementA);
-            ptr_scatter_out = reinterpret_cast<ElementC*>(smem_base_ptr + scatter_out_offset);
+            ptr_scatter_out = params.ptrSymmetric + scatter_out_offset;
         }
 
-        CATLASS_DEVICE ElementA* GetAgOut(uint32_t stageId) {
-            return ptr_ag_out + stageId * ag_out_size_per_stage;
+        CATLASS_DEVICE GM_ADDR GetAgOut(uint32_t stageId) {
+            return ptr_ag_out + stageId * ag_out_size_per_stage * sizeof(ElementA);
         }
 
         // Gets the pointer to the buffer for (dest_rank, src_rank)
-        CATLASS_DEVICE ElementC* GetScatterChunk(uint32_t stageId, uint32_t dest_rank, uint32_t src_rank, uint32_t rankSize) {
+        CATLASS_DEVICE GM_ADDR GetScatterChunk(uint32_t stageId, uint32_t dest_rank, uint32_t src_rank, uint32_t rankSize) {
             uint32_t stage_offset = stageId * (rankSize * rankSize * scatter_chunk_size_per_stage);
             uint32_t dest_rank_offset = dest_rank * (rankSize * scatter_chunk_size_per_stage);
             uint32_t src_rank_offset = src_rank * scatter_chunk_size_per_stage;
-            return ptr_scatter_out + stage_offset + dest_rank_offset + src_rank_offset;
+            return ptr_scatter_out + (stage_offset + dest_rank_offset + src_rank_offset) * sizeof(ElementC);
         }
     };
 
@@ -146,7 +146,8 @@ public:
             Catlass::Arch::CrossCoreWaitFlag(flagAivFinishAllGather[stageId]);
             
             for (uint32_t dest_rank_j = 0; dest_rank_j < params.rankSize; ++dest_rank_j) {
-                ElementA* ptr_A_j = workspace.GetAgOut(stageId) + dest_rank_j * actualCommSizeM * K;
+                GM_ADDR ptr_A_j_base = workspace.GetAgOut(stageId);
+                GM_ADDR ptr_A_j = ptr_A_j_base + dest_rank_j * actualCommSizeM * K * sizeof(ElementA);
                 auto layout_A_j = Catlass::layout::RowMajor(actualCommSizeM, K);
                 AscendC::GlobalTensor<ElementA> smem_a_j;
                 smem_a_j.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(ptr_A_j));
@@ -154,14 +155,14 @@ public:
                 AscendC::GlobalTensor<ElementB> gmB;
                 gmB.SetGlobalBuffer(reinterpret_cast<__gm__ ElementB *>(params.ptrB));
 
-                ElementC* ptr_scatter_dest = workspace.GetScatterChunk(stageId, dest_rank_j, my_rank_i, params.rankSize);
+                GM_ADDR ptr_scatter_dest = workspace.GetScatterChunk(stageId, dest_rank_j, my_rank_i, params.rankSize);
                 auto layout_scatter_dest = Catlass::layout::RowMajor(actualCommSizeM, N_per_rank);
                 AscendC::GlobalTensor<ElementC> smem_scatter_dest;
                 smem_scatter_dest.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(ptr_scatter_dest));
 
                 BlockMmad blockMmad(resource);
                 GemmCoord problem_shape_ji = {actualCommSizeM, N_per_rank, K};
-                BlockSchedulerForMatmul scheduler(problem_shape_ji, L1TileShape::ToCoordMN());
+                Catlass::Gemm::Block::GemmIdentityBlockSwizzle<> scheduler(problem_shape_ji, L1TileShape::ToCoordMN());
                 
                 uint32_t aicoreIdx = AscendC::GetBlockIdx();
                 uint32_t aicoreNum = AscendC::GetBlockNum();
@@ -248,7 +249,7 @@ public:
                         auto layoutBlockSrc = params.layoutA.GetTileLayout(actualCommBlockShape);
                         auto gmBlockDst = gmSymmetric[layoutSymmetric.GetOffset(offsetDst)];
                         auto layoutBlockDst = layoutSymmetric.GetTileLayout(actualCommBlockShape);
-                        allGather(gmBlockSrc, layoutBlockSrc, gmBlockDst, layoutBlockDst, actualCommBlockShape, remoteRankIdx, params.teamIdx);
+                        allGather(gmBlockSrc, layoutBlockSrc, gmBlockDst, layoutBlockDst, actualCommBlockShape, remoteRankIdx);
                     }
                 }
                 allGather.FinalizeBlockLoop();
@@ -271,7 +272,8 @@ public:
                 uint32_t aicoreNum = AscendC::GetBlockNum(); // This should be GetSubBlockNum() on AIV, but let's assume GetBlockNum() is the total number of AIV cores for distribution
 
                 for (uint32_t src_rank_i = 0; src_rank_i < params.rankSize; ++src_rank_i) {
-                    ElementC* src_ptr = workspace.GetScatterChunk(stageId, my_rank_j, src_rank_i, params.rankSize);
+                    GM_ADDR src_ptr_base = workspace.GetScatterChunk(stageId, my_rank_j, src_rank_i, params.rankSize);
+                    __gm__ ElementC* src_ptr = reinterpret_cast<__gm__ ElementC*>(src_ptr_base);
                     auto layout_src = Catlass::layout::RowMajor(actualCommSizeM, N_per_rank);
 
                     MatrixCoord dst_chunk_offset = {commIdx * commSizeM, src_rank_i * N_per_rank};
