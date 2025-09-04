@@ -1,0 +1,26 @@
+设计 prompt：
+
+现在有两个基于Ascend SHMEM库开发的计算通信融合算子，你需要认真研究这两个算子：
+1.allgather_matmul_dequant算子： examples/allgather_matmul_dequant/README.md是算子设计文档， 
+examples/allgather_matmul_dequant 是该融合算子的host侧调用及验证实现，
+examples/templates/include/catcoc/dgemm/kernel/allgather_dequant_matmul.hpp是其 device 侧实现；
+即核函数实现。
+2. matmul_reduce_scatter_dequant算子: examples/matmul_reduce_scatter_dequant/README.md 是算子设计文档，
+examples/matmul_reduce_scatter_dequant 是该融合算子的host侧调用及验证实现；
+examples/templates/include/catcoc/dgemm/kernel/matmul_reduce_scatter_dequant.hpp是算子核函数实现。
+
+然后完成另外一个通算融合算子的设计：allgather + matmul + alltoall，有以下信息：
+1. allgather 和 alltoall 的通信域是相同的；
+2. allgather对激活值shape影响： [M, K] ---(Allgather)---> [rankSize, M, K]；
+3. matmul 没有偏置, 权重(右矩阵）按照列切分。
+    matmul：运算输入输出 Shape 为： [rankSize， M, K] @ [K, N/rankSize] ----> [rankSize, M，N/rankSize]；
+4. matmul结果进行后两个轴的转置：[rankSize, M，N/rankSize] -> [rankSize, N/rankSize, M] 
+5. 转置的结果alltoall：[rankSize, N/rankSize, M] --alltoall-->[rankSize，N/rankSize, M] （这里shape为什么没变？因为在第一个轴上数据切分rankSzie份，各rank交换。）
+   alltoall结果view： [rankSize，N/rankSize, M] --(view)---> [N, M]--->transpose(0, 1) ---> [M, N]
+5. 不带量化功能；
+注意：输出设计文档，先不实现，尽量用中文回复我。
+
+实现prompt：
+1. 请根据设计文档，参考已有算子实现及catlass库：3rdparty/catlass 完成该算子实现，包括host测和device的实现，算子输入输出校验实现。
+注意：本catlass和业界的catlass存在差异，你不应该做假设，而应该充分参考catlass库：3rdparty/catlass的代码。
+2. 不要尝试环境搭建和编译运行，因为这依赖特定的CANN环境和NPU硬件。研究代码并实现即可，我会进行编译测试运行反馈结果。

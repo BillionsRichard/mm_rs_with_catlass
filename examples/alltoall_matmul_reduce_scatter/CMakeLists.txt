@@ -1,0 +1,1 @@
+add_example(alltoall_matmul_reduce_scatter)

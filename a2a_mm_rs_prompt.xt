@@ -1,0 +1,15 @@
+现在有两个基于Ascend SHMEM库开发的计算通信融合算子，你需要认真研究这两个算子：
+1.allgather_matmul_dequant算子： examples/allgather_matmul_dequant/README.md是算子设计文档， 
+examples/allgather_matmul_dequant 是该融合算子的host侧调用及验证实现，
+examples/templates/include/catcoc/dgemm/kernel/allgather_dequant_matmul.hpp是其device侧实现；
+即核函数实现。
+2. matmul_reduce_scatter_dequant算子: examples/matmul_reduce_scatter_dequant/README.md 是算子设计文档，
+examples/matmul_reduce_scatter_dequant 是该融合算子的host侧调用及验证实现；
+examples/templates/include/catcoc/dgemm/kernel/matmul_reduce_scatter_dequant.hpp是算子核函数实现。
+
+然后完成另外一个通算融合算子的设计：alltoall+matmul+reduce_scatter，有以下信息：
+1. alltoall 和 reduce_scatter 的通信域是相同的；
+2. matmul 没有偏置；
+3. matmul 的权重(右矩阵）按照行切分；
+4. 不带量化功能；
+注意：输出设计文档，先不实现，尽量用中文回复我。
