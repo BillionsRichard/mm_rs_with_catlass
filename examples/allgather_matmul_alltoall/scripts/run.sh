@@ -29,7 +29,7 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r M K N; do
 
     # Generate golden data
     rm -rf output/*.bin
-    python3 ${GEN_DATA_VERIFY}/gen_data.py ${RANK_SIZE} ${M} ${N} ${K}
+    python3 ${GEN_DATA_VERIFY}/gen_data.py ${M} ${N} ${K} ${RANK_SIZE} 
 
     # Set necessary parameters
     IPPORT="tcp://127.0.0.1:27088"
