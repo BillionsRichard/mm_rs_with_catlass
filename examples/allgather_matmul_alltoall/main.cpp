@@ -48,9 +48,10 @@ void ShmemAllGatherMatmulAlltoall(uint64_t fftsAddr, GM_ADDR a, GM_ADDR b, GM_AD
     LayoutB layoutB{k, n / rankSize};
     LayoutC layoutC{m, n};
     
-    using MmadDispatchPolicy = Catlass::Gemm::MmadAtlasA2Pingpong;
-    using L1TileShape = Catlass::GemmShape<128, 128, 64>;
-    using L0TileShape = Catlass::GemmShape<64, 64, 32>;
+    using MmadDispatchPolicy = Catlass::Gemm::MmadAtlasA2Pingpong<true>;
+    using L1TileShape = Catlass::GemmShape<128, 256, 256>;
+    using L0TileShape = Catlass::GemmShape<128, 256, 64>;
+    
     using AType = Catlass::Gemm::GemmType<ElementA, LayoutA>;
     using BType = Catlass::Gemm::GemmType<ElementB, LayoutB>;
     using CType = Catlass::Gemm::GemmType<ElementC, Catlass::layout::RowMajor>;
@@ -70,19 +71,19 @@ void ShmemAllGatherMatmulAlltoall(uint64_t fftsAddr, GM_ADDR a, GM_ADDR b, GM_AD
     using BlockEpilogueAllGather = CommEpilogue::Block::CommBlockEpilogue<AllGatherDispatch, RemoteType, RemoteType, CommCoreSplit, CommBlockShape, CommTileShape, TileRemoteCopy, TileScheduler>;
     
     using DType = CType;
-    using EpilogueDispatch = Catlass::Epilogue::EpilogueAtlasA2<2>;
+    // using ACL_CHECK = Catlass::Epilogue::EpilogueAtlasA2<2>;
     using CopyTileScheduler = Catlass::Epilogue::Tile::EpilogueIdentityTileSwizzle;
     using TileCopy = Catlass::Epilogue::Tile::TileCopy<ArchTag, CType, CType, DType>;
-    using BlockEpilogueScatter = Catlass::Epilogue::Block::BlockEpilogue<EpilogueDispatch, CType, CType, DType, TileCopy, TileCopy, TileCopy, TileCopy, CopyTileScheduler>;
+    // using BlockEpilogueScatter = Catlass::Epilogue::Block::BlockEpilogue<ACL_CHECK, CType, CType, DType, TileCopy, TileCopy, TileCopy, TileCopy, CopyTileScheduler>;
 
     constexpr uint32_t WORKSPACE_STAGES = 2;
     constexpr uint32_t COMM_INTERVAL = 3;
-    using Kernel = DGemm::Kernel::AllGatherMatmulAlltoall<BlockMmad, BlockEpilogueAllGather, BlockEpilogueScatter, BlockSchedulerForMatmul, CommBlockScheduler>;
+    using Kernel = DGemm::Kernel::AllGatherMatmulAlltoall<BlockMmad, BlockEpilogueAllGather, BlockSchedulerForMatmul, CommBlockScheduler>;
     
     typename BlockEpilogueAllGather::Params agParams{};
-    typename BlockEpilogueScatter::Params scatterParams{};
+    // typename BlockEpilogueScatter::Params scatterParams{};
     
-    typename Kernel::Params params{problemShape, rank, rankSize, teamIdx, a, layoutA, b, layoutB, c, layoutC, ws, agParams, scatterParams, COMM_INTERVAL};
+    typename Kernel::Params params{problemShape, rank, rankSize, teamIdx, a, layoutA, b, layoutB, c, layoutC, ws, agParams, COMM_INTERVAL};
     Kernel kernel;
     kernel(params);
 }
@@ -122,9 +123,9 @@ int main(int argc, char **argv) {
     ACL_CHECK(aclrtSetDevice(options.deviceIdList[rankId]));
     ACL_CHECK(aclrtCreateStream(&stream));
     shmem_init_attr_t *attributes;
-    SHMEM_CHECK(shmem_set_attr(rankId, rankSize, 1024UL * 1024 * 1024, options.ipPort.c_str(), &attributes));
-    SHMEM_CHECK(shmem_init_attr(attributes));
-    SHMEM_CHECK(shmem_init_status());
+    ACL_CHECK(shmem_set_attr(rankId, rankSize, 1024UL * 1024 * 1024, options.ipPort.c_str(), &attributes));
+    ACL_CHECK(shmem_init_attr(attributes));
+    ACL_CHECK(shmem_init_status());
     
     uint32_t n_per_rank = n / rankSize;
     size_t aSize = (size_t)m * k * sizeof(ElementA);
@@ -165,7 +166,7 @@ int main(int argc, char **argv) {
     ACL_CHECK(aclrtFree(aDev));
     ACL_CHECK(aclrtFree(bDev));
     ACL_CHECK(aclrtFree(cDev));
-    SHMEM_CHECK(shmem_finalize());
+    ACL_CHECK(shmem_finalize());
     ACL_CHECK(aclrtDestroyStream(stream));
     ACL_CHECK(aclrtResetDevice(options.deviceIdList[rankId]));
     ACL_CHECK(aclFinalize());
