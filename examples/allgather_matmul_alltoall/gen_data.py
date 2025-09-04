@@ -11,6 +11,7 @@ def gen_and_save_data(M, N, K, rank_size, dtype=np.float16):
 
     if N % rank_size != 0:
         raise ValueError("N must be divisible by rank_size")
+    
     N_per_rank = N // rank_size
 
     # 1. Generate Inputs for each rank

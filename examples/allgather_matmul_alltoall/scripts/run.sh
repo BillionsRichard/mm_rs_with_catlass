@@ -7,6 +7,11 @@ export debug=0
 CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 PROJECT_ROOT=$( dirname $( dirname $(dirname "$SCRIPT_DIR")))
+
+echo "PROJECT_ROOT=${PROJECT_ROOT}"
+export PYTHONPATH=${PROJECT_ROOT}/examples/utils:$PYTHONPATH
+
+
 # UTILS_PATH=${PROJECT_ROOT}/examples/utils
 CSV_FILE="${SCRIPT_DIR}/test_shapes.csv"
 GEN_DATA_VERIFY=`realpath ${PROJECT_ROOT}/examples/allgather_matmul_alltoall`
@@ -45,7 +50,7 @@ tail -n +2 "$CSV_FILE" | while IFS=',' read -r M K N; do
     # Verify output
     for (( idx =0; idx < ${RANK_SIZE}; idx = idx + 1 )); do
         # ${EXEC_BIN} "$RANK_SIZE" "$idx" "$IPPORT" "$M" "$N" "$K" ${DATA_DIR} "$1" &
-        python3 ${GEN_DATA_VERIFY}/verify_result.py ${DATA_DIR}/output_rank${idx}.bin ${DATA_DIR}/golden_rank${idx}.bin 1 ${M} ${N} ${K}
+        python3 ${GEN_DATA_VERIFY}/verify_result.py ${RANK_SIZE} ${DATA_DIR}/output_rank${idx}.bin ${DATA_DIR}/golden_rank${idx}.bin 1 ${M} ${N} ${K}
     done
 done
 

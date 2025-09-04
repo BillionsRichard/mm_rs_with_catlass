@@ -28,6 +28,7 @@
 #include "catcoc/dgemm/block/block_swizzle_allgather.hpp"
 #include "catcoc/dgemm/kernel/allgather_matmul_alltoall.hpp"
 
+static uint64_t gNpuMallocSpace = 1024UL * 1024UL * 1024;
 using namespace AscendC;
 using namespace Catcoc;
 using ElementA = half;
@@ -89,43 +90,85 @@ void ShmemAllGatherMatmulAlltoall(uint64_t fftsAddr, GM_ADDR a, GM_ADDR b, GM_AD
 }
 
 struct Options {
-    int rankSize, rankId;
+    static constexpr auto HELPER =
+       "Usage: allgather_matmul_alltoall rank_size rank_id ip_port m n k [device_id_list]\n";
+    int rankSize;
+    int rankId;
     std::string ipPort;
-    uint32_t m=0, n=0, k=0;
+    uint32_t m{0};
+    uint32_t n{0};
+    uint32_t k{0};
     std::string dataPath;
-    std::vector<int> deviceIdList;
-    int Parse(int argc, char **argv) {
-        if (argc < 8) { printf("Usage: %s rank_size rank_id ip_port m n k data_path [device_list]\n", argv[0]); return -1; }
-        rankSize = std::atoi(argv[1]);
-        rankId = std::atoi(argv[2]);
-        ipPort = argv[3];
-        m = std::atoi(argv[4]);
-        n = std::atoi(argv[5]);
-        k = std::atoi(argv[6]);
-        dataPath = argv[7];
-        if (argc > 8) {
-            char *idListStr = argv[8];
-            for (char *idToken = std::strtok(idListStr, ","); idToken; idToken = std::strtok(nullptr, ",")) { deviceIdList.push_back(std::atoi(idToken)); }
+    std::vector<int> deviceIdList{};
+    int Parse(int argc, char **argv)
+    {
+        enum ArgsIndex {
+            RANK_SIZE_INDEX = 1,
+            RANK_ID_INDEX,
+            IP_PORT_INDEX,
+            M_INDEX,
+            N_INDEX,
+            K_INDEX,
+            DATA_PATH_INDEX,
+            DEVICE_LIST_INDEX,
+            INDEX_MAX
+        };
+
+        if (argc > INDEX_MAX) {
+            printf(HELPER);
+            return -1;
+        }
+        rankSize = std::atoi(argv[RANK_SIZE_INDEX]);
+        rankId = std::atoi(argv[RANK_ID_INDEX]);
+        ipPort = argv[IP_PORT_INDEX];
+        m = std::atoi(argv[M_INDEX]);
+        n = std::atoi(argv[N_INDEX]);
+        k = std::atoi(argv[K_INDEX]);
+        dataPath = argv[DATA_PATH_INDEX];
+        if (argc > DEVICE_LIST_INDEX) {
+            char *idListStr = argv[DEVICE_LIST_INDEX];
+            for (char *idToken = std::strtok(idListStr, ","); idToken; idToken = std::strtok(nullptr, ",")) {
+                deviceIdList.push_back(std::atoi(idToken));
+            }
         } else {
-            for (size_t i = 0; i < rankSize; ++i) deviceIdList.push_back(i);
+            for (size_t i = 0; i < rankSize; ++i) {
+                deviceIdList.push_back(i);
+            }
         }
         return 0;
     }
+    std::string GetDataPath(std::string const &fileName = "") const
+    {
+        return dataPath + "/" + fileName;
+    }
 };
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
+    int status = SHMEM_SUCCESS;
     Options options;
-    if (options.Parse(argc, argv) != 0) { std::cerr << "Invalid args\n"; return 1; }
-    int rankSize = options.rankSize, rankId = options.rankId;
-    uint32_t m = options.m, n = options.n, k = options.k;
+    if (options.Parse(argc, argv) != 0) {
+        std::cerr << "Invalid arguments\n";
+        return 1;
+    }
+    int rankSize = options.rankSize;
+    int rankId = options.rankId;
+    std::string ipPort = options.ipPort;
+    uint32_t m = options.m;
+    uint32_t n = options.n;
+    uint32_t k = options.k;
+    int32_t deviceId = options.deviceIdList[rankId];
+
+    std::cout << "[TEST] input rank_size: " << rankSize << " rank_id:" << rankId << " input_ip: " << ipPort << std::endl;
     aclrtStream stream = nullptr;
     ACL_CHECK(aclInit(nullptr));
-    ACL_CHECK(aclrtSetDevice(options.deviceIdList[rankId]));
+    ACL_CHECK(aclrtSetDevice(deviceId));
     ACL_CHECK(aclrtCreateStream(&stream));
+    status = shmem_set_conf_store_tls(false, nullptr, 0);
     shmem_init_attr_t *attributes;
-    ACL_CHECK(shmem_set_attr(rankId, rankSize, 1024UL * 1024 * 1024, options.ipPort.c_str(), &attributes));
-    ACL_CHECK(shmem_init_attr(attributes));
-    ACL_CHECK(shmem_init_status());
+    status = shmem_set_attr(rankId, rankSize, gNpuMallocSpace, ipPort.c_str(), &attributes);
+    status = shmem_init_attr(attributes);
+    status = shmem_init_status();
     
     uint32_t n_per_rank = n / rankSize;
     size_t aSize = (size_t)m * k * sizeof(ElementA);
@@ -136,10 +179,13 @@ int main(int argc, char **argv) {
     ACL_CHECK(aclrtMallocHost((void **)(&aHost), aSize));
     ReadFile(options.dataPath + "/a_gm_rank" + std::to_string(rankId) + ".bin", aHost, aSize);
     ACL_CHECK(aclrtMemcpy(aDev, aSize, aHost, aSize, ACL_MEMCPY_HOST_TO_DEVICE));
+
     ACL_CHECK(aclrtMalloc((void **)(&bDev), bSize, ACL_MEM_MALLOC_HUGE_FIRST));
     ACL_CHECK(aclrtMallocHost((void **)(&bHost), bSize));
     ReadFile(options.dataPath + "/b_gm_rank" + std::to_string(rankId) + ".bin", bHost, bSize);
     ACL_CHECK(aclrtMemcpy(bDev, bSize, bHost, bSize, ACL_MEMCPY_HOST_TO_DEVICE));
+
+
     ACL_CHECK(aclrtMalloc((void **)(&cDev), cSize, ACL_MEM_MALLOC_HUGE_FIRST));
     ACL_CHECK(aclrtMallocHost((void **)(&cHost), cSize));
     ACL_CHECK(aclrtMemset(cDev, cSize, 0, cSize));
@@ -153,9 +199,25 @@ int main(int argc, char **argv) {
     size_t totalWorkspace = (ag_bytes_per_stage + scatter_bytes_per_stage) * WORKSPACE_STAGES;
     
     void *symmPtr = shmem_malloc(totalWorkspace);
+
     ACL_CHECK(aclrtSynchronizeStream(stream));
-    ShmemAllGatherMatmulAlltoall<<<20, nullptr, stream>>>(shmemx_get_ffts_config(), aDev, bDev, cDev, (uint8_t*)symmPtr, m, n, k);
+    std::cout << "Before calling AG_MM_A2A kernel " << std::endl;
+    for (int i = 0; i < 1; i++) {
+        ShmemAllGatherMatmulAlltoall<<<20, nullptr, stream>>>(
+            shmemx_get_ffts_config(), 
+            aDev, 
+            bDev, 
+            cDev, 
+            (uint8_t*)symmPtr, 
+            m, 
+            n, 
+            k);
+    }
     ACL_CHECK(aclrtSynchronizeStream(stream));
+    std::cout << "calling AG_MM_A2A kernel over." << std::endl;
+    // ShmemAllGatherMatmulAlltoall<<<20, nullptr, stream>>>(shmemx_get_ffts_config(), aDev, bDev, cDev, (uint8_t*)symmPtr, m, n, k);
+    // ACL_CHECK(aclrtSynchronizeStream(stream));
+    
     ACL_CHECK(aclrtMemcpy(cHost, cSize, cDev, cSize, ACL_MEMCPY_DEVICE_TO_HOST));
     WriteFile(options.dataPath + "/output_rank" + std::to_string(rankId) + ".bin", cHost, cSize);
     
@@ -170,5 +232,8 @@ int main(int argc, char **argv) {
     ACL_CHECK(aclrtDestroyStream(stream));
     ACL_CHECK(aclrtResetDevice(options.deviceIdList[rankId]));
     ACL_CHECK(aclFinalize());
+
+    std::cout << "[TEST] begin to exit...... rankId: " << rankId << std::endl;
+    
     return 0;
 }
