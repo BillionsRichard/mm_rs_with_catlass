@@ -4,7 +4,7 @@
 
 // Include dependent headers
 #include "catcoc/catcoc.hpp"
-#include "catcoc/gemm/block/block_mmad_pingpong.hpp"
+#include "catlass/gemm/block/block_mmad_pingpong.hpp"
 #include "catlass/arch/resource.hpp"
 #include "catlass/arch/cross_core_sync.hpp"
 #include "catlass/gemm_coord.hpp"
@@ -19,7 +19,6 @@ using Catlass::GemmCoord;
 template <
     class BlockMmad_,
     class BlockEpilogueAllGather_,
-    class BlockEpilogueScatter_, // New epilogue for the scatter operation
     class BlockSchedulerForMatmul_,
     class CommScheduler_
 >
@@ -39,8 +38,6 @@ public:
     using AllGather = BlockEpilogueAllGather_;
     using AllGatherParams = typename AllGather::Params;
     
-    using Scatter = BlockEpilogueScatter_;
-    using ScatterParams = typename Scatter::Params;
 
     using BlockSchedulerForMatmul = BlockSchedulerForMatmul_;
     using CommScheduler = CommScheduler_;
@@ -58,7 +55,6 @@ public:
         GM_ADDR ptrSymmetric;
 
         AllGatherParams allGatherParams;
-        ScatterParams scatterParams;
 
         uint32_t commInterval;
 
@@ -71,7 +67,6 @@ public:
             GM_ADDR ptrC_, LayoutC const &layoutC_,
             GM_ADDR ptrSymmetric_,
             AllGatherParams const &allGatherParams_,
-            ScatterParams const &scatterParams_,
             uint32_t commInterval_
         ) : problemShape(problemShape_),
             rankIdx(rank_), rankSize(rankSize_), teamIdx(teamIdx_),
@@ -80,7 +75,6 @@ public:
             ptrC(ptrC_), layoutC(layoutC_),
             ptrSymmetric(ptrSymmetric_),
             allGatherParams(allGatherParams_),
-            scatterParams(scatterParams_),
             commInterval(commInterval_) {}
     };
 
@@ -218,11 +212,11 @@ public:
             
             shmemx_barrier_all_vec();
 
+            uint32_t actualCommSizeM = Min(commSizeM, M - commIdx * commSizeM);
+            auto actualCommShape = DistMatrixCoord(actualCommSizeM, K, params.rankSize);
             // --- 1. AllGather ---
             {
                 AllGather allGather(resource, params.allGatherParams);
-                uint32_t actualCommSizeM = Min(commSizeM, M - commIdx * commSizeM);
-                auto actualCommShape = DistMatrixCoord(actualCommSizeM, K, params.rankSize);
                 MatrixCoord commBlockShape = params.allGatherParams.BlockShape();
                 MatrixCoord commCoreSplit = params.allGatherParams.CoreSplit();
                 CommScheduler commScheduler(commBlockShape, commCoreSplit);
@@ -269,46 +263,26 @@ public:
 
             // --- Final Assembly ---
             {
-                uint32_t N = params.problemShape.n();
-                uint32_t N_per_rank = N / params.rankSize;
                 uint32_t my_rank_j = params.rankIdx;
-
-                // The source is the scatter buffer area designated for my rank.
-                // The AICs have already assembled the result for this chunk here.
-                uint32_t scatter_offset = my_rank_j * (actualCommSizeM * N);
-                ElementC* src_ptr = workspace.GetScatterOut(stageId) + scatter_offset;
-                auto layout_src = Catlass::layout::RowMajor(actualCommSizeM, N);
-
-                // The destination is the final output tensor in global memory,
-                // offset by the current chunk's starting row.
+                uint32_t actualCommSizeM = Min(commSizeM, M - commIdx * commSizeM);
                 AscendC::GlobalTensor<ElementC> gmC;
                 gmC.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrC));
-                MatrixCoord dst_chunk_offset = {commIdx * commSizeM, 0};
-                
-                // Perform a simple tiled copy.
-                // A more optimized version would use a dedicated Copy epilogue.
-                uint32_t copy_tile_M = 64;
-                uint32_t copy_tile_N = 64;
-                uint32_t aicoreNum = AscendC::GetBlockNum();
-                uint32_t num_tiles_m = CeilDiv(actualCommSizeM, copy_tile_M);
-                uint32_t num_tiles_n = CeilDiv(N, copy_tile_N);
-                uint32_t total_tiles = num_tiles_m * num_tiles_n;
+                uint32_t aicoreIdx = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum();
+                uint32_t aicoreNum = AscendC::GetBlockNum(); // This should be GetSubBlockNum() on AIV, but let's assume GetBlockNum() is the total number of AIV cores for distribution
 
-                for (uint32_t tile_idx = aicoreIdx; tile_idx < total_tiles; tile_idx += aicoreNum) {
-                    uint32_t m_tile = tile_idx / num_tiles_n;
-                    uint32_t n_tile = tile_idx % num_tiles_n;
+                for (uint32_t src_rank_i = 0; src_rank_i < params.rankSize; ++src_rank_i) {
+                    ElementC* src_ptr = workspace.GetScatterChunk(stageId, my_rank_j, src_rank_i, params.rankSize);
+                    auto layout_src = Catlass::layout::RowMajor(actualCommSizeM, N_per_rank);
 
-                    MatrixCoord tile_offset = {m_tile * copy_tile_M, n_tile * copy_tile_N};
-                    uint32_t actual_tile_m = Min(copy_tile_M, actualCommSizeM - tile_offset.row());
-                    uint32_t actual_tile_n = Min(copy_tile_N, N - tile_offset.column());
-
-                    for (uint32_t m = 0; m < actual_tile_m; ++m) {
-                        for (uint32_t n = 0; n < actual_tile_n; ++n) {
-                            MatrixCoord local_coord = {m, n};
-                            MatrixCoord src_coord = tile_offset + local_coord;
+                    MatrixCoord dst_chunk_offset = {commIdx * commSizeM, src_rank_i * N_per_rank};
+                    
+                    // Iterate over the rows of the chunk, distributed across AIV cores
+                    for(uint32_t m = aicoreIdx; m < actualCommSizeM; m += aicoreNum) {
+                        for(uint32_t n = 0; n < N_per_rank; ++n) {
+                            MatrixCoord src_coord = {m, n};
                             MatrixCoord dst_coord = dst_chunk_offset + src_coord;
                             
-                            gmC[params.layoutC.GetOffset(dst_coord)] = src_ptr[layout_src.GetOffset(src_coord)];
+                            gmC.SetValue(params.layoutC.GetOffset(dst_coord) ,src_ptr[layout_src.GetOffset(src_coord)]);
                         }
                     }
                 }

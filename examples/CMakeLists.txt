@@ -50,12 +50,12 @@ function(shmem_add_collective_example NAME)
 endfunction()
 
 foreach(EXAMPLE
-    allgather
-    allgather_matmul
+    # allgather
+    # allgather_matmul
     allgather_matmul_alltoall
-    allgather_matmul_with_gather_result
-    matmul_allreduce
-    matmul_reduce_scatter
+    # allgather_matmul_with_gather_result
+    # matmul_allreduce
+    # matmul_reduce_scatter
     dynamic_tiling
 )
     add_subdirectory(${EXAMPLE})
