@@ -1,4 +1,4 @@
-# Allgather + Matmul with Fused-Scatter 融合算子设计文档
+# Allgather + Matmul + alltoall 融合算子设计文档
 
 ## 1. 算子功能描述
 
@@ -17,7 +17,7 @@
 本算子的所有跨Rank通信均通过**对称内存**完成。对称内存是一块由 `shmem_malloc` 在所有Rank上分配的大小和地址均相同的特殊内存区域。任何一个Rank都可以通过SHMEM提供的通信接口（如`shmem_put`/`shmem_get`）直接读写其他Rank的对称内存，这为高效的核函数内（In-Kernel）通信提供了基础。
 
 - **Allgather阶段**: AIV核利用对称内存作为公告板，所有Rank将自己的输入`A`写入该内存，从而实现数据汇集。
-- **Matmul-Scatter阶段**: AIC核在计算出结果后，利用对称内存作为高速通道，直接将数据“投递”给目标Rank，避免了写回本地DDR再由AIV搬运的开销。
+- **Matmul-Scatter阶段**: AIC核在计算出结果后，利用对称内存作为高速通道，直接将数据“投递”给目标Rank，避免了写回本地 HBM 再由 AIV 搬运的开销。
 
 ### 2.2. 数据流与Shape变换
 
@@ -31,14 +31,14 @@
     *   **操作**: 所有Rank的AIV核协同，将各自的 `A_i` 写入对称内存工作区。
     *   **结果**: 在对称内存中形成一个完整的 `A_gathered` 张量，逻辑Shape: `[rankSize, M, K]`。
 
-3.  **阶段二: Matmul with Fused Scatter (AIC Core)**:
+3.  **阶段二: Matmul with Alltoall (AIC Core)**:
     *   **操作**: 每个Rank `i`的AIC核从对称内存中读取完整的 `A_gathered`，并与自己的权重分片 `B_i` 相乘。
     *   **融合通信**: 对于计算出的每一个数据块，例如 `A_j @ B_i`（`A_gathered`的第`j`片与`B_i`的乘积），AIC核判断出其最终归属地应为Rank `j`。
     *   **直接写入**: AIC核通过SHMEM接口，将 `A_j @ B_i` 的计算结果直接写入对称内存中为Rank `j`预留的接收区域。
     *   **结果**: 当所有AIC核计算完成后，对称内存中Rank `j`的接收区域已经包含了来自所有其他Rank `i`计算的 `(A_j @ B_0, A_j @ B_1, ...)` 的结果。
 
 4.  **阶段三: Final Transpose & Copy (AIV Core)**:
-    *   **操作**: 每个Rank `j`的AIV核从自己的接收区域读取所有数据块，其逻辑Shape为 `[rankSize, M, N/rankSize]`，但数据内容已经是 `(A_j@B_0, A_j@B_1, ...)`。
+    *   **操作**: 每个Rank `j`的AIV核从自己的接收区域读取所有数据块，其逻辑Shape为 `[rankSize, M, N/rankSize]`，但数据内容已经是 `(A_j @ B_0, A_j @ B_1, ...)`。
     *   **视图变换与转置**:
         *   数据被重新解释（view）为 `[M, N]`。
         *   （根据需要）执行转置操作，得到最终的 `[M, N]` 格式。
