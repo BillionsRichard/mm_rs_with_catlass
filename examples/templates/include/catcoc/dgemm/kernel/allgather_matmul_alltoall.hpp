@@ -4,12 +4,14 @@
 
 // Include dependent headers
 #include "catcoc/catcoc.hpp"
+// #include "device/shmem_device_rma.h"
 #include "catlass/gemm/block/block_mmad_pingpong.hpp"
 #include "catlass/arch/resource.hpp"
 #include "catlass/arch/cross_core_sync.hpp"
 #include "catlass/gemm_coord.hpp"
 #include "catlass/matrix_coord.hpp"
 #include "catlass/gemm/block/block_swizzle.hpp"
+#include <type_traits> // For std::is_same_v
 
 namespace Catcoc::DGemm::Kernel {
 
@@ -82,6 +84,7 @@ public:
     struct Workspace {
         GM_ADDR ptr_ag_out;
         GM_ADDR ptr_scatter_out;
+        GM_ADDR ptr_tmp_buffer;
         
         uint32_t ag_out_size_per_stage;
         // Size of the buffer for one (dest_rank, src_rank) pair
@@ -101,6 +104,9 @@ public:
             
             uint32_t scatter_out_offset = WORKSPACE_STAGES * ag_out_size_per_stage * sizeof(ElementA);
             ptr_scatter_out = params.ptrSymmetric + scatter_out_offset;
+
+            uint32_t tmp_buffer_offset = scatter_out_offset + (WORKSPACE_STAGES * params.rankSize * params.rankSize * scatter_chunk_size_per_stage * sizeof(ElementC));
+            ptr_tmp_buffer = params.ptrSymmetric + tmp_buffer_offset;
         }
 
         CATLASS_DEVICE GM_ADDR GetAgOut(uint32_t stageId) {
@@ -269,22 +275,44 @@ public:
                 AscendC::GlobalTensor<ElementC> gmC;
                 gmC.SetGlobalBuffer(reinterpret_cast<__gm__ ElementC *>(params.ptrC));
                 uint32_t aicoreIdx = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum();
-                uint32_t aicoreNum = AscendC::GetBlockNum(); // This should be GetSubBlockNum() on AIV, but let's assume GetBlockNum() is the total number of AIV cores for distribution
+                uint32_t aicoreNum = AscendC::GetBlockNum();
 
                 for (uint32_t src_rank_i = 0; src_rank_i < params.rankSize; ++src_rank_i) {
                     GM_ADDR src_ptr_base = workspace.GetScatterChunk(stageId, my_rank_j, src_rank_i, params.rankSize);
-                    __gm__ ElementC* src_ptr = reinterpret_cast<__gm__ ElementC*>(src_ptr_base);
                     auto layout_src = Catlass::layout::RowMajor(actualCommSizeM, N_per_rank);
-
                     MatrixCoord dst_chunk_offset = {commIdx * commSizeM, src_rank_i * N_per_rank};
-                    
-                    // Iterate over the rows of the chunk, distributed across AIV cores
-                    for(uint32_t m = aicoreIdx; m < actualCommSizeM; m += aicoreNum) {
-                        for(uint32_t n = 0; n < N_per_rank; ++n) {
-                            MatrixCoord src_coord = {m, n};
-                            MatrixCoord dst_coord = dst_chunk_offset + src_coord;
-                            
-                            gmC.SetValue(params.layoutC.GetOffset(dst_coord) ,src_ptr[layout_src.GetOffset(src_coord)]);
+
+                    if (src_rank_i == my_rank_j) {
+                        // Local data, copy directly from shmem to gmem.
+                        __gm__ ElementC* src_ptr = reinterpret_cast<__gm__ ElementC*>(src_ptr_base);
+                        for(uint32_t m = aicoreIdx; m < actualCommSizeM; m += aicoreNum) {
+                            for(uint32_t n = 0; n < N_per_rank; ++n) {
+                                MatrixCoord src_coord = {m, n};
+                                MatrixCoord dst_coord = dst_chunk_offset + src_coord;
+                                gmC.SetValue(params.layoutC.GetOffset(dst_coord), src_ptr[layout_src.GetOffset(src_coord)]);
+                            }
+                        }
+                    } else {
+                        // Remote data, pull from remote rank's shmem into a temporary local shmem buffer, then copy to gmem.
+                        __gm__ ElementC* tmp_buffer_ptr = reinterpret_cast<__gm__ ElementC*>(workspace.ptr_tmp_buffer);
+                        
+                        if constexpr (std::is_same_v<ElementC, half>) {
+                             shmem_get_half_mem_nbi(
+                                tmp_buffer_ptr,
+                                reinterpret_cast<__gm__ half*>(src_ptr_base),
+                                actualCommSizeM * N_per_rank,
+                                src_rank_i
+                            );
+                        }
+                        
+                        shmemx_barrier_all_vec();
+
+                        for(uint32_t m = aicoreIdx; m < actualCommSizeM; m += aicoreNum) {
+                            for(uint32_t n = 0; n < N_per_rank; ++n) {
+                                MatrixCoord src_coord = {m, n};
+                                MatrixCoord dst_coord = dst_chunk_offset + src_coord;
+                                gmC.SetValue(params.layoutC.GetOffset(dst_coord), tmp_buffer_ptr[layout_src.GetOffset(src_coord)]);
+                            }
                         }
                     }
                 }

@@ -49,7 +49,8 @@ void ShmemAllGatherMatmulAlltoall(uint64_t fftsAddr, GM_ADDR a, GM_ADDR b, GM_AD
     LayoutB layoutB{k, n / rankSize};
     LayoutC layoutC{m, n};
     
-    using MmadDispatchPolicy = Catlass::Gemm::MmadAtlasA2Pingpong<true>;
+    constexpr bool ENABLE_UNIT_FLAG = true;
+    using MmadDispatchPolicy = Catlass::Gemm::MmadAtlasA2Pingpong<ENABLE_UNIT_FLAG>;
     using L1TileShape = Catlass::GemmShape<128, 256, 256>;
     using L0TileShape = Catlass::GemmShape<128, 256, 64>;
     

@@ -87,7 +87,7 @@ if __name__ == "__main__":
     RED = "\033[31m"
     GREEN = "\033[32m"
     RESET = "\033[0m"
-    
+    print('Verify begin.....')
     try:
         if not verify_result():
             exit(1)
