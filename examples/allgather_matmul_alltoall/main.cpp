@@ -204,8 +204,9 @@ int main(int argc, char **argv)
     ACL_CHECK(aclrtSynchronizeStream(stream));
     std::cout << "Before calling AG_MM_A2A kernel " << std::endl;
     for (int i = 0; i < 1; i++) {
+        auto ffts_cfg = shmemx_get_ffts_config();
         ShmemAllGatherMatmulAlltoall<<<20, nullptr, stream>>>(
-            shmemx_get_ffts_config(), 
+            ffts_cfg, 
             aDev, 
             bDev, 
             cDev, 
