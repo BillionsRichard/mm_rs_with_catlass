@@ -223,17 +223,22 @@ public:
                         smem_scatter_dest[offsetC], layout_scatter_dest,
                         actual_block_shape
                     );
-                    cce::printf("after mm, AIC[rank=%u, block=%u, aicoreIdx=%u] a[0]=%f, b[0]=%f, C[0]=%f, \n", 
-                                                my_rank_i, AscendC::GetBlockIdx(), aicoreIdx,
-                                                smem_a_j.GetValue(offsetA),
-                                                gmB.GetValue(offsetB),
-                                                smem_scatter_dest.GetValue(offsetC));
                     
+                    AscendC::PipeBarrier<PIPE_ALL>();
+                    for (int offset=0; offset<16; offset++){
+                        cce::printf("after mm, AIC[rank=%u, block=%u, aicoreIdx=%u, offset=%u] a=%f, b=%f, c=%f, \n", 
+                            my_rank_i, AscendC::GetBlockIdx(), aicoreIdx, offset,
+                            smem_a_j.GetValue(offset),
+                            gmB.GetValue(offset),
+                            smem_scatter_dest.GetValue(offset));
+                    }
+
                 }
             }
             
             // 设置标志位，通知AIV核当前阶段的Matmul-Scatter已完成
             Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_FIX>(flagAicFinishMatmulScatter[stageId]);
+
         }
         
         // 等待所有AICore都完成工作
@@ -256,6 +261,9 @@ public:
         uint32_t commSizeM = params.commInterval * L1TileShape::M;
         uint32_t commLoops = CeilDiv(M, commSizeM);
 
+        // 实例化AllGather模块, 移到循环外
+        AllGather allGather(resource, params.allGatherParams);
+
         // 按M维度切分，进行流水线处理
         for (uint32_t commIdx = 0; commIdx < commLoops; ++commIdx) {
             uint32_t stageId = commIdx % WORKSPACE_STAGES; // 计算当前流水线阶段
@@ -270,56 +278,78 @@ public:
 
             uint32_t actualCommSizeM = Min(commSizeM, M - commIdx * commSizeM); // 计算当前步长实际处理的M大小
             auto actualCommShape = DistMatrixCoord(actualCommSizeM, K, params.rankSize);
-            // --- 阶段一: AllGather ---
-            // AIV核负责将各自本地的矩阵A分片，通过通信汇聚到SMEM中
+            
+            // --- 阶段一: AllGather (PUSH-based PUSH模型) ---
             {
-                // 实例化AllGather模块
-                AllGather allGather(resource, params.allGatherParams);
-                // 获取通信块形状和核划分信息
+                allGather.InitBlockLoop();
+                
                 MatrixCoord commBlockShape = params.allGatherParams.BlockShape();
                 MatrixCoord commCoreSplit = params.allGatherParams.CoreSplit();
-                // 创建通信调度器
                 CommScheduler commScheduler(commBlockShape, commCoreSplit);
                 MatrixCoord loopsInRank = CeilDiv(MatrixCoord(actualCommShape.GetCoordInRank()), commBlockShape);
                 commScheduler.UpdateProblem(actualCommShape, loopsInRank);
                 auto commAicoreNum = commScheduler.GetRealCore();
                 auto commCoreLoops = commScheduler.GetCoreLoop();
-                MatrixCoord commSrcOffset{commIdx * commSizeM, 0}; // 计算源数据在M维度上的偏移
-                
-                // 获取SMEM中用于AllGather输出的Tensor
-                AscendC::GlobalTensor<ElementA> gmSymmetric;
-                gmSymmetric.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(workspace.GetAgOut(stageId)));
-                auto layoutSymmetric = Catlass::layout::RowMajor(params.rankSize * actualCommSizeM, K);
+                MatrixCoord commSrcOffset{commIdx * commSizeM, 0};
 
-                allGather.InitBlockLoop(); // 初始化块循环
-                uint32_t aicoreIdx = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum(); // 获取AIV核ID
+                uint32_t aicoreIdx = AscendC::GetBlockIdx() / AscendC::GetSubBlockNum();
                 uint32_t subcoreIdx = AscendC::GetSubBlockIdx();
+
                 if (subcoreIdx == 0 && aicoreIdx < commAicoreNum) {
-                    // 每个AIV核处理一部分AllGather任务
                     for (uint32_t loopIdx = aicoreIdx; loopIdx < commCoreLoops; loopIdx += commAicoreNum) {
                         DistMatrixCoord commBlockCoord = commScheduler.GetBlockCoord(loopIdx);
+                        
+                        uint32_t ownerRank = commBlockCoord.rank();
+
+                        // 每个Rank只处理和推送它自己的数据块
+                        if (ownerRank != params.rankIdx) {
+                            continue;
+                        }
+
+                        // 从本地GMEM准备源数据块
                         MatrixCoord blockOffsetInRank = commScheduler.GetBlockOffsetInRank(commBlockCoord.GetCoordInRank());
                         MatrixCoord actualCommBlockShape = commScheduler.GetActualBlockShapeByOffset(blockOffsetInRank);
-                        uint32_t remoteRankIdx = commBlockCoord.rank();
-                        auto offsetSrc = commSrcOffset + blockOffsetInRank; // 源偏移
-                        MatrixCoord commDstOffset{remoteRankIdx * actualCommSizeM, 0}; // 目标偏移
-                        auto offsetDst = commDstOffset + blockOffsetInRank;
+                        auto offsetSrc = commSrcOffset + blockOffsetInRank;
                         AscendC::GlobalTensor<ElementA> gmA;
                         gmA.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(params.ptrA));
-                        // 获取源数据块和目标数据块
                         auto gmBlockSrc = gmA[params.layoutA.GetOffset(offsetSrc)];
                         auto layoutBlockSrc = params.layoutA.GetTileLayout(actualCommBlockShape);
-                        auto gmBlockDst = gmSymmetric[layoutSymmetric.GetOffset(offsetDst)];
-                        auto layoutBlockDst = layoutSymmetric.GetTileLayout(actualCommBlockShape);
-                        // 调用AllGather模块执行数据拷贝/通信
-                        allGather(gmBlockSrc, layoutBlockSrc, gmBlockDst, layoutBlockDst, actualCommBlockShape, remoteRankIdx);
+
+                        // 将此数据块推送到所有Rank（包括自己）的SMEM中
+                        for (uint32_t destRank = 0; destRank < params.rankSize; ++destRank) {
+                            MatrixCoord commDstOffset{ownerRank * actualCommSizeM, 0};
+                            auto offsetDst = commDstOffset + blockOffsetInRank;
+
+                            AscendC::GlobalTensor<ElementA> gmSymmetric;
+                            gmSymmetric.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(workspace.GetAgOut(stageId)));
+                            auto layoutSymmetric = Catlass::layout::RowMajor(params.rankSize * actualCommSizeM, K);
+                            auto gmBlockDst = gmSymmetric[layoutSymmetric.GetOffset(offsetDst)];
+                            auto layoutBlockDst = layoutSymmetric.GetTileLayout(actualCommBlockShape);
+
+                            // 假设allGather是一个PUT原语: allGather(src, ..., dst, ..., dest_rank)
+                            allGather(gmBlockSrc, layoutBlockSrc, gmBlockDst, layoutBlockDst, actualCommBlockShape, destRank);
+                        }
                     }
                 }
-                allGather.FinalizeBlockLoop(); // 结束块循环
+                allGather.FinalizeBlockLoop();
             }
 
             // 向量核间同步，确保AllGather完成
             shmemx_barrier_all_vec();
+            
+            // [DEBUG] 在AllGather后添加打印，验证SMEM中的数据
+            if (commIdx == 0 && AscendC::GetBlockIdx() == 0) {
+                AscendC::GlobalTensor<ElementA> gmSymmetric;
+                gmSymmetric.SetGlobalBuffer(reinterpret_cast<__gm__ ElementA *>(workspace.GetAgOut(stageId)));
+                cce::printf("---------------AG out start @rank: %d------------------\n", params.rankIdx);
+                cce::printf("[After AG] Rank %d, Stage %d\n", params.rankIdx, stageId);
+                for (int offset=0;offset<32;offset+=1){
+                    cce::printf("ag @ offset %d->%f @rank: %d\n", offset, gmSymmetric.GetValue(offset), params.rankIdx);
+                }
+                cce::printf("---------------AG out end @rank: %d------------------\n", params.rankIdx);
+            }
+            shmemx_barrier_all_vec(); // 确保打印完成再继续
+
             // 设置标志位，通知AIC核当前阶段的AllGather已完成
             Catlass::Arch::CrossCoreSetFlag<0x2, PIPE_MTE3>(flagAivFinishAllGather[stageId]);
 
@@ -373,13 +403,6 @@ public:
                                 MatrixCoord src_coord = {m, n};
                                 MatrixCoord dst_coord = dst_chunk_offset + src_coord;
                                 gmC.SetValue(params.layoutC.GetOffset(dst_coord), src_ptr[layout_src.GetOffset(src_coord)]);
-                        // Remote data, pull from remote rank's shmem into a temporary local shmem buffer, then copy to gmem.
-                        
-                        
-
-                            // Cast to half for printing
-                            // half* tmp_half_ptr = reinterpret_cast<half*>(tmp_buffer_ptr);
-
                         }
                     }
                 }
