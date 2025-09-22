@@ -329,8 +329,8 @@ public:
                     reduceScatter(
                         gmBlockSrc, layoutBlockSrc,
                         gmBlockDst, layoutBlockDst,
-                        actualCommBlockShape, remoteRankIdx % params.rankSize,
-                        params.teamIdx
+                        actualCommBlockShape, remoteRankIdx % params.rankSize
+                        // params.teamIdx
                     );
                 }       
             }
