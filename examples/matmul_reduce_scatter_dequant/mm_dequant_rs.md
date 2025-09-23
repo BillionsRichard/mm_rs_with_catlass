@@ -94,9 +94,14 @@ graph TD
 - **AIV (AI Vector Core)**: 负责的**流程顺序改变**。先执行**本地反量化**，再执行 `Reduce-Scatter` 通信。
 
 ### 3.2 主要模块
-- **BlockMmad**: 职责不变，执行分块的INT8矩阵乘法并（在Rank0）融合偏置。
-- **BlockEpilogueDequant**: （**职责提升**）此模块现在是第一后处理阶段，负责将AIC计算出的**整个** `INT32` 累加器结果反量化为 `BFLOAT16`，并存入GM中的一块临时区域。
+- **BlockMmad**: 职责有变化，执行分块的INT8矩阵乘法并（在Rank0）融合偏置，关键变化：AIC只计算自己Rank的矩阵乘法，结果存在本地的 ptrC_accum。
+- **BlockEpilogueDequant**: （**职责提升**）此模块现在是第一后处理阶段，负责将AIC计算出的**本rank** `INT32` 累加器结果反量化为 `BFLOAT16`，并根据RS后数据去向决定结果写入到哪里。
+具体来说，反量化后处理阶段需要判断每个数据块在Reduce-Scatter之后应该属于哪个Rank。
+    - 如果属于本Rank，就解量化（INT32->bfloat16）并直接写入ptrD_out。
+    - 如果属于远程Rank j，就解量化后直接写入ptrSymmetric中为Rank j准备的区域。
+
 - **CommBlockEpilogue**: `catcoc`库提供的通信Epilogue，现在它将对 `BlockEpilogueDequant` 生成的 `BFLOAT16` 临时结果执行 `Reduce-Scatter` 操作，得到最终输出。
+执行通信：在所有Rank都完成了上述“解量化并分发”的操作后（通过一个同步屏障），我们再调用ReduceScatter的核心通信逻辑，它会从共享内存读取其他Rank的数据，并与已经存在于ptrD_out中的本地数据进行累加
 
 ## 4. 内存布局设计 (更新)
 
